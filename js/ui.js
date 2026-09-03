@@ -34,6 +34,11 @@ class SynthUI {
       if (!this.midi.midiAccess) {
         await this.midi.requestAccess();
       }
+
+      // Keep screen awake while audio is running on mobile/desktop
+      if (this.keepScreenAwake) {
+        await this.requestWakeLock();
+      }
     });
 
     // 1b. Buffer Size & Polyphony Controls
@@ -224,6 +229,91 @@ class SynthUI {
 
     // 9. Setup Visualizer controls (hides oscilloscope by default on mobile)
     this.setupVisualizerControls();
+
+    // 10. Screen Wake Lock (prevents mobile/tablet sleep during playback)
+    this.initWakeLock();
+  }
+
+  // --- Screen Wake Lock Management (Mobile Screen Stay-Awake) ---
+
+  initWakeLock() {
+    this.wakeLock = null;
+    this.keepScreenAwake = localStorage.getItem('synth_keep_screen_awake') !== 'false';
+
+    const wakeLockToggle = document.getElementById('toggle-wake-lock');
+    const wakeLockStatus = document.getElementById('wake-lock-status');
+
+    const updateStatusUI = () => {
+      if (!wakeLockStatus) return;
+      if (!('wakeLock' in navigator)) {
+        wakeLockStatus.textContent = 'UNSUPPORTED';
+        wakeLockStatus.className = 'badge badge-muted';
+        if (wakeLockToggle) wakeLockToggle.disabled = true;
+        return;
+      }
+      if (this.wakeLock) {
+        wakeLockStatus.textContent = 'AWAKE';
+        wakeLockStatus.className = 'badge badge-emerald';
+      } else if (this.keepScreenAwake) {
+        wakeLockStatus.textContent = this.synth.isAudioStarted ? 'ACQUIRING...' : 'ON AUDIO START';
+        wakeLockStatus.className = 'badge badge-cyan';
+      } else {
+        wakeLockStatus.textContent = 'DISABLED';
+        wakeLockStatus.className = 'badge badge-muted';
+      }
+    };
+
+    if (wakeLockToggle) {
+      wakeLockToggle.checked = this.keepScreenAwake;
+      wakeLockToggle.addEventListener('change', async (e) => {
+        this.keepScreenAwake = e.target.checked;
+        localStorage.setItem('synth_keep_screen_awake', this.keepScreenAwake);
+        if (this.keepScreenAwake) {
+          if (this.synth.isAudioStarted) {
+            await this.requestWakeLock();
+          }
+        } else {
+          await this.releaseWakeLock();
+        }
+        updateStatusUI();
+      });
+    }
+
+    // Re-acquire wake lock when returning to the tab/app
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible' && this.keepScreenAwake && this.synth.isAudioStarted) {
+        await this.requestWakeLock();
+      }
+    });
+
+    this.updateWakeLockUI = updateStatusUI;
+    updateStatusUI();
+  }
+
+  async requestWakeLock() {
+    if (!('wakeLock' in navigator) || !this.keepScreenAwake) return;
+    try {
+      if (!this.wakeLock) {
+        this.wakeLock = await navigator.wakeLock.request('screen');
+        this.wakeLock.addEventListener('release', () => {
+          this.wakeLock = null;
+          if (this.updateWakeLockUI) this.updateWakeLockUI();
+        });
+      }
+    } catch (err) {
+      console.warn('Screen Wake Lock error:', err);
+    }
+    if (this.updateWakeLockUI) this.updateWakeLockUI();
+  }
+
+  async releaseWakeLock() {
+    if (this.wakeLock) {
+      try {
+        await this.wakeLock.release();
+      } catch (_) {}
+      this.wakeLock = null;
+    }
+    if (this.updateWakeLockUI) this.updateWakeLockUI();
   }
 
   setupVisualizerControls() {
