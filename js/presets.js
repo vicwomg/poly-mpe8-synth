@@ -523,6 +523,214 @@ export const PRESETS = [
     }
   },
   {
+    name: 'Vocal Formant Choir',
+    params: {
+      osc1Waveform: 'sawtooth',
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: -3,
+
+      osc2Waveform: 'square',
+      osc2Octave: 0,
+      osc2Semi: 0,
+      osc2Fine: 4,
+      osc2Mix: 0.42,
+
+      filterCutoff: 1100,
+      filterResonance: 4.8,
+      filterEnvAmount: 0.35,
+      filterKeyTracking: 0.65,
+      filterAttack: 0.12,
+      filterDecay: 0.4,
+      filterSustain: 0.75,
+      filterRelease: 0.6,
+
+      ampAttack: 0.1,
+      ampDecay: 0.3,
+      ampSustain: 0.85,
+      ampRelease: 0.65,
+
+      lfoWaveform: 'sine',
+      lfoRate: 5.4,
+      lfoDepth: 0.08,
+      lfoTarget: 'pitch',
+
+      distortionEnabled: false,
+      distortionDrive: 10,
+      distortionTone: 4000,
+      distortionMix: 0.0,
+
+      delayEnabled: true,
+      delayTime: 0.32,
+      delayFeedback: 0.38,
+      delayMix: 0.25,
+
+      reverbEnabled: true,
+      reverbTime: 3.5,
+      reverbDamp: 3200,
+      reverbMix: 0.42,
+
+      masterVolume: 0.78,
+      mpePitchBendRange: 48
+    }
+  },
+  {
+    name: '8-Bit Arcade Hero',
+    params: {
+      osc1Waveform: 'square',
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: 'triangle',
+      osc2Octave: -1,
+      osc2Semi: 0,
+      osc2Fine: 0,
+      osc2Mix: 0.35,
+
+      filterCutoff: 5200,
+      filterResonance: 1.2,
+      filterEnvAmount: 0.25,
+      filterKeyTracking: 0.8,
+      filterAttack: 0.005,
+      filterDecay: 0.14,
+      filterSustain: 0.5,
+      filterRelease: 0.1,
+
+      ampAttack: 0.005,
+      ampDecay: 0.18,
+      ampSustain: 0.6,
+      ampRelease: 0.08,
+
+      lfoWaveform: 'square',
+      lfoRate: 12.0,
+      lfoDepth: 0.0,
+      lfoTarget: 'none',
+
+      distortionEnabled: true,
+      distortionDrive: 22,
+      distortionTone: 6000,
+      distortionMix: 0.35,
+
+      delayEnabled: true,
+      delayTime: 0.16,
+      delayFeedback: 0.35,
+      delayMix: 0.22,
+
+      reverbEnabled: false,
+      reverbTime: 1.0,
+      reverbDamp: 3000,
+      reverbMix: 0.1,
+
+      masterVolume: 0.76,
+      mpePitchBendRange: 48
+    }
+  },
+  {
+    name: "Cat's Meow",
+    params: {
+      osc1Waveform: 'sawtooth',
+      osc1Octave: 1,
+      osc1Semi: 0,
+      osc1Fine: -2,
+
+      osc2Waveform: 'triangle',
+      osc2Octave: 1,
+      osc2Semi: 0,
+      osc2Fine: 3,
+      osc2Mix: 0.38,
+
+      filterCutoff: 850,
+      filterResonance: 6.8,
+      filterEnvAmount: 0.88,
+      filterKeyTracking: 0.6,
+      filterAttack: 0.06,
+      filterDecay: 0.45,
+      filterSustain: 0.15,
+      filterRelease: 0.35,
+
+      ampAttack: 0.05,
+      ampDecay: 0.4,
+      ampSustain: 0.45,
+      ampRelease: 0.35,
+
+      lfoWaveform: 'sine',
+      lfoRate: 6.2,
+      lfoDepth: 0.06,
+      lfoTarget: 'pitch',
+
+      distortionEnabled: true,
+      distortionDrive: 12,
+      distortionTone: 4800,
+      distortionMix: 0.18,
+
+      delayEnabled: false,
+      delayTime: 0.2,
+      delayFeedback: 0.25,
+      delayMix: 0.15,
+
+      reverbEnabled: true,
+      reverbTime: 1.6,
+      reverbDamp: 3500,
+      reverbMix: 0.22,
+
+      masterVolume: 0.78,
+      mpePitchBendRange: 48
+    }
+  },
+  {
+    name: 'Spacey Cosmic Organ',
+    params: {
+      osc1Waveform: 'sine',
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: 'triangle',
+      osc2Octave: 1,
+      osc2Semi: 0,
+      osc2Fine: 3,
+      osc2Mix: 0.48,
+
+      filterCutoff: 3400,
+      filterResonance: 1.4,
+      filterEnvAmount: 0.2,
+      filterKeyTracking: 0.85,
+      filterAttack: 0.005,
+      filterDecay: 0.2,
+      filterSustain: 0.9,
+      filterRelease: 0.4,
+
+      ampAttack: 0.005,
+      ampDecay: 0.1,
+      ampSustain: 0.95,
+      ampRelease: 0.35,
+
+      lfoWaveform: 'sine',
+      lfoRate: 5.8,
+      lfoDepth: 0.14,
+      lfoTarget: 'pitch',
+
+      distortionEnabled: true,
+      distortionDrive: 14,
+      distortionTone: 5000,
+      distortionMix: 0.2,
+
+      delayEnabled: true,
+      delayTime: 0.36,
+      delayFeedback: 0.55,
+      delayMix: 0.38,
+
+      reverbEnabled: true,
+      reverbTime: 4.5,
+      reverbDamp: 3000,
+      reverbMix: 0.45,
+
+      masterVolume: 0.75,
+      mpePitchBendRange: 48
+    }
+  },
+  {
     name: 'Init Dual Saw',
     params: {
       osc1Waveform: 'sawtooth',
