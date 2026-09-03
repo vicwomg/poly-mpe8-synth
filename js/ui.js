@@ -1,7 +1,7 @@
 import { SynthEngine } from './synth-engine.js';
 import { MidiHandler } from './midi-handler.js';
 import { Visualizer } from './visualizer.js';
-import { PRESETS } from './presets.js';
+import { PresetManager } from './preset-manager.js';
 
 class SynthUI {
   constructor() {
@@ -12,7 +12,8 @@ class SynthUI {
     this.activeMouseNotes = new Map();
     this.activeKeyNotes = new Map();
     this.midiLogEntries = [];
-    this.currentPresetIndex = 0;
+    this.presetManager = new PresetManager();
+    this.currentPresetId = null;
     this.isMidiMonitorEnabled = false; // Disabled by default for maximum performance
   }
 
@@ -222,7 +223,7 @@ class SynthUI {
     this.initOscillatorTabs();
 
     // 7. Setup Presets
-    this.initPresets();
+    await this.initPresets();
 
     // 8. Setup MPE Performance Controls & 2D Touchpad
     this.initPerformanceSection();
@@ -419,34 +420,246 @@ class SynthUI {
     this.updateKeyboardHighlights(states);
   }
 
-  // --- Presets ---
+  // --- Presets (Factory & User Patches) ---
 
-  initPresets() {
+  async initPresets() {
+    await this.presetManager.init();
+    this.renderPresetDropdown();
+
     const select = document.getElementById('preset-select');
-    select.innerHTML = '';
-    PRESETS.forEach((p, idx) => {
-      const opt = document.createElement('option');
-      opt.value = idx;
-      opt.textContent = p.name;
-      select.appendChild(opt);
+    select?.addEventListener('change', (e) => {
+      this.loadPreset(e.target.value);
     });
 
-    select.addEventListener('change', (e) => {
-      this.loadPreset(parseInt(e.target.value, 10));
+    const btnSave = document.getElementById('btn-save-preset');
+    const btnDelete = document.getElementById('btn-delete-preset');
+
+    btnSave?.addEventListener('click', () => {
+      this.openSavePresetModal();
     });
 
-    // Load initial preset (MPE Dream Pad)
-    this.loadPreset(0);
+    btnDelete?.addEventListener('click', () => {
+      this.openDeletePresetModal();
+    });
+
+    this.setupPresetModals();
+
+    // Load initial preset (first factory preset)
+    const initial = this.presetManager.getFactoryPresets()[0];
+    if (initial) {
+      this.loadPreset(initial.id);
+    }
   }
 
-  loadPreset(index) {
-    this.currentPresetIndex = index;
-    const preset = PRESETS[index];
+  renderPresetDropdown(selectedId = null) {
+    const select = document.getElementById('preset-select');
+    if (!select) return;
+
+    select.innerHTML = '';
+    const userPresets = this.presetManager.getUserPresets();
+    const factoryPresets = this.presetManager.getFactoryPresets();
+
+    // 1. User Presets (custom patches created by user)
+    if (userPresets.length > 0) {
+      const userGroup = document.createElement('optgroup');
+      userGroup.label = 'User Presets';
+      userPresets.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        userGroup.appendChild(opt);
+      });
+      select.appendChild(userGroup);
+    }
+
+    // 2. Factory Presets (marked with '*' to indicate uneditable built-ins)
+    const factoryGroup = document.createElement('optgroup');
+    factoryGroup.label = 'Factory Presets (*)';
+    factoryPresets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.displayName; // e.g. "* Clean Pedal Steel Guitar"
+      factoryGroup.appendChild(opt);
+    });
+    select.appendChild(factoryGroup);
+
+    const targetId = selectedId || this.currentPresetId || factoryPresets[0]?.id;
+    if (targetId) {
+      select.value = targetId;
+      this.currentPresetId = targetId;
+    }
+    this.updatePresetButtonsState();
+  }
+
+  updatePresetButtonsState() {
+    const btnDelete = document.getElementById('btn-delete-preset');
+    const currentPreset = this.presetManager.getPresetById(this.currentPresetId);
+
+    if (btnDelete) {
+      const isUserPreset = currentPreset && !currentPreset.isFactory;
+      btnDelete.disabled = !isUserPreset;
+      btnDelete.title = isUserPreset ? `Delete "${currentPreset.name}"` : 'Factory presets cannot be deleted (*)';
+    }
+  }
+
+  loadPreset(id) {
+    const preset = this.presetManager.getPresetById(id);
     if (!preset) return;
+
+    this.currentPresetId = preset.id;
+    this.presetManager.currentPresetId = preset.id;
 
     this.synth.applyPreset(preset);
     this.syncUIFromParams(this.synth.params);
     this.visualizer?.markFilterDirty();
+
+    const select = document.getElementById('preset-select');
+    if (select && select.value !== preset.id) {
+      select.value = preset.id;
+    }
+
+    this.updatePresetButtonsState();
+  }
+
+  // --- Save / Edit Preset Modal ---
+
+  setupPresetModals() {
+    // Save Modal bindings
+    const saveModal = document.getElementById('save-preset-modal');
+    const btnCloseSave = document.getElementById('btn-close-save-modal');
+    const btnCancelSave = document.getElementById('btn-cancel-save-modal');
+    const btnConfirmSave = document.getElementById('btn-confirm-save-modal');
+    const inputName = document.getElementById('input-preset-name');
+
+    const closeSave = () => {
+      if (saveModal) saveModal.style.display = 'none';
+    };
+
+    btnCloseSave?.addEventListener('click', closeSave);
+    btnCancelSave?.addEventListener('click', closeSave);
+    saveModal?.addEventListener('click', (e) => {
+      if (e.target === saveModal) closeSave();
+    });
+
+    btnConfirmSave?.addEventListener('click', async () => {
+      await this.handleSavePreset();
+    });
+
+    inputName?.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        await this.handleSavePreset();
+      } else if (e.key === 'Escape') {
+        closeSave();
+      }
+    });
+
+    // Delete Modal bindings
+    const deleteModal = document.getElementById('delete-preset-modal');
+    const btnCloseDelete = document.getElementById('btn-close-delete-modal');
+    const btnCancelDelete = document.getElementById('btn-cancel-delete-modal');
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete-modal');
+
+    const closeDelete = () => {
+      if (deleteModal) deleteModal.style.display = 'none';
+    };
+
+    btnCloseDelete?.addEventListener('click', closeDelete);
+    btnCancelDelete?.addEventListener('click', closeDelete);
+    deleteModal?.addEventListener('click', (e) => {
+      if (e.target === deleteModal) closeDelete();
+    });
+
+    btnConfirmDelete?.addEventListener('click', async () => {
+      await this.handleDeletePreset();
+    });
+  }
+
+  openSavePresetModal() {
+    const currentPreset = this.presetManager.getPresetById(this.currentPresetId);
+    const modal = document.getElementById('save-preset-modal');
+    const inputName = document.getElementById('input-preset-name');
+    const modeGroup = document.getElementById('save-mode-group');
+    const modalTitle = document.getElementById('save-modal-title');
+    const modalDesc = document.getElementById('save-modal-desc');
+
+    if (!modal || !inputName) return;
+
+    const isUserPreset = currentPreset && !currentPreset.isFactory;
+
+    if (isUserPreset) {
+      if (modalTitle) modalTitle.textContent = '💾 Edit / Save Preset';
+      if (modalDesc) modalDesc.textContent = `Update "${currentPreset.name}" or save as a new patch:`;
+      inputName.value = currentPreset.name;
+      if (modeGroup) modeGroup.style.display = 'flex';
+      const overwriteRadio = document.querySelector('input[name="save-mode"][value="overwrite"]');
+      if (overwriteRadio) overwriteRadio.checked = true;
+    } else {
+      if (modalTitle) modalTitle.textContent = '💾 Save User Preset';
+      if (modalDesc) modalDesc.textContent = `Save current sound settings as a new custom preset:`;
+      inputName.value = `${currentPreset ? currentPreset.name : 'Custom Patch'} (Copy)`;
+      if (modeGroup) modeGroup.style.display = 'none';
+    }
+
+    modal.style.display = 'flex';
+    setTimeout(() => {
+      inputName.focus();
+      inputName.select();
+    }, 50);
+  }
+
+  async handleSavePreset() {
+    const inputName = document.getElementById('input-preset-name');
+    const modal = document.getElementById('save-preset-modal');
+    if (!inputName) return;
+
+    const name = inputName.value.trim() || 'Custom Patch';
+    const currentPreset = this.presetManager.getPresetById(this.currentPresetId);
+    const isUserPreset = currentPreset && !currentPreset.isFactory;
+
+    let targetId = null;
+    if (isUserPreset) {
+      const mode = document.querySelector('input[name="save-mode"]:checked')?.value;
+      if (mode === 'overwrite') {
+        targetId = currentPreset.id;
+      }
+    }
+
+    const saved = await this.presetManager.saveUserPreset(name, this.synth.params, targetId);
+    if (modal) modal.style.display = 'none';
+
+    this.renderPresetDropdown(saved.id);
+    this.loadPreset(saved.id);
+  }
+
+  openDeletePresetModal() {
+    const currentPreset = this.presetManager.getPresetById(this.currentPresetId);
+    if (!currentPreset || currentPreset.isFactory) return;
+
+    const modal = document.getElementById('delete-preset-modal');
+    const text = document.getElementById('delete-modal-text');
+    if (!modal) return;
+
+    if (text) {
+      text.textContent = `Are you sure you want to delete "${currentPreset.name}"? This cannot be undone.`;
+    }
+    modal.style.display = 'flex';
+  }
+
+  async handleDeletePreset() {
+    const modal = document.getElementById('delete-preset-modal');
+    const currentPreset = this.presetManager.getPresetById(this.currentPresetId);
+    if (!currentPreset || currentPreset.isFactory) return;
+
+    await this.presetManager.deleteUserPreset(currentPreset.id);
+    if (modal) modal.style.display = 'none';
+
+    // Fallback to first preset
+    const fallbackId = this.presetManager.getAllPresets()[0]?.id;
+    this.renderPresetDropdown(fallbackId);
+    if (fallbackId) {
+      this.loadPreset(fallbackId);
+    }
   }
 
   syncUIFromParams(params) {
