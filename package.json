@@ -1,0 +1,16 @@
+{
+  "name": "mpe-synth",
+  "version": "1.0.0",
+  "description": "MPE-capable Web MIDI synthesizer with dual oscillators, 8-note polyphony, and resonant low-pass filter",
+  "scripts": {
+    "start": "python3 server.py 8080"
+  },
+  "keywords": [
+    "mpe",
+    "web-midi",
+    "web-audio",
+    "synthesizer"
+  ],
+  "author": "",
+  "license": "MIT"
+}
