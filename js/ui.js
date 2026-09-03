@@ -239,20 +239,39 @@ class SynthUI {
   initWakeLock() {
     this.wakeLock = null;
     this.keepScreenAwake = localStorage.getItem('synth_keep_screen_awake') !== 'false';
+    this.fallbackVideo = null;
+
+    // Create persistent invisible video element for universal mobile fallback (NoSleep technique).
+    // Android OS, iOS, and Moto Display kernel always keep screen awake during active media playback,
+    // regardless of HTTP/HTTPS, Screen Attention, or browser API restrictions.
+    try {
+      this.fallbackVideo = document.createElement('video');
+      this.fallbackVideo.setAttribute('playsinline', '');
+      this.fallbackVideo.setAttribute('webkit-playsinline', '');
+      this.fallbackVideo.setAttribute('muted', '');
+      this.fallbackVideo.muted = true;
+      this.fallbackVideo.loop = true;
+      this.fallbackVideo.style.position = 'fixed';
+      this.fallbackVideo.style.top = '-9999px';
+      this.fallbackVideo.style.left = '-9999px';
+      this.fallbackVideo.style.width = '1px';
+      this.fallbackVideo.style.height = '1px';
+      this.fallbackVideo.style.opacity = '0.001';
+      this.fallbackVideo.style.pointerEvents = 'none';
+
+      // 1-second tiny blank silent WebM video data URI
+      const base64Webm = 'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAQPEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggP57AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjIuMy4xMDBXQYxMYXZmNjIuMy4xMDBEiYhAj0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WI+uLdxUei7SacgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QCYloA4JCwgQK6gQKagQJVsIRVuYEBElTDZ/tzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYyLjMuMTAwc3PWY8CLY8WI+uLdxUei7SZnyKFFo4dFTkNPREVSRIeUTGF2YzYyLjExLjEwMCBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAxLjAwMDAwMDAwMAAfQ7Z1QlDngQCjo4EAAIAQAgCdASoCAAIAAEcIhYWIhYSIAgIADA1gAP7/q1CAo5WBACgAsQEADBGMABgAGFgv9AAIAACjlYEAUACxAQAPEfwAGAAYWC/0AAgAAKOVgQB4ALEBAA8R/AAYABhYL/QACAAAo5WBAKAAsQEADxH8ABgAGFgv9AAIAACjlYEAyACxAQAPEfwAGAAYWC/0AAgAAKOVgQDwALEBAA8R/AAYABhYL/QACAAAo5WBARgAsQEADxCMFGAAYWC/0AAgAACjlYEBQACxAQAPEfwAGAAYWC/0AAgAAKOVgQFoALEBAA8R/AAYABhYL/QACAAAo5WBAZAAsQEADxH8ABgAGFgv9AAIAACjlYEBuACxAQAPEfwAGAAYWC/0AAgAAKOVgQHgALEBAA8R/AAYABhYL/QACAAAo5WBAggAsQEADxH8ABgAGFgv9AAIAACjlYECMACxAQAPEfwAGAAYWC/0AAgAAKOVgQJYALEBAA8R/AAYABhYL/QACAAAo5WBAoAAsQEADxH8ABgAGFgv9AAIAACjlYECqACxAQAPEfwAGAAYWC/0AAgAAKOVgQLQALEBAA8QrBRgAGFgv9AAIAAAo5WBAvgAsQEADxH8ABgAGFgv9AAIAACjlYEDIACxAQAPEfwAGAAYWC/0AAgAAKOVgQNIALEBAA8R/AAYABhYL/QACAAAo5WBA3AAsQEADxH8ABgAGFgv9AAIAACjlYEDmACxAQAPEfwAGAAYWC/0AAgAAKOVgQPAALEBAA8R/AAYABhYL/QACAAAHFO7a5G7j7OBALeK94EB8YIBo/CBAw==';
+      this.fallbackVideo.src = `data:video/webm;base64,${base64Webm}`;
+      document.body.appendChild(this.fallbackVideo);
+    } catch (_) {}
 
     const wakeLockToggle = document.getElementById('toggle-wake-lock');
     const wakeLockStatus = document.getElementById('wake-lock-status');
 
     const updateStatusUI = () => {
       if (!wakeLockStatus) return;
-      if (!('wakeLock' in navigator)) {
-        wakeLockStatus.textContent = 'UNSUPPORTED';
-        wakeLockStatus.className = 'badge badge-muted';
-        if (wakeLockToggle) wakeLockToggle.disabled = true;
-        return;
-      }
-      if (this.wakeLock) {
-        wakeLockStatus.textContent = 'AWAKE';
+      if (this.wakeLock || (this.fallbackVideo && !this.fallbackVideo.paused)) {
+        wakeLockStatus.textContent = this.wakeLock ? 'AWAKE (API)' : 'AWAKE (MEDIA)';
         wakeLockStatus.className = 'badge badge-emerald';
       } else if (this.keepScreenAwake) {
         wakeLockStatus.textContent = this.synth.isAudioStarted ? 'ACQUIRING...' : 'ON AUDIO START';
@@ -291,18 +310,34 @@ class SynthUI {
   }
 
   async requestWakeLock() {
-    if (!('wakeLock' in navigator) || !this.keepScreenAwake) return;
-    try {
-      if (!this.wakeLock) {
-        this.wakeLock = await navigator.wakeLock.request('screen');
-        this.wakeLock.addEventListener('release', () => {
-          this.wakeLock = null;
-          if (this.updateWakeLockUI) this.updateWakeLockUI();
-        });
+    if (!this.keepScreenAwake) return;
+
+    // 1. Try W3C Screen Wake Lock API (requires HTTPS or localhost)
+    if ('wakeLock' in navigator) {
+      try {
+        if (!this.wakeLock) {
+          this.wakeLock = await navigator.wakeLock.request('screen');
+          this.wakeLock.addEventListener('release', () => {
+            this.wakeLock = null;
+            if (this.updateWakeLockUI) this.updateWakeLockUI();
+          });
+        }
+      } catch (err) {
+        console.warn('Screen Wake Lock API rejected (non-HTTPS or battery saver active):', err);
       }
-    } catch (err) {
-      console.warn('Screen Wake Lock error:', err);
     }
+
+    // 2. Universal Mobile Fallback: Silent Video Keep-Alive
+    // Android OS, iOS, and Moto Display kernel always keep screen awake during active media playback.
+    if (this.fallbackVideo) {
+      try {
+        this.fallbackVideo.currentTime = 0;
+        await this.fallbackVideo.play();
+      } catch (err) {
+        console.warn('Wake Lock video fallback play failed:', err);
+      }
+    }
+
     if (this.updateWakeLockUI) this.updateWakeLockUI();
   }
 
@@ -312,6 +347,11 @@ class SynthUI {
         await this.wakeLock.release();
       } catch (_) {}
       this.wakeLock = null;
+    }
+    if (this.fallbackVideo) {
+      try {
+        this.fallbackVideo.pause();
+      } catch (_) {}
     }
     if (this.updateWakeLockUI) this.updateWakeLockUI();
   }
