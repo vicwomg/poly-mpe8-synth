@@ -233,6 +233,9 @@ class SynthUI {
 
     // 10. Screen Wake Lock (prevents mobile/tablet sleep during playback)
     this.initWakeLock();
+
+    // 11. Performance Controls Visibility (Show/Hide Touchpad & Keyboard)
+    this.initPerformanceVisibility();
   }
 
   // --- Screen Wake Lock Management (Mobile Screen Stay-Awake) ---
@@ -355,6 +358,52 @@ class SynthUI {
       } catch (_) {}
     }
     if (this.updateWakeLockUI) this.updateWakeLockUI();
+  }
+
+  // --- Performance Controls Visibility (MPE Touchpad & Keyboard) ---
+
+  initPerformanceVisibility() {
+    const bottomSection = document.getElementById('bottom-play-section');
+    const toggleTouchpad = document.getElementById('toggle-show-touchpad');
+    const toggleKeyboard = document.getElementById('toggle-show-keyboard');
+    const statusTouchpad = document.getElementById('touchpad-vis-status');
+    const statusKeyboard = document.getElementById('keyboard-vis-status');
+
+    let showTouchpad = localStorage.getItem('synth_show_touchpad') !== 'false';
+    let showKeyboard = localStorage.getItem('synth_show_keyboard') !== 'false';
+
+    const updateVisibility = () => {
+      if (toggleTouchpad) toggleTouchpad.checked = showTouchpad;
+      if (toggleKeyboard) toggleKeyboard.checked = showKeyboard;
+
+      if (statusTouchpad) {
+        statusTouchpad.textContent = showTouchpad ? 'SHOWN' : 'HIDDEN';
+        statusTouchpad.className = showTouchpad ? 'badge badge-emerald' : 'badge badge-muted';
+      }
+      if (statusKeyboard) {
+        statusKeyboard.textContent = showKeyboard ? 'SHOWN' : 'HIDDEN';
+        statusKeyboard.className = showKeyboard ? 'badge badge-emerald' : 'badge badge-muted';
+      }
+
+      if (bottomSection) {
+        bottomSection.classList.toggle('hide-touchpad', !showTouchpad);
+        bottomSection.classList.toggle('hide-keyboard', !showKeyboard);
+      }
+    };
+
+    updateVisibility();
+
+    toggleTouchpad?.addEventListener('change', (e) => {
+      showTouchpad = e.target.checked;
+      localStorage.setItem('synth_show_touchpad', showTouchpad);
+      updateVisibility();
+    });
+
+    toggleKeyboard?.addEventListener('change', (e) => {
+      showKeyboard = e.target.checked;
+      localStorage.setItem('synth_show_keyboard', showKeyboard);
+      updateVisibility();
+    });
   }
 
   setupVisualizerControls() {

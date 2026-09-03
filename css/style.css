@@ -1187,6 +1187,25 @@ input:checked + .toggle-slider:before {
   grid-template-columns: 1fr 2fr;
   gap: 16px;
   align-items: stretch;
+  transition: all 0.2s ease;
+}
+
+.bottom-play-section.hide-touchpad {
+  grid-template-columns: 1fr;
+}
+.bottom-play-section.hide-touchpad #mpe-pad-card {
+  display: none !important;
+}
+
+.bottom-play-section.hide-keyboard {
+  grid-template-columns: 1fr;
+}
+.bottom-play-section.hide-keyboard #keyboard-section {
+  display: none !important;
+}
+
+.bottom-play-section.hide-touchpad.hide-keyboard {
+  display: none !important;
 }
 
 @media (max-width: 768px) {
