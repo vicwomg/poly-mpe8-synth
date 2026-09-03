@@ -70,12 +70,14 @@ export class PresetManager {
     this.factoryPresets = FACTORY_PRESETS.map((p, idx) => ({
       id: `factory_${idx}`,
       name: p.name,
-      displayName: `* ${p.name}`,
+      displayName: p.name,
       isFactory: true,
       params: { ...p.params }
     }));
     this.userPresets = [];
     this.currentPresetId = this.factoryPresets[0].id;
+    this.baselineParams = null;
+    this.isModified = false;
   }
 
   /**
@@ -90,6 +92,45 @@ export class PresetManager {
       isFactory: false,
       params: { ...p.params }
     }));
+  }
+
+  /**
+   * Sets the baseline parameters against which modifications are compared.
+   */
+  setBaselinePreset(preset) {
+    if (!preset) return;
+    this.currentPresetId = preset.id;
+    this.baselineParams = JSON.parse(JSON.stringify(preset.params));
+    this.isModified = false;
+  }
+
+  /**
+   * Compares current parameters against the baseline preset parameters.
+   * Sets and returns isModified boolean.
+   */
+  checkModified(currentParams) {
+    if (!this.baselineParams || !currentParams) {
+      this.isModified = false;
+      return false;
+    }
+    let modified = false;
+    for (const key of Object.keys(this.baselineParams)) {
+      const baseVal = this.baselineParams[key];
+      const curVal = currentParams[key];
+      if (curVal === undefined) continue;
+
+      if (typeof baseVal === 'number') {
+        if (Math.abs(baseVal - curVal) > 0.0001) {
+          modified = true;
+          break;
+        }
+      } else if (baseVal !== curVal) {
+        modified = true;
+        break;
+      }
+    }
+    this.isModified = modified;
+    return modified;
   }
 
   /**

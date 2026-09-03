@@ -680,6 +680,10 @@ export class SynthEngine {
         voice.updateParams(this.params);
       }
     }
+
+    if (this.onParamChange) {
+      this.onParamChange(key, value);
+    }
   }
 
   applyPreset(preset) {

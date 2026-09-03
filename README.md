@@ -33,9 +33,11 @@ A browser-based, 8-voice polyphonic synthesizer built with the Web Audio API and
   - **Live MIDI Monitor & Settings Modal**: Port selector, live MIDI logger, hardware buffer latency tuner, and polyphony selector.
   - **Audio Engine Power**: Zero-allocation Web Audio graph with ultra-low latency.
 - **User & Factory Preset Management**:
-  - **15 Factory Presets** (marked with `*` to indicate uneditable built-ins): *Clean Pedal Steel Guitar*, *MPE Dream Pad*, *Ambient Shoegaze Shimmer*, *Vaporwave Electric Piano*, *Retro Funk Clavinet*, *Cinematic Bowed Strings*, *Acid Bass Line*, *Expressive Solo Lead*, *80s Poly Brass*, *Cosmic Pluck*, *Vocal Formant Choir*, *8-Bit Arcade Hero*, *Cat's Meow*, *Spacey Cosmic Organ*, and *Init Dual Saw*.
-  - **Custom User Presets**: Save, edit/overwrite, and delete custom patches directly with dedicated Save (floppy disk) and Delete (trash can) buttons.
-  - **Cross-Platform Storage**: Capacitor-ready storage architecture compatible with Web, Android WebView, and iOS WKWebView, with seamless export/import support.
+  - **15 Factory Presets**: *Clean Pedal Steel Guitar*, *MPE Dream Pad*, *Ambient Shoegaze Shimmer*, *Vaporwave Electric Piano*, *Retro Funk Clavinet*, *Cinematic Bowed Strings*, *Acid Bass Line*, *Expressive Solo Lead*, *80s Poly Brass*, *Cosmic Pluck*, *Vocal Formant Choir*, *8-Bit Arcade Hero*, *Cat's Meow*, *Spacey Cosmic Organ*, and *Init Dual Saw*.
+  - **Dynamic Modification Asterisk (`*`)**: An asterisk `*` automatically appears next to the patch name whenever parameters are tweaked from their original settings, and disappears upon saving.
+  - **Auto-Persistence Across Sessions**: The current active patch and any in-progress tweaks are preserved and seamlessly restored on refresh or mobile app relaunch.
+  - **Custom User Presets**: Save, edit/overwrite, and delete custom patches with dedicated Save (floppy disk) and Delete (trash can) buttons.
+  - **Cross-Platform Storage**: Capacitor-ready storage architecture compatible with Web, Android WebView, and iOS WKWebView.
 
 ---
 

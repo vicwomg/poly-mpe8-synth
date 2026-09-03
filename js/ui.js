@@ -473,7 +473,6 @@ class SynthUI {
 
   async initPresets() {
     await this.presetManager.init();
-    this.renderPresetDropdown();
 
     const select = document.getElementById('preset-select');
     select?.addEventListener('change', (e) => {
@@ -493,10 +492,32 @@ class SynthUI {
 
     this.setupPresetModals();
 
-    // Load initial preset (first factory preset)
-    const initial = this.presetManager.getFactoryPresets()[0];
-    if (initial) {
-      this.loadPreset(initial.id);
+    // Hook parameter changes to update dirty indicator and persist session
+    this.synth.onParamChange = () => {
+      this.updatePresetModifiedIndicator();
+    };
+
+    // Check for persisted active session across refreshes/relaunches
+    const savedSession = await this.loadActiveSession();
+    if (savedSession && this.presetManager.getPresetById(savedSession.presetId)) {
+      const basePreset = this.presetManager.getPresetById(savedSession.presetId);
+      this.currentPresetId = basePreset.id;
+      this.presetManager.setBaselinePreset(basePreset);
+
+      // Restore exact synthesizer parameters
+      this.synth.applyPreset({ params: savedSession.params });
+      this.syncUIFromParams(this.synth.params);
+      this.visualizer?.markFilterDirty();
+
+      // Check if modified compared to original baseline
+      this.presetManager.checkModified(savedSession.params);
+      this.renderPresetDropdown(basePreset.id);
+    } else {
+      // Fallback to first factory preset
+      const initial = this.presetManager.getFactoryPresets()[0];
+      if (initial) {
+        this.loadPreset(initial.id);
+      }
     }
   }
 
@@ -504,9 +525,13 @@ class SynthUI {
     const select = document.getElementById('preset-select');
     if (!select) return;
 
-    select.innerHTML = '';
     const userPresets = this.presetManager.getUserPresets();
     const factoryPresets = this.presetManager.getFactoryPresets();
+    const targetId = selectedId || this.currentPresetId || factoryPresets[0]?.id;
+    this.currentPresetId = targetId;
+
+    select.innerHTML = '';
+    const isModified = this.presetManager.isModified;
 
     // 1. User Presets (custom patches created by user)
     if (userPresets.length > 0) {
@@ -515,29 +540,89 @@ class SynthUI {
       userPresets.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = p.name;
+        const dirty = (p.id === targetId && isModified);
+        opt.textContent = dirty ? `${p.name} *` : p.name;
         userGroup.appendChild(opt);
       });
       select.appendChild(userGroup);
     }
 
-    // 2. Factory Presets (marked with '*' to indicate uneditable built-ins)
+    // 2. Factory Presets (no default asterisk; asterisk only appears when modified)
     const factoryGroup = document.createElement('optgroup');
-    factoryGroup.label = 'Factory Presets (*)';
+    factoryGroup.label = 'Factory Presets';
     factoryPresets.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = p.displayName; // e.g. "* Clean Pedal Steel Guitar"
+      const dirty = (p.id === targetId && isModified);
+      opt.textContent = dirty ? `${p.name} *` : p.name;
       factoryGroup.appendChild(opt);
     });
     select.appendChild(factoryGroup);
 
-    const targetId = selectedId || this.currentPresetId || factoryPresets[0]?.id;
     if (targetId) {
       select.value = targetId;
-      this.currentPresetId = targetId;
     }
     this.updatePresetButtonsState();
+  }
+
+  updatePresetModifiedIndicator() {
+    const isDirty = this.presetManager.checkModified(this.synth.params);
+    const select = document.getElementById('preset-select');
+    if (!select) return;
+
+    const opt = select.querySelector(`option[value="${this.currentPresetId}"]`);
+    const preset = this.presetManager.getPresetById(this.currentPresetId);
+    if (opt && preset) {
+      opt.textContent = isDirty ? `${preset.name} *` : preset.name;
+    }
+
+    this.saveActiveSession();
+  }
+
+  saveActiveSession() {
+    if (this._sessionSaveTimeout) {
+      clearTimeout(this._sessionSaveTimeout);
+    }
+    this._sessionSaveTimeout = setTimeout(() => {
+      try {
+        const sessionData = {
+          presetId: this.currentPresetId,
+          params: JSON.parse(JSON.stringify(this.synth.params)),
+          isModified: this.presetManager.isModified
+        };
+        localStorage.setItem('poly_mpe_active_session_v1', JSON.stringify(sessionData));
+        if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.Preferences) {
+          window.Capacitor.Plugins.Preferences.set({
+            key: 'poly_mpe_active_session_v1',
+            value: JSON.stringify(sessionData)
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to save active session:', e);
+      }
+    }, 100);
+  }
+
+  async loadActiveSession() {
+    try {
+      let raw = null;
+      if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.Preferences) {
+        const res = await window.Capacitor.Plugins.Preferences.get({ key: 'poly_mpe_active_session_v1' });
+        raw = res.value;
+      }
+      if (!raw && typeof localStorage !== 'undefined') {
+        raw = localStorage.getItem('poly_mpe_active_session_v1');
+      }
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data && data.presetId && data.params) {
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load active session:', e);
+    }
+    return null;
   }
 
   updatePresetButtonsState() {
@@ -547,7 +632,7 @@ class SynthUI {
     if (btnDelete) {
       const isUserPreset = currentPreset && !currentPreset.isFactory;
       btnDelete.disabled = !isUserPreset;
-      btnDelete.title = isUserPreset ? `Delete "${currentPreset.name}"` : 'Factory presets cannot be deleted (*)';
+      btnDelete.title = isUserPreset ? `Delete "${currentPreset.name}"` : 'Factory presets cannot be deleted';
     }
   }
 
@@ -556,18 +641,14 @@ class SynthUI {
     if (!preset) return;
 
     this.currentPresetId = preset.id;
-    this.presetManager.currentPresetId = preset.id;
+    this.presetManager.setBaselinePreset(preset);
 
     this.synth.applyPreset(preset);
     this.syncUIFromParams(this.synth.params);
     this.visualizer?.markFilterDirty();
 
-    const select = document.getElementById('preset-select');
-    if (select && select.value !== preset.id) {
-      select.value = preset.id;
-    }
-
-    this.updatePresetButtonsState();
+    this.renderPresetDropdown(preset.id);
+    this.saveActiveSession();
   }
 
   // --- Save / Edit Preset Modal ---
