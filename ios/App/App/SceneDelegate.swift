@@ -4,14 +4,18 @@ import Capacitor
 class SynthBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         super.capacitorDidLoad()
-        bridge?.registerPluginType(CoreMidiPlugin.self)
-        print("[SynthBridgeViewController] Registered CoreMidiPlugin in capacitorDidLoad")
+        if bridge?.plugin(withName: "CoreMidiPlugin") == nil {
+            bridge?.registerPluginInstance(CoreMidiPlugin())
+            print("[SynthBridgeViewController] Registered CoreMidiPlugin instance in capacitorDidLoad")
+        }
     }
 
     override open func viewDidLoad() {
         super.viewDidLoad()
-        bridge?.registerPluginType(CoreMidiPlugin.self)
-        print("[SynthBridgeViewController] Registered CoreMidiPlugin in viewDidLoad")
+        if bridge?.plugin(withName: "CoreMidiPlugin") == nil {
+            bridge?.registerPluginInstance(CoreMidiPlugin())
+            print("[SynthBridgeViewController] Registered CoreMidiPlugin instance in viewDidLoad")
+        }
     }
 }
 

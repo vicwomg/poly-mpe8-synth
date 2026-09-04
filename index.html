@@ -1,699 +1,1181 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>MPE Web MIDI Synthesizer</title>
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-</head>
-<body>
-  <div class="synth-rack">
-    <!-- Top Header & Global Controls -->
-    <header class="synth-header">
-      <div class="brand">
-        <h1>POLY-MPE<span>8</span></h1>
-      </div>
-
-      <div class="header-actions">
-        <!-- Audio Start Button (Hidden once audio is started) -->
-        <button id="btn-audio-power" class="btn btn-power audio-stopped-only" title="Start Web Audio Engine">
-          <span class="power-indicator"></span>
-          <span class="power-label">TURN ON AUDIO</span>
-        </button>
-
-        <!-- Active Voice Count Indicator with Status Dot (Hidden until audio is started) -->
-        <div class="voice-count-badge audio-running-only" id="voice-count-badge" title="Active Polyphonic Voices & MIDI Status">
-          <span class="status-dot voice-count-dot" id="voice-status-dot"></span>
-          <span class="voice-count-label">POLY</span>
-          <span id="active-voice-count" class="voice-count-num">0</span>
-          <span class="voice-count-total" id="voice-count-max">/8</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>MPE Web MIDI Synthesizer</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="synth-rack">
+      <!-- Top Header & Global Controls -->
+      <header class="synth-header">
+        <div class="brand">
+          <h1>POLY-MPE<span>8</span></h1>
         </div>
 
-        <!-- Preset Selector & Actions (Hidden until audio is started) -->
-        <div class="preset-group audio-running-only" id="preset-group">
-          <label for="preset-select">PRESET:</label>
-          <div class="select-wrapper">
-            <select id="preset-select"></select>
+        <div class="header-actions">
+          <!-- Audio Start Button (Hidden once audio is started) -->
+          <button
+            id="btn-audio-power"
+            class="btn btn-power audio-stopped-only"
+            title="Start Web Audio Engine"
+          >
+            <span class="power-indicator"></span>
+            <span class="power-label">TURN ON AUDIO</span>
+          </button>
+
+          <!-- Preset Selector & Actions (Hidden until audio is started) -->
+          <div class="preset-group audio-running-only" id="preset-group">
+            <label for="preset-select">PRESET:</label>
+            <div class="select-wrapper">
+              <select id="preset-select"></select>
+            </div>
+            <button
+              id="btn-save-preset"
+              class="btn btn-icon btn-preset-action"
+              title="Save / Edit Preset"
+            >
+              <img
+                src="assets/icon-save.png"
+                alt="Save"
+                class="preset-icon-img"
+                width="16"
+                height="16"
+              />
+            </button>
+            <button
+              id="btn-delete-preset"
+              class="btn btn-icon btn-preset-action btn-preset-del"
+              title="Delete User Preset"
+              disabled
+            >
+              <img
+                src="assets/icon-delete.png"
+                alt="Delete"
+                class="preset-icon-img"
+                width="16"
+                height="16"
+              />
+            </button>
           </div>
-          <button id="btn-save-preset" class="btn btn-icon btn-preset-action" title="Save / Edit Preset">
-            <img src="assets/icon-save.png" alt="Save" class="preset-icon-img" width="16" height="16">
+
+          <!-- Active Voice Count Indicator with Status Dot (Hidden until audio is started) -->
+          <div
+            class="voice-count-badge audio-running-only"
+            id="voice-count-badge"
+            title="Active Polyphonic Voices & MIDI Status"
+          >
+            <span
+              class="status-dot voice-count-dot"
+              id="voice-status-dot"
+            ></span>
+            <img
+              src="assets/icon-poly.png"
+              alt="Poly"
+              class="voice-count-icon"
+            />
+            <span id="active-voice-count" class="voice-count-num">0</span>
+            <span class="voice-count-total" id="voice-count-max">/8</span>
+          </div>
+
+          <!-- Panic / All Notes Off (Hidden until audio is started) -->
+          <button
+            id="btn-panic"
+            class="btn btn-panic audio-running-only"
+            title="Silence All Stuck Notes (Panic)"
+          >
+            <img
+              src="assets/icon-panic.png"
+              alt="Panic"
+              class="panic-icon-img"
+            />
           </button>
-          <button id="btn-delete-preset" class="btn btn-icon btn-preset-action btn-preset-del" title="Delete User Preset" disabled>
-            <img src="assets/icon-delete.png" alt="Delete" class="preset-icon-img" width="16" height="16">
+
+          <!-- MIDISteel Controller Settings Button (Visible only when MIDISteel controller is connected) -->
+          <button
+            id="btn-midisteel"
+            class="btn btn-midisteel"
+            title="Configure MIDISteel Controller Tuning & Settings"
+            style="display: none;"
+          >
+            <span class="midisteel-dot"></span>
+            <span class="midisteel-label">MIDISTEEL</span>
+          </button>
+
+          <!-- Audio Buffer, Polyphony & MIDI Settings Modal Button -->
+          <button
+            id="btn-settings-modal"
+            class="btn btn-icon"
+            title="Audio Buffer, Polyphony & MIDI Settings"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
           </button>
         </div>
+      </header>
 
-        <!-- Panic / All Notes Off (Hidden until audio is started) -->
-        <button id="btn-panic" class="btn btn-panic audio-running-only" title="Silence All Stuck Notes">PANIC</button>
-
-        <!-- Audio Buffer, Polyphony & MIDI Settings Modal Button -->
-        <button id="btn-settings-modal" class="btn btn-icon" title="Audio Buffer, Polyphony & MIDI Settings">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-          </svg>
-        </button>
+      <!-- MIDI Status / Warning Banner (Appears if permission is denied or insecure context) -->
+      <div
+        id="midi-alert-banner"
+        class="midi-alert-banner"
+        style="display: none"
+      >
+        <span class="alert-icon">⚠️</span>
+        <span id="midi-alert-text" class="alert-text"></span>
+        <button id="btn-banner-action" class="btn btn-xs">SETTINGS</button>
+        <button id="btn-banner-close" class="btn btn-xs btn-close">✕</button>
       </div>
-    </header>
 
-    <!-- MIDI Status / Warning Banner (Appears if permission is denied or insecure context) -->
-    <div id="midi-alert-banner" class="midi-alert-banner" style="display: none;">
-      <span class="alert-icon">⚠️</span>
-      <span id="midi-alert-text" class="alert-text"></span>
-      <button id="btn-banner-action" class="btn btn-xs">SETTINGS</button>
-      <button id="btn-banner-close" class="btn btn-xs btn-close">✕</button>
-    </div>
-
-    <!-- Settings Modal (Buffer, Polyphony, MIDI In & Scan) -->
-    <div id="settings-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>⚙️ Audio & MIDI Settings</h3>
-          <button id="btn-close-settings" class="btn btn-xs">✕</button>
-        </div>
-        <div class="modal-body">
-          <!-- Audio Buffer Section -->
-          <div class="settings-section">
-            <div class="settings-title">Audio Latency & Hardware Buffer</div>
-            <p class="settings-desc">Select buffer size for your hardware. Ultra-Low gives instantaneous response; increase to Balanced or Safe if your device experiences underruns.</p>
-            <div class="settings-row">
-              <label for="buffer-select">Buffer Size:</label>
-              <div class="select-wrapper">
-                <select id="buffer-select">
-                  <option value="ultralow" selected>Ultra-Low (&lt;5ms) [Fastest]</option>
-                  <option value="interactive">Low Latency (10ms) [Default]</option>
-                  <option value="balanced">Balanced (25ms) [Safe for Android]</option>
-                  <option value="safe">Safe Headroom (50ms)</option>
-                </select>
+      <!-- Settings Modal (Buffer, Polyphony, MIDI In & Scan) -->
+      <div id="settings-modal" class="modal-overlay" style="display: none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>⚙️ Audio & MIDI Settings</h3>
+            <button id="btn-close-settings" class="btn btn-xs">✕</button>
+          </div>
+          <div class="modal-body">
+            <!-- Audio Buffer Section -->
+            <div class="settings-section">
+              <div class="settings-title">Audio Latency & Hardware Buffer</div>
+              <p class="settings-desc">
+                Select buffer size for your hardware. Ultra-Low gives
+                instantaneous response; increase to Balanced or Safe if your
+                device experiences underruns.
+              </p>
+              <div class="settings-row">
+                <label for="buffer-select">Buffer Size:</label>
+                <div class="select-wrapper">
+                  <select id="buffer-select">
+                    <option value="ultralow" selected>
+                      Ultra-Low (&lt;5ms) [Fastest]
+                    </option>
+                    <option value="interactive">
+                      Low Latency (10ms) [Default]
+                    </option>
+                    <option value="balanced">
+                      Balanced (25ms) [Safe for Android]
+                    </option>
+                    <option value="safe">Safe Headroom (50ms)</option>
+                  </select>
+                </div>
+                <span
+                  id="buffer-stat"
+                  class="buffer-stat"
+                  title="Actual measured hardware audio buffer"
+                  >-- ms</span
+                >
               </div>
-              <span id="buffer-stat" class="buffer-stat" title="Actual measured hardware audio buffer">-- ms</span>
+            </div>
+
+            <!-- Polyphony Section -->
+            <div class="settings-section">
+              <div class="settings-title">Polyphony Mode</div>
+              <p class="settings-desc">
+                8-voice polyphony provides full chordal richness. 4-voice Eco
+                mode halves CPU and oscillator/filter calculations for budget
+                mobile phones.
+              </p>
+              <div class="settings-row">
+                <label for="poly-select">Voice Allocation:</label>
+                <div class="select-wrapper">
+                  <select id="poly-select">
+                    <option value="8" selected>
+                      8 Polyphonic Voices (Full)
+                    </option>
+                    <option value="4">4 Polyphonic Voices (Eco Mode)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Display & Wake Lock Section -->
+            <div class="settings-section" id="settings-wake-lock-section">
+              <div class="settings-title">Display & Screen Wake Lock</div>
+              <p class="settings-desc">
+                Keep your mobile or tablet screen awake while actively playing
+                the synthesizer.
+              </p>
+              <div class="settings-row">
+                <label for="toggle-wake-lock">Keep Screen Awake:</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-wake-lock" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span
+                  id="wake-lock-status"
+                  class="badge badge-cyan"
+                  style="font-size: 9px; padding: 2px 6px"
+                  >ON AUDIO START</span
+                >
+              </div>
+              <p
+                class="settings-desc"
+                style="margin-top: 8px; font-size: 10px; color: var(--text-dim)"
+              >
+                Dual-tier keep-awake: Combines the W3C WakeLock API with an
+                HTML5 media keep-alive fallback for non-HTTPS connections and
+                Android Motorola devices.
+              </p>
+            </div>
+
+            <!-- Performance Controls & UI Visibility -->
+            <div class="settings-section">
+              <div class="settings-title">On-Screen Performance Controls</div>
+              <p class="settings-desc">
+                Show or hide on-screen controls to reclaim screen space when
+                using an external hardware MIDI or MPE controller.
+              </p>
+              <div class="settings-row">
+                <label for="toggle-show-touchpad">MPE Touchpad:</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-show-touchpad" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span
+                  id="touchpad-vis-status"
+                  class="badge badge-emerald"
+                  style="font-size: 9px; padding: 2px 6px"
+                  >SHOWN</span
+                >
+              </div>
+              <div class="settings-row" style="margin-top: 8px">
+                <label for="toggle-show-keyboard">Virtual Keyboard:</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-show-keyboard" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span
+                  id="keyboard-vis-status"
+                  class="badge badge-emerald"
+                  style="font-size: 9px; padding: 2px 6px"
+                  >SHOWN</span
+                >
+              </div>
+            </div>
+
+            <!-- MIDI Inputs Section -->
+            <div class="settings-section">
+              <div class="settings-title">MIDI Hardware & Routing</div>
+              <p class="settings-desc">
+                Select connected USB or Bluetooth MIDI/MPE controllers. Click
+                SCAN to request permissions and detect newly plugged devices.
+              </p>
+              <div class="settings-row">
+                <label for="midi-input-select">MIDI Port:</label>
+                <div class="select-wrapper">
+                  <select id="midi-input-select">
+                    <option value="all">All MIDI Inputs</option>
+                  </select>
+                </div>
+                <button id="btn-midi-scan" class="btn btn-sm">SCAN</button>
+              </div>
+              <div id="midisteel-settings-row" class="settings-row" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                <label>MIDISteel:</label>
+                <button id="btn-open-midisteel-settings" class="btn btn-sm btn-midisteel-action">
+                  <span class="midisteel-dot"></span>
+                  Open Controller Settings
+                </button>
+              </div>
+            </div>
+
+            <!-- Live MIDI Log Console (Stashed in Settings) -->
+            <div
+              class="settings-section midi-monitor-section"
+              id="midi-log-card"
+            >
+              <div class="settings-header-row">
+                <div class="settings-title">Live MIDI Monitor</div>
+                <div class="card-header-actions">
+                  <span class="badge badge-muted" id="midi-mon-badge"
+                    >PAUSED</span
+                  >
+                  <button
+                    id="btn-toggle-midi-log"
+                    class="btn btn-xs"
+                    title="Toggle MIDI Monitor (Saves CPU)"
+                  >
+                    SHOW
+                  </button>
+                  <button id="btn-clear-log" class="btn btn-xs">CLEAR</button>
+                </div>
+              </div>
+              <p class="settings-desc">
+                Inspect real-time incoming MIDI messages, CC parameters, and MPE
+                pitch bend data.
+              </p>
+              <div
+                class="midi-log-table-wrap"
+                id="midi-log-table-wrap"
+                style="display: none; max-height: 200px"
+              >
+                <table class="midi-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Ch</th>
+                      <th>Event</th>
+                      <th>Val</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="midi-log-body">
+                    <tr>
+                      <td colspan="5" class="empty-log">
+                        Awaiting MIDI messages...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div id="midi-log-placeholder" class="midi-log-placeholder">
+                <span
+                  >Monitor paused for max performance. Tap
+                  <strong>SHOW</strong> to view live MIDI events.</span
+                >
+              </div>
+            </div>
+
+            <!-- About & Architecture Guide Section -->
+            <div class="settings-section settings-about-section">
+              <div class="settings-header-row">
+                <div>
+                  <div class="settings-title">Architecture & Features</div>
+                  <p class="settings-desc">
+                    Influences, sound design, and synthesis engine guide.
+                  </p>
+                </div>
+                <button id="btn-open-about" class="btn btn-sm" type="button">
+                  About POLY-MPE ↗
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MIDISteel Controller Settings Modal -->
+      <div id="midisteel-modal" class="midisteel-modal-overlay" style="display: none">
+        <div class="midisteel-modal-card">
+          <div class="midisteel-modal-header">
+            <div class="midisteel-modal-title">
+              <span class="midisteel-dot"></span>
+              MIDISteel Controller Settings
+            </div>
+            <button id="btn-midisteel-close" class="btn btn-icon btn-sm" title="Close MIDISteel settings">✕</button>
+          </div>
+          <div class="midisteel-modal-body">
+            <iframe id="midisteel-iframe" src="about:blank" allow="midi; serial; usb"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- Synthesizer Architecture & Features Guide Modal -->
+      <div id="synth-info-modal" class="modal-overlay" style="display: none">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3>🎹 POLY-MPE // About & Features</h3>
+            <button id="btn-close-info" class="btn btn-xs">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="help-section">
+              <h4>About POLY-MPE</h4>
+              <p>
+                <strong>POLY-MPE</strong> is an expressive 8-voice polyphonic
+                synthesizer engine engineered entirely with the native Web Audio
+                and Web MIDI APIs. It bridges classic analog subtractive
+                synthesis with modern multidimensional MIDI Polyphonic
+                Expression (MPE).
+              </p>
+            </div>
+
+            <div class="help-section">
+              <h4>Key Influences</h4>
+              <ul>
+                <li>
+                  <strong>Sequential Prophet-5 & Roland Jupiter-8:</strong> Dual
+                  cross-modulating analog oscillator architecture, rich detuned
+                  unison leads, warm poly brass, and resonant 4-pole low-pass
+                  filtering.
+                </li>
+                <li>
+                  <strong>Expressive E Osmose & Roli Seaboard:</strong>
+                  High-resolution continuous per-note pitch bending (up to ±48
+                  semitones), polyphonic pressure/aftertouch, and seamless note
+                  sliding.
+                </li>
+                <li>
+                  <strong>Americana Pedal Steel & Ambient Guitar:</strong>
+                  Resonant clean pickup modeling, volume pedal expression swells
+                  (CC11), and lush stereo slapback/hall delay networks.
+                </li>
+              </ul>
+            </div>
+
+            <div class="help-section">
+              <h4>Key Features</h4>
+              <ul>
+                <li>
+                  <strong>8 Polyphonic Voices:</strong> Pre-allocated
+                  zero-garbage-collection audio graph with round-robin
+                  allocation and 2.5ms anti-pop micro-fades.
+                </li>
+                <li>
+                  <strong>Dual Multi-Wave Oscillators:</strong> Sawtooth,
+                  Square, Triangle, and Sine waveforms with octave shifting (-2
+                  to +2), semitone transpose, and fine cents detuning.
+                </li>
+                <li>
+                  <strong>Resonant Low-Pass Filter:</strong> 20Hz - 20kHz cutoff
+                  with resonance Q, ADSR envelope generator, key tracking, and
+                  CC73 cutoff control.
+                </li>
+                <li>
+                  <strong>MPE Expressive Controls:</strong> Continuous per-note
+                  pitch bend (±48 semitones), CC11 expression/volume, CC1 mod
+                  wheel resonance, and channel aftertouch.
+                </li>
+                <li>
+                  <strong>Stereo Delay & Studio Limiter:</strong> Dual-channel
+                  ping-pong stereo delay with feedback and studio soft-clip
+                  dynamics compressor.
+                </li>
+                <li>
+                  <strong>Performance Tools:</strong> 2D MPE Touchpad for XY
+                  expression testing and on-screen keyboard mapped directly to
+                  your computer keyboard.
+                </li>
+              </ul>
+            </div>
+
+            <div class="help-section">
+              <h4>Playing Controls</h4>
+              <p>
+                Play using the computer keyboard keys (shown directly on the
+                virtual keys: <code>A, W, S, E, D, F...</code>), your
+                mouse/touchscreen, or connect any USB or Bluetooth MIDI/MPE
+                keyboard controller!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visualizers Row: Oscilloscope & Filter Response (Aligned Widths & Heights) -->
+      <div class="visualizers-row">
+        <!-- Oscilloscope Card -->
+        <div class="visualizer-card" id="oscilloscope-card">
+          <div class="card-header">
+            <span>OSCILLOSCOPE</span>
+            <div class="card-header-actions">
+              <span class="badge" id="osc-badge">LIVE</span>
+              <button
+                id="btn-toggle-osc"
+                class="btn btn-xs"
+                title="Toggle Oscilloscope (Saves CPU on mobile)"
+              >
+                HIDE
+              </button>
+            </div>
+          </div>
+          <div id="oscilloscope-wrap">
+            <canvas id="oscilloscope-canvas" width="480" height="110"></canvas>
+          </div>
+        </div>
+
+        <!-- Filter Response Graph -->
+        <div class="visualizer-card" id="filter-visualizer-card">
+          <div class="card-header">
+            <span>FILTER RESPONSE</span>
+            <span class="badge" id="filter-cutoff-readout">2500 Hz</span>
+          </div>
+          <div id="filter-wrap">
+            <canvas id="filter-canvas" width="480" height="110"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Main Synth Modules (2x2 Grid with Aligned Widths & Heights) -->
+      <div class="synth-modules-grid">
+        <!-- 1. OSCILLATORS CONTAINER (Directly under Oscilloscope) -->
+        <!-- 1. OSCILLATORS CONTAINER (Directly under Oscilloscope, Both Stacked) -->
+        <div class="synth-card" id="oscillators-card">
+          <div class="card-title">
+            <span>OSCILLATORS</span>
+            <div class="osc-mix-inline">
+              <label for="osc2Mix">MIX</label>
+              <input
+                type="range"
+                id="osc2Mix"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0.5"
+                title="Oscillator 2 Mix Level"
+              />
+              <span class="val-display" id="osc2Mix-val">50%</span>
             </div>
           </div>
 
-          <!-- Polyphony Section -->
-          <div class="settings-section">
-            <div class="settings-title">Polyphony Mode</div>
-            <p class="settings-desc">8-voice polyphony provides full chordal richness. 4-voice Eco mode halves CPU and oscillator/filter calculations for budget mobile phones.</p>
-            <div class="settings-row">
-              <label for="poly-select">Voice Allocation:</label>
-              <div class="select-wrapper">
-                <select id="poly-select">
-                  <option value="8" selected>8 Polyphonic Voices (Full)</option>
-                  <option value="4">4 Polyphonic Voices (Eco Mode)</option>
-                </select>
+          <div class="card-body osc-stacked-body">
+            <!-- OSCILLATOR 1 -->
+            <div class="osc-sub-block" id="osc1-block">
+              <div class="control-row">
+                <span class="sub-label">OSC 1</span>
+                <div class="btn-group wave-select" data-param="osc1Waveform">
+                  <button class="btn btn-tab active" data-value="sawtooth">
+                    SAW
+                  </button>
+                  <button class="btn btn-tab" data-value="square">SQR</button>
+                  <button class="btn btn-tab" data-value="triangle">TRI</button>
+                  <button class="btn btn-tab" data-value="sine">SIN</button>
+                </div>
+              </div>
+
+              <div class="knob-grid">
+                <div class="control-unit">
+                  <label>Octave</label>
+                  <input
+                    type="range"
+                    id="osc1Octave"
+                    min="-2"
+                    max="2"
+                    step="1"
+                    value="0"
+                  />
+                  <span class="val-display" id="osc1Octave-val">0</span>
+                </div>
+                <div class="control-unit">
+                  <label>Semi</label>
+                  <input
+                    type="range"
+                    id="osc1Semi"
+                    min="-12"
+                    max="12"
+                    step="1"
+                    value="0"
+                  />
+                  <span class="val-display" id="osc1Semi-val">0</span>
+                </div>
+                <div class="control-unit">
+                  <label>Fine (cents)</label>
+                  <input
+                    type="range"
+                    id="osc1Fine"
+                    min="-50"
+                    max="50"
+                    step="1"
+                    value="0"
+                  />
+                  <span class="val-display" id="osc1Fine-val">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="osc-divider"></div>
+
+            <!-- OSCILLATOR 2 -->
+            <div class="osc-sub-block" id="osc2-block">
+              <div class="control-row">
+                <span class="sub-label">OSC 2</span>
+                <div class="btn-group wave-select" data-param="osc2Waveform">
+                  <button class="btn btn-tab" data-value="sawtooth">SAW</button>
+                  <button class="btn btn-tab active" data-value="square">
+                    SQR
+                  </button>
+                  <button class="btn btn-tab" data-value="triangle">TRI</button>
+                  <button class="btn btn-tab" data-value="sine">SIN</button>
+                </div>
+              </div>
+
+              <div class="knob-grid">
+                <div class="control-unit">
+                  <label>Octave</label>
+                  <input
+                    type="range"
+                    id="osc2Octave"
+                    min="-2"
+                    max="2"
+                    step="1"
+                    value="0"
+                  />
+                  <span class="val-display" id="osc2Octave-val">0</span>
+                </div>
+                <div class="control-unit">
+                  <label>Semi</label>
+                  <input
+                    type="range"
+                    id="osc2Semi"
+                    min="-12"
+                    max="12"
+                    step="1"
+                    value="0"
+                  />
+                  <span class="val-display" id="osc2Semi-val">0</span>
+                </div>
+                <div class="control-unit">
+                  <label>Fine (cents)</label>
+                  <input
+                    type="range"
+                    id="osc2Fine"
+                    min="-50"
+                    max="50"
+                    step="1"
+                    value="7"
+                  />
+                  <span class="val-display" id="osc2Fine-val">+7</span>
+                </div>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Display & Wake Lock Section -->
-          <div class="settings-section" id="settings-wake-lock-section">
-            <div class="settings-title">Display & Screen Wake Lock</div>
-            <p class="settings-desc">Keep your mobile or tablet screen awake while actively playing the synthesizer.</p>
-            <div class="settings-row">
-              <label for="toggle-wake-lock">Keep Screen Awake:</label>
+        <!-- 2. LOW PASS FILTER (Directly under Filter Response Graph) -->
+        <div class="synth-card" id="filter-card">
+          <div class="card-title">LOW PASS FILTER</div>
+          <div class="card-body">
+            <div class="knob-grid">
+              <div class="control-unit">
+                <label>Cutoff (Hz)</label>
+                <input
+                  type="range"
+                  id="filterCutoff"
+                  min="20"
+                  max="20000"
+                  step="1"
+                  value="2500"
+                />
+                <span class="val-display" id="filterCutoff-val">2500 Hz</span>
+              </div>
+              <div class="control-unit">
+                <label>Reso (Q)</label>
+                <input
+                  type="range"
+                  id="filterResonance"
+                  min="0.1"
+                  max="22"
+                  step="0.1"
+                  value="2.0"
+                />
+                <span class="val-display" id="filterResonance-val">2.0</span>
+              </div>
+              <div class="control-unit">
+                <label>Env Amount</label>
+                <input
+                  type="range"
+                  id="filterEnvAmount"
+                  min="-1"
+                  max="1"
+                  step="0.02"
+                  value="0.5"
+                />
+                <span class="val-display" id="filterEnvAmount-val">+50%</span>
+              </div>
+              <div class="control-unit">
+                <label>Key Tracking</label>
+                <input
+                  type="range"
+                  id="filterKeyTracking"
+                  min="0"
+                  max="1"
+                  step="0.02"
+                  value="0.4"
+                />
+                <span class="val-display" id="filterKeyTracking-val">40%</span>
+              </div>
+            </div>
+
+            <!-- Filter ADSR -->
+            <div class="adsr-section">
+              <div class="sub-label">FILTER ENVELOPE</div>
+              <div class="adsr-faders">
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="filterAttack"
+                    min="0.005"
+                    max="3"
+                    step="0.005"
+                    value="0.04"
+                    orient="vertical"
+                  />
+                  <label>A</label>
+                  <span class="val-display" id="filterAttack-val">40ms</span>
+                </div>
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="filterDecay"
+                    min="0.01"
+                    max="4"
+                    step="0.01"
+                    value="0.35"
+                    orient="vertical"
+                  />
+                  <label>D</label>
+                  <span class="val-display" id="filterDecay-val">0.35s</span>
+                </div>
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="filterSustain"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0.3"
+                    orient="vertical"
+                  />
+                  <label>S</label>
+                  <span class="val-display" id="filterSustain-val">30%</span>
+                </div>
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="filterRelease"
+                    min="0.01"
+                    max="5"
+                    step="0.01"
+                    value="0.4"
+                    orient="vertical"
+                  />
+                  <label>R</label>
+                  <span class="val-display" id="filterRelease-val">0.40s</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. LFO (LOW FREQ OSC) -->
+        <div class="synth-card" id="lfo-card">
+          <div class="card-title">LFO (MODULATION)</div>
+          <div class="card-body">
+            <div class="control-row">
+              <label>Waveform</label>
+              <div class="btn-group wave-select" data-param="lfoWaveform">
+                <button class="btn btn-tab active" data-value="sine">
+                  SIN
+                </button>
+                <button class="btn btn-tab" data-value="triangle">TRI</button>
+                <button class="btn btn-tab" data-value="square">SQR</button>
+                <button class="btn btn-tab" data-value="sawtooth">SAW</button>
+              </div>
+            </div>
+
+            <div class="control-row">
+              <label>Target</label>
+              <div class="btn-group target-select" data-param="lfoTarget">
+                <button class="btn btn-tab active" data-value="filter">
+                  CUTOFF
+                </button>
+                <button class="btn btn-tab" data-value="pitch">PITCH</button>
+                <button class="btn btn-tab" data-value="none">OFF</button>
+              </div>
+            </div>
+
+            <div class="knob-grid">
+              <div class="control-unit">
+                <label>Rate (Hz)</label>
+                <input
+                  type="range"
+                  id="lfoRate"
+                  min="0.1"
+                  max="20"
+                  step="0.1"
+                  value="3.5"
+                />
+                <span class="val-display" id="lfoRate-val">3.5 Hz</span>
+              </div>
+              <div class="control-unit">
+                <label>Depth</label>
+                <input
+                  type="range"
+                  id="lfoDepth"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value="0.0"
+                />
+                <span class="val-display" id="lfoDepth-val">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. AMPLIFIER & ENVELOPES -->
+        <div class="synth-card" id="amp-card">
+          <div class="card-title">AMPLIFIER & VOLUME</div>
+          <div class="card-body">
+            <div class="adsr-section">
+              <div class="sub-label">AMP ENVELOPE</div>
+              <div class="adsr-faders">
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="ampAttack"
+                    min="0.005"
+                    max="3"
+                    step="0.005"
+                    value="0.02"
+                    orient="vertical"
+                  />
+                  <label>A</label>
+                  <span class="val-display" id="ampAttack-val">20ms</span>
+                </div>
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="ampDecay"
+                    min="0.01"
+                    max="4"
+                    step="0.01"
+                    value="0.25"
+                    orient="vertical"
+                  />
+                  <label>D</label>
+                  <span class="val-display" id="ampDecay-val">0.25s</span>
+                </div>
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="ampSustain"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0.7"
+                    orient="vertical"
+                  />
+                  <label>S</label>
+                  <span class="val-display" id="ampSustain-val">70%</span>
+                </div>
+                <div class="fader-col">
+                  <input
+                    type="range"
+                    id="ampRelease"
+                    min="0.01"
+                    max="5"
+                    step="0.01"
+                    value="0.35"
+                    orient="vertical"
+                  />
+                  <label>R</label>
+                  <span class="val-display" id="ampRelease-val">0.35s</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="slider-row" style="margin-top: 14px">
+              <label>Master Volume</label>
+              <input
+                type="range"
+                id="masterVolume"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0.75"
+              />
+              <span class="val-display" id="masterVolume-val">75%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Effects Area (Root Level Container) -->
+      <div class="synth-card effects-root-card" id="effects-container">
+        <div class="card-title">EFFECTS</div>
+        <div class="effects-inner-grid">
+          <!-- DISTORTION EFFECT MODULE -->
+          <div class="effect-module" id="effect-distortion">
+            <div class="effect-module-header">
+              <span class="sub-label">DISTORTION</span>
               <label class="toggle-switch">
-                <input type="checkbox" id="toggle-wake-lock" checked>
+                <input type="checkbox" id="distortionEnabled" />
                 <span class="toggle-slider"></span>
               </label>
-              <span id="wake-lock-status" class="badge badge-cyan" style="font-size: 9px; padding: 2px 6px;">ON AUDIO START</span>
             </div>
-            <p class="settings-desc" style="margin-top: 8px; font-size: 10px; color: var(--text-dim);">
-              Dual-tier keep-awake: Combines the W3C WakeLock API with an HTML5 media keep-alive fallback for non-HTTPS connections and Android Motorola devices.
+            <div class="effect-module-body">
+              <div class="knob-grid">
+                <div class="control-unit">
+                  <label>Drive</label>
+                  <input
+                    type="range"
+                    id="distortionDrive"
+                    min="1"
+                    max="80"
+                    step="1"
+                    value="20"
+                  />
+                  <span class="val-display" id="distortionDrive-val">20</span>
+                </div>
+                <div class="control-unit">
+                  <label>Tone</label>
+                  <input
+                    type="range"
+                    id="distortionTone"
+                    min="500"
+                    max="12000"
+                    step="100"
+                    value="4000"
+                  />
+                  <span class="val-display" id="distortionTone-val"
+                    >4.0 kHz</span
+                  >
+                </div>
+                <div class="control-unit">
+                  <label>Mix</label>
+                  <input
+                    type="range"
+                    id="distortionMix"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0.5"
+                  />
+                  <span class="val-display" id="distortionMix-val">50%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEREO DELAY EFFECT MODULE -->
+          <div class="effect-module" id="effect-stereo-delay">
+            <div class="effect-module-header">
+              <span class="sub-label">STEREO DELAY</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="delayEnabled" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="effect-module-body">
+              <div class="knob-grid">
+                <div class="control-unit">
+                  <label>Time</label>
+                  <input
+                    type="range"
+                    id="delayTime"
+                    min="0.05"
+                    max="0.8"
+                    step="0.01"
+                    value="0.28"
+                  />
+                  <span class="val-display" id="delayTime-val">280ms</span>
+                </div>
+                <div class="control-unit">
+                  <label>Feedback</label>
+                  <input
+                    type="range"
+                    id="delayFeedback"
+                    min="0"
+                    max="0.85"
+                    step="0.01"
+                    value="0.4"
+                  />
+                  <span class="val-display" id="delayFeedback-val">40%</span>
+                </div>
+                <div class="control-unit">
+                  <label>Mix</label>
+                  <input
+                    type="range"
+                    id="delayMix"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0.25"
+                  />
+                  <span class="val-display" id="delayMix-val">25%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- REVERB EFFECT MODULE -->
+          <div class="effect-module" id="effect-reverb">
+            <div class="effect-module-header">
+              <span class="sub-label">REVERB</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="reverbEnabled" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="effect-module-body">
+              <div class="knob-grid">
+                <div class="control-unit">
+                  <label>Decay</label>
+                  <input
+                    type="range"
+                    id="reverbTime"
+                    min="0.5"
+                    max="5.0"
+                    step="0.1"
+                    value="2.2"
+                  />
+                  <span class="val-display" id="reverbTime-val">2.2s</span>
+                </div>
+                <div class="control-unit">
+                  <label>Damp</label>
+                  <input
+                    type="range"
+                    id="reverbDamp"
+                    min="500"
+                    max="10000"
+                    step="100"
+                    value="3500"
+                  />
+                  <span class="val-display" id="reverbDamp-val">3.5 kHz</span>
+                </div>
+                <div class="control-unit">
+                  <label>Mix</label>
+                  <input
+                    type="range"
+                    id="reverbMix"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="0.3"
+                  />
+                  <span class="val-display" id="reverbMix-val">30%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Play Section: MPE Touch (1/3) in line with Keyboard (2/3) -->
+      <section class="bottom-play-section" id="bottom-play-section">
+        <!-- 2D MPE Interactive Touchpad (1/3 width) -->
+        <div class="mpe-pad-card" id="mpe-pad-card">
+          <div class="card-header">
+            <span>MPE TOUCHPAD</span>
+            <div class="mpe-pad-settings">
+              <label for="mpe-bend-range">Bend:</label>
+              <select id="mpe-bend-range">
+                <option value="2">±2</option>
+                <option value="12">±12</option>
+                <option value="24">±24</option>
+                <option value="48" selected>±48</option>
+                <option value="96">±96</option>
+              </select>
+            </div>
+          </div>
+          <div class="touchpad-area" id="mpe-touchpad">
+            <div class="touchpad-instructions">
+              <span>X: Pitch Bend</span>
+              <span>Y: CC73 Cutoff</span>
+              <span>Touch: Gate</span>
+            </div>
+            <div class="touchpad-cursor" id="touchpad-cursor"></div>
+          </div>
+          <div class="touchpad-status" id="touchpad-status">
+            X: Bend 0 | Y: CC73 64 | Gate: OFF
+          </div>
+        </div>
+
+        <!-- Interactive On-Screen Keyboard (2/3 width) -->
+        <div class="keyboard-section" id="keyboard-section">
+          <div class="keyboard-header">
+            <span class="keyboard-title"
+              >VIRTUAL KEYBOARD (KEYS: A W S E D F T G Y H U J K...)</span
+            >
+            <div class="octave-shift">
+              <button id="btn-oct-down" class="btn btn-sm">OCT -</button>
+              <span id="current-octave-display">C4</span>
+              <button id="btn-oct-up" class="btn btn-sm">OCT +</button>
+            </div>
+          </div>
+          <div class="keyboard" id="synth-keyboard">
+            <!-- Generated dynamically in UI -->
+          </div>
+        </div>
+      </section>
+      <!-- Save / Edit Preset Modal -->
+      <div id="save-preset-modal" class="modal-overlay" style="display: none">
+        <div class="modal-card modal-sm">
+          <div class="modal-header">
+            <h3 id="save-modal-title">💾 Save Preset</h3>
+            <button id="btn-close-save-modal" class="btn btn-xs">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="settings-desc" id="save-modal-desc">
+              Enter a name for your custom patch:
+            </p>
+            <div class="preset-form-group">
+              <input
+                type="text"
+                id="input-preset-name"
+                class="preset-text-input"
+                placeholder="e.g. My Lead Patch"
+                maxlength="32"
+                autocomplete="off"
+              />
+            </div>
+            <div
+              id="save-mode-group"
+              class="save-mode-group"
+              style="display: none"
+            >
+              <label class="save-radio-label">
+                <input
+                  type="radio"
+                  name="save-mode"
+                  value="overwrite"
+                  checked
+                />
+                <span>Overwrite current preset</span>
+              </label>
+              <label class="save-radio-label">
+                <input type="radio" name="save-mode" value="new" />
+                <span>Save as a new preset</span>
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="btn-cancel-save-modal" class="btn btn-sm">
+              Cancel
+            </button>
+            <button id="btn-confirm-save-modal" class="btn btn-sm btn-primary">
+              Save Preset
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Preset Confirmation Modal -->
+      <div id="delete-preset-modal" class="modal-overlay" style="display: none">
+        <div class="modal-card modal-sm">
+          <div class="modal-header">
+            <h3>🗑️ Delete Preset</h3>
+            <button id="btn-close-delete-modal" class="btn btn-xs">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="settings-desc" id="delete-modal-text">
+              Are you sure you want to delete this custom preset?
             </p>
           </div>
-
-          <!-- Performance Controls & UI Visibility -->
-          <div class="settings-section">
-            <div class="settings-title">On-Screen Performance Controls</div>
-            <p class="settings-desc">Show or hide on-screen controls to reclaim screen space when using an external hardware MIDI or MPE controller.</p>
-            <div class="settings-row">
-              <label for="toggle-show-touchpad">MPE Touchpad:</label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-show-touchpad" checked>
-                <span class="toggle-slider"></span>
-              </label>
-              <span id="touchpad-vis-status" class="badge badge-emerald" style="font-size: 9px; padding: 2px 6px;">SHOWN</span>
-            </div>
-            <div class="settings-row" style="margin-top: 8px;">
-              <label for="toggle-show-keyboard">Virtual Keyboard:</label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-show-keyboard" checked>
-                <span class="toggle-slider"></span>
-              </label>
-              <span id="keyboard-vis-status" class="badge badge-emerald" style="font-size: 9px; padding: 2px 6px;">SHOWN</span>
-            </div>
-          </div>
-
-          <!-- MIDI Inputs Section -->
-          <div class="settings-section">
-            <div class="settings-title">MIDI Hardware & Routing</div>
-            <p class="settings-desc">Select connected USB or Bluetooth MIDI/MPE controllers. Click SCAN to request permissions and detect newly plugged devices.</p>
-            <div class="settings-row">
-              <label for="midi-input-select">MIDI Port:</label>
-              <div class="select-wrapper">
-                <select id="midi-input-select">
-                  <option value="all">All MIDI Inputs</option>
-                </select>
-              </div>
-              <button id="btn-midi-scan" class="btn btn-sm">SCAN</button>
-            </div>
-          </div>
-
-          <!-- MIDI Connection Diagnostics -->
-          <div class="settings-section" id="midi-diag-section">
-            <div class="settings-header-row">
-              <div class="settings-title" style="font-size: 11px;">MIDI Bridge Diagnostics</div>
-              <button id="btn-refresh-diag" class="btn btn-xs">REFRESH</button>
-            </div>
-            <div id="midi-diag-content" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; line-height: 1.6; margin-top: 6px;">
-              Loading diagnostics...
-            </div>
-          </div>
-
-          <!-- Live MIDI Log Console (Stashed in Settings) -->
-          <div class="settings-section midi-monitor-section" id="midi-log-card">
-            <div class="settings-header-row">
-              <div class="settings-title">Live MIDI Monitor</div>
-              <div class="card-header-actions">
-                <span class="badge badge-muted" id="midi-mon-badge">PAUSED</span>
-                <button id="btn-toggle-midi-log" class="btn btn-xs" title="Toggle MIDI Monitor (Saves CPU)">SHOW</button>
-                <button id="btn-clear-log" class="btn btn-xs">CLEAR</button>
-              </div>
-            </div>
-            <p class="settings-desc">Inspect real-time incoming MIDI messages, CC parameters, and MPE pitch bend data.</p>
-            <div class="midi-log-table-wrap" id="midi-log-table-wrap" style="display: none; max-height: 200px;">
-              <table class="midi-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Ch</th>
-                    <th>Event</th>
-                    <th>Val</th>
-                    <th>Detail</th>
-                  </tr>
-                </thead>
-                <tbody id="midi-log-body">
-                  <tr>
-                    <td colspan="5" class="empty-log">Awaiting MIDI messages...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div id="midi-log-placeholder" class="midi-log-placeholder">
-              <span>Monitor paused for max performance. Tap <strong>SHOW</strong> to view live MIDI events.</span>
-            </div>
-          </div>
-
-          <!-- About & Architecture Guide Section -->
-          <div class="settings-section settings-about-section">
-            <div class="settings-header-row">
-              <div>
-                <div class="settings-title">Architecture & Features</div>
-                <p class="settings-desc">Influences, sound design, and synthesis engine guide.</p>
-              </div>
-              <button id="btn-open-about" class="btn btn-sm" type="button">About POLY-MPE ↗</button>
-            </div>
+          <div class="modal-footer">
+            <button id="btn-cancel-delete-modal" class="btn btn-sm">
+              Cancel
+            </button>
+            <button id="btn-confirm-delete-modal" class="btn btn-sm btn-danger">
+              Delete
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Synthesizer Architecture & Features Guide Modal -->
-    <div id="synth-info-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>🎹 POLY-MPE // About & Features</h3>
-          <button id="btn-close-info" class="btn btn-xs">✕</button>
-        </div>
-        <div class="modal-body">
-          <div class="help-section">
-            <h4>About POLY-MPE</h4>
-            <p><strong>POLY-MPE</strong> is an expressive 8-voice polyphonic synthesizer engine engineered entirely with the native Web Audio and Web MIDI APIs. It bridges classic analog subtractive synthesis with modern multidimensional MIDI Polyphonic Expression (MPE).</p>
-          </div>
-
-          <div class="help-section">
-            <h4>Key Influences</h4>
-            <ul>
-              <li><strong>Sequential Prophet-5 & Roland Jupiter-8:</strong> Dual cross-modulating analog oscillator architecture, rich detuned unison leads, warm poly brass, and resonant 4-pole low-pass filtering.</li>
-              <li><strong>Expressive E Osmose & Roli Seaboard:</strong> High-resolution continuous per-note pitch bending (up to ±48 semitones), polyphonic pressure/aftertouch, and seamless note sliding.</li>
-              <li><strong>Americana Pedal Steel & Ambient Guitar:</strong> Resonant clean pickup modeling, volume pedal expression swells (CC11), and lush stereo slapback/hall delay networks.</li>
-            </ul>
-          </div>
-
-          <div class="help-section">
-            <h4>Key Features</h4>
-            <ul>
-              <li><strong>8 Polyphonic Voices:</strong> Pre-allocated zero-garbage-collection audio graph with round-robin allocation and 2.5ms anti-pop micro-fades.</li>
-              <li><strong>Dual Multi-Wave Oscillators:</strong> Sawtooth, Square, Triangle, and Sine waveforms with octave shifting (-2 to +2), semitone transpose, and fine cents detuning.</li>
-              <li><strong>Resonant Low-Pass Filter:</strong> 20Hz - 20kHz cutoff with resonance Q, ADSR envelope generator, key tracking, and CC73 cutoff control.</li>
-              <li><strong>MPE Expressive Controls:</strong> Continuous per-note pitch bend (±48 semitones), CC11 expression/volume, CC1 mod wheel resonance, and channel aftertouch.</li>
-              <li><strong>Stereo Delay & Studio Limiter:</strong> Dual-channel ping-pong stereo delay with feedback and studio soft-clip dynamics compressor.</li>
-              <li><strong>Performance Tools:</strong> 2D MPE Touchpad for XY expression testing and on-screen keyboard mapped directly to your computer keyboard.</li>
-            </ul>
-          </div>
-
-          <div class="help-section">
-            <h4>Playing Controls</h4>
-            <p>Play using the computer keyboard keys (shown directly on the virtual keys: <code>A, W, S, E, D, F...</code>), your mouse/touchscreen, or connect any USB or Bluetooth MIDI/MPE keyboard controller!</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Visualizers Row: Oscilloscope & Filter Response (Aligned Widths & Heights) -->
-    <div class="visualizers-row">
-      <!-- Oscilloscope Card -->
-      <div class="visualizer-card" id="oscilloscope-card">
-        <div class="card-header">
-          <span>OSCILLOSCOPE</span>
-          <div class="card-header-actions">
-            <span class="badge" id="osc-badge">LIVE</span>
-            <button id="btn-toggle-osc" class="btn btn-xs" title="Toggle Oscilloscope (Saves CPU on mobile)">HIDE</button>
-          </div>
-        </div>
-        <div id="oscilloscope-wrap">
-          <canvas id="oscilloscope-canvas" width="480" height="110"></canvas>
-        </div>
-      </div>
-
-      <!-- Filter Response Graph -->
-      <div class="visualizer-card" id="filter-visualizer-card">
-        <div class="card-header">
-          <span>FILTER RESPONSE</span>
-          <span class="badge" id="filter-cutoff-readout">2500 Hz</span>
-        </div>
-        <div id="filter-wrap">
-          <canvas id="filter-canvas" width="480" height="110"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4 Main Synth Modules (2x2 Grid with Aligned Widths & Heights) -->
-    <div class="synth-modules-grid">
-      <!-- 1. OSCILLATORS CONTAINER (Directly under Oscilloscope) -->
-      <!-- 1. OSCILLATORS CONTAINER (Directly under Oscilloscope, Both Stacked) -->
-      <div class="synth-card" id="oscillators-card">
-        <div class="card-title">
-          <span>OSCILLATORS</span>
-          <div class="osc-mix-inline">
-            <label for="osc2Mix">MIX</label>
-            <input type="range" id="osc2Mix" min="0" max="1" step="0.01" value="0.5" title="Oscillator 2 Mix Level">
-            <span class="val-display" id="osc2Mix-val">50%</span>
-          </div>
-        </div>
-
-        <div class="card-body osc-stacked-body">
-          <!-- OSCILLATOR 1 -->
-          <div class="osc-sub-block" id="osc1-block">
-            <div class="control-row">
-              <span class="sub-label">OSC 1</span>
-              <div class="btn-group wave-select" data-param="osc1Waveform">
-                <button class="btn btn-tab active" data-value="sawtooth">SAW</button>
-                <button class="btn btn-tab" data-value="square">SQR</button>
-                <button class="btn btn-tab" data-value="triangle">TRI</button>
-                <button class="btn btn-tab" data-value="sine">SIN</button>
-              </div>
-            </div>
-
-            <div class="knob-grid">
-              <div class="control-unit">
-                <label>Octave</label>
-                <input type="range" id="osc1Octave" min="-2" max="2" step="1" value="0">
-                <span class="val-display" id="osc1Octave-val">0</span>
-              </div>
-              <div class="control-unit">
-                <label>Semi</label>
-                <input type="range" id="osc1Semi" min="-12" max="12" step="1" value="0">
-                <span class="val-display" id="osc1Semi-val">0</span>
-              </div>
-              <div class="control-unit">
-                <label>Fine (cents)</label>
-                <input type="range" id="osc1Fine" min="-50" max="50" step="1" value="0">
-                <span class="val-display" id="osc1Fine-val">0</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="osc-divider"></div>
-
-          <!-- OSCILLATOR 2 -->
-          <div class="osc-sub-block" id="osc2-block">
-            <div class="control-row">
-              <span class="sub-label">OSC 2</span>
-              <div class="btn-group wave-select" data-param="osc2Waveform">
-                <button class="btn btn-tab" data-value="sawtooth">SAW</button>
-                <button class="btn btn-tab active" data-value="square">SQR</button>
-                <button class="btn btn-tab" data-value="triangle">TRI</button>
-                <button class="btn btn-tab" data-value="sine">SIN</button>
-              </div>
-            </div>
-
-            <div class="knob-grid">
-              <div class="control-unit">
-                <label>Octave</label>
-                <input type="range" id="osc2Octave" min="-2" max="2" step="1" value="0">
-                <span class="val-display" id="osc2Octave-val">0</span>
-              </div>
-              <div class="control-unit">
-                <label>Semi</label>
-                <input type="range" id="osc2Semi" min="-12" max="12" step="1" value="0">
-                <span class="val-display" id="osc2Semi-val">0</span>
-              </div>
-              <div class="control-unit">
-                <label>Fine (cents)</label>
-                <input type="range" id="osc2Fine" min="-50" max="50" step="1" value="7">
-                <span class="val-display" id="osc2Fine-val">+7</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. LOW PASS FILTER (Directly under Filter Response Graph) -->
-      <div class="synth-card" id="filter-card">
-        <div class="card-title">LOW PASS FILTER</div>
-        <div class="card-body">
-          <div class="knob-grid">
-            <div class="control-unit">
-              <label>Cutoff (Hz)</label>
-              <input type="range" id="filterCutoff" min="20" max="20000" step="1" value="2500">
-              <span class="val-display" id="filterCutoff-val">2500 Hz</span>
-            </div>
-            <div class="control-unit">
-              <label>Reso (Q)</label>
-              <input type="range" id="filterResonance" min="0.1" max="22" step="0.1" value="2.0">
-              <span class="val-display" id="filterResonance-val">2.0</span>
-            </div>
-            <div class="control-unit">
-              <label>Env Amount</label>
-              <input type="range" id="filterEnvAmount" min="-1" max="1" step="0.02" value="0.5">
-              <span class="val-display" id="filterEnvAmount-val">+50%</span>
-            </div>
-            <div class="control-unit">
-              <label>Key Tracking</label>
-              <input type="range" id="filterKeyTracking" min="0" max="1" step="0.02" value="0.4">
-              <span class="val-display" id="filterKeyTracking-val">40%</span>
-            </div>
-          </div>
-
-          <!-- Filter ADSR -->
-          <div class="adsr-section">
-            <div class="sub-label">FILTER ENVELOPE</div>
-            <div class="adsr-faders">
-              <div class="fader-col">
-                <input type="range" id="filterAttack" min="0.005" max="3" step="0.005" value="0.04" orient="vertical">
-                <label>A</label>
-                <span class="val-display" id="filterAttack-val">40ms</span>
-              </div>
-              <div class="fader-col">
-                <input type="range" id="filterDecay" min="0.01" max="4" step="0.01" value="0.35" orient="vertical">
-                <label>D</label>
-                <span class="val-display" id="filterDecay-val">0.35s</span>
-              </div>
-              <div class="fader-col">
-                <input type="range" id="filterSustain" min="0" max="1" step="0.01" value="0.3" orient="vertical">
-                <label>S</label>
-                <span class="val-display" id="filterSustain-val">30%</span>
-              </div>
-              <div class="fader-col">
-                <input type="range" id="filterRelease" min="0.01" max="5" step="0.01" value="0.4" orient="vertical">
-                <label>R</label>
-                <span class="val-display" id="filterRelease-val">0.40s</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. LFO (LOW FREQ OSC) -->
-      <div class="synth-card" id="lfo-card">
-        <div class="card-title">LFO (MODULATION)</div>
-        <div class="card-body">
-          <div class="control-row">
-            <label>Waveform</label>
-            <div class="btn-group wave-select" data-param="lfoWaveform">
-              <button class="btn btn-tab active" data-value="sine">SIN</button>
-              <button class="btn btn-tab" data-value="triangle">TRI</button>
-              <button class="btn btn-tab" data-value="square">SQR</button>
-              <button class="btn btn-tab" data-value="sawtooth">SAW</button>
-            </div>
-          </div>
-
-          <div class="control-row">
-            <label>Target</label>
-            <div class="btn-group target-select" data-param="lfoTarget">
-              <button class="btn btn-tab active" data-value="filter">CUTOFF</button>
-              <button class="btn btn-tab" data-value="pitch">PITCH</button>
-              <button class="btn btn-tab" data-value="none">OFF</button>
-            </div>
-          </div>
-
-          <div class="knob-grid">
-            <div class="control-unit">
-              <label>Rate (Hz)</label>
-              <input type="range" id="lfoRate" min="0.1" max="20" step="0.1" value="3.5">
-              <span class="val-display" id="lfoRate-val">3.5 Hz</span>
-            </div>
-            <div class="control-unit">
-              <label>Depth</label>
-              <input type="range" id="lfoDepth" min="0" max="1" step="0.01" value="0.0">
-              <span class="val-display" id="lfoDepth-val">0%</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 4. AMPLIFIER & ENVELOPES -->
-      <div class="synth-card" id="amp-card">
-        <div class="card-title">AMPLIFIER & VOLUME</div>
-        <div class="card-body">
-          <div class="adsr-section">
-            <div class="sub-label">AMP ENVELOPE</div>
-            <div class="adsr-faders">
-              <div class="fader-col">
-                <input type="range" id="ampAttack" min="0.005" max="3" step="0.005" value="0.02" orient="vertical">
-                <label>A</label>
-                <span class="val-display" id="ampAttack-val">20ms</span>
-              </div>
-              <div class="fader-col">
-                <input type="range" id="ampDecay" min="0.01" max="4" step="0.01" value="0.25" orient="vertical">
-                <label>D</label>
-                <span class="val-display" id="ampDecay-val">0.25s</span>
-              </div>
-              <div class="fader-col">
-                <input type="range" id="ampSustain" min="0" max="1" step="0.01" value="0.7" orient="vertical">
-                <label>S</label>
-                <span class="val-display" id="ampSustain-val">70%</span>
-              </div>
-              <div class="fader-col">
-                <input type="range" id="ampRelease" min="0.01" max="5" step="0.01" value="0.35" orient="vertical">
-                <label>R</label>
-                <span class="val-display" id="ampRelease-val">0.35s</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="slider-row" style="margin-top: 14px;">
-            <label>Master Volume</label>
-            <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.75">
-            <span class="val-display" id="masterVolume-val">75%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Effects Area (Root Level Container) -->
-    <div class="synth-card effects-root-card" id="effects-container">
-      <div class="card-title">EFFECTS</div>
-      <div class="effects-inner-grid">
-        <!-- DISTORTION EFFECT MODULE -->
-        <div class="effect-module" id="effect-distortion">
-          <div class="effect-module-header">
-            <span class="sub-label">DISTORTION</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="distortionEnabled">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="effect-module-body">
-            <div class="knob-grid">
-              <div class="control-unit">
-                <label>Drive</label>
-                <input type="range" id="distortionDrive" min="1" max="80" step="1" value="20">
-                <span class="val-display" id="distortionDrive-val">20</span>
-              </div>
-              <div class="control-unit">
-                <label>Tone</label>
-                <input type="range" id="distortionTone" min="500" max="12000" step="100" value="4000">
-                <span class="val-display" id="distortionTone-val">4.0 kHz</span>
-              </div>
-              <div class="control-unit">
-                <label>Mix</label>
-                <input type="range" id="distortionMix" min="0" max="1" step="0.01" value="0.5">
-                <span class="val-display" id="distortionMix-val">50%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- STEREO DELAY EFFECT MODULE -->
-        <div class="effect-module" id="effect-stereo-delay">
-          <div class="effect-module-header">
-            <span class="sub-label">STEREO DELAY</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="delayEnabled" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="effect-module-body">
-            <div class="knob-grid">
-              <div class="control-unit">
-                <label>Time</label>
-                <input type="range" id="delayTime" min="0.05" max="0.8" step="0.01" value="0.28">
-                <span class="val-display" id="delayTime-val">280ms</span>
-              </div>
-              <div class="control-unit">
-                <label>Feedback</label>
-                <input type="range" id="delayFeedback" min="0" max="0.85" step="0.01" value="0.4">
-                <span class="val-display" id="delayFeedback-val">40%</span>
-              </div>
-              <div class="control-unit">
-                <label>Mix</label>
-                <input type="range" id="delayMix" min="0" max="1" step="0.01" value="0.25">
-                <span class="val-display" id="delayMix-val">25%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- REVERB EFFECT MODULE -->
-        <div class="effect-module" id="effect-reverb">
-          <div class="effect-module-header">
-            <span class="sub-label">REVERB</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="reverbEnabled">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="effect-module-body">
-            <div class="knob-grid">
-              <div class="control-unit">
-                <label>Decay</label>
-                <input type="range" id="reverbTime" min="0.5" max="5.0" step="0.1" value="2.2">
-                <span class="val-display" id="reverbTime-val">2.2s</span>
-              </div>
-              <div class="control-unit">
-                <label>Damp</label>
-                <input type="range" id="reverbDamp" min="500" max="10000" step="100" value="3500">
-                <span class="val-display" id="reverbDamp-val">3.5 kHz</span>
-              </div>
-              <div class="control-unit">
-                <label>Mix</label>
-                <input type="range" id="reverbMix" min="0" max="1" step="0.01" value="0.3">
-                <span class="val-display" id="reverbMix-val">30%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom Play Section: MPE Touch (1/3) in line with Keyboard (2/3) -->
-    <section class="bottom-play-section" id="bottom-play-section">
-      <!-- 2D MPE Interactive Touchpad (1/3 width) -->
-      <div class="mpe-pad-card" id="mpe-pad-card">
-        <div class="card-header">
-          <span>MPE TOUCHPAD</span>
-          <div class="mpe-pad-settings">
-            <label for="mpe-bend-range">Bend:</label>
-            <select id="mpe-bend-range">
-              <option value="2">±2</option>
-              <option value="12">±12</option>
-              <option value="24">±24</option>
-              <option value="48" selected>±48</option>
-              <option value="96">±96</option>
-            </select>
-          </div>
-        </div>
-        <div class="touchpad-area" id="mpe-touchpad">
-          <div class="touchpad-instructions">
-            <span>X: Pitch Bend</span>
-            <span>Y: CC73 Cutoff</span>
-            <span>Touch: Gate</span>
-          </div>
-          <div class="touchpad-cursor" id="touchpad-cursor"></div>
-        </div>
-        <div class="touchpad-status" id="touchpad-status">
-          X: Bend 0 | Y: CC73 64 | Gate: OFF
-        </div>
-      </div>
-
-      <!-- Interactive On-Screen Keyboard (2/3 width) -->
-      <div class="keyboard-section" id="keyboard-section">
-        <div class="keyboard-header">
-          <span class="keyboard-title">VIRTUAL KEYBOARD (KEYS: A W S E D F T G Y H U J K...)</span>
-          <div class="octave-shift">
-            <button id="btn-oct-down" class="btn btn-sm">OCT -</button>
-            <span id="current-octave-display">C4</span>
-            <button id="btn-oct-up" class="btn btn-sm">OCT +</button>
-          </div>
-        </div>
-        <div class="keyboard" id="synth-keyboard">
-          <!-- Generated dynamically in UI -->
-        </div>
-      </div>
-    </section>
-    <!-- Save / Edit Preset Modal -->
-    <div id="save-preset-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-card modal-sm">
-        <div class="modal-header">
-          <h3 id="save-modal-title">💾 Save Preset</h3>
-          <button id="btn-close-save-modal" class="btn btn-xs">✕</button>
-        </div>
-        <div class="modal-body">
-          <p class="settings-desc" id="save-modal-desc">Enter a name for your custom patch:</p>
-          <div class="preset-form-group">
-            <input type="text" id="input-preset-name" class="preset-text-input" placeholder="e.g. My Lead Patch" maxlength="32" autocomplete="off">
-          </div>
-          <div id="save-mode-group" class="save-mode-group" style="display: none;">
-            <label class="save-radio-label">
-              <input type="radio" name="save-mode" value="overwrite" checked>
-              <span>Overwrite current preset</span>
-            </label>
-            <label class="save-radio-label">
-              <input type="radio" name="save-mode" value="new">
-              <span>Save as a new preset</span>
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="btn-cancel-save-modal" class="btn btn-sm">Cancel</button>
-          <button id="btn-confirm-save-modal" class="btn btn-sm btn-primary">Save Preset</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Preset Confirmation Modal -->
-    <div id="delete-preset-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-card modal-sm">
-        <div class="modal-header">
-          <h3>🗑️ Delete Preset</h3>
-          <button id="btn-close-delete-modal" class="btn btn-xs">✕</button>
-        </div>
-        <div class="modal-body">
-          <p class="settings-desc" id="delete-modal-text">Are you sure you want to delete this custom preset?</p>
-        </div>
-        <div class="modal-footer">
-          <button id="btn-cancel-delete-modal" class="btn btn-sm">Cancel</button>
-          <button id="btn-confirm-delete-modal" class="btn btn-sm btn-danger">Delete</button>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <script type="module" src="js/ui.js"></script>
-</body>
+    <script type="module" src="js/ui.js"></script>
+  </body>
 </html>

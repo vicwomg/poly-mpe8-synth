@@ -32,7 +32,7 @@ if (fs.existsSync(outDir)) {
 fs.mkdirSync(outDir, { recursive: true });
 
 // Copy essential directories and files
-const itemsToCopy = ['index.html', 'css', 'js', 'assets'];
+const itemsToCopy = ['index.html', 'midisteel_settings.html', 'css', 'js', 'assets'];
 
 for (const item of itemsToCopy) {
   const srcPath = path.join(rootDir, item);
@@ -40,6 +40,17 @@ for (const item of itemsToCopy) {
   if (fs.existsSync(srcPath)) {
     copyRecursive(srcPath, destPath);
     console.log(`  ✓ Copied ${item}`);
+  }
+}
+
+// Ensure midisteel-bridge.js script tag is present in destination midisteel_settings.html
+const destSettingsPath = path.join(outDir, 'midisteel_settings.html');
+if (fs.existsSync(destSettingsPath)) {
+  let content = fs.readFileSync(destSettingsPath, 'utf8');
+  if (!content.includes('midisteel-bridge.js')) {
+    content = content.replace('</head>', '  <script src="js/midisteel-bridge.js"></script>\n</head>');
+    fs.writeFileSync(destSettingsPath, content, 'utf8');
+    console.log('  ✓ Injected midisteel-bridge.js into www/midisteel_settings.html');
   }
 }
 

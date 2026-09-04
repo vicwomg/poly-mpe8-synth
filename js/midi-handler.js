@@ -15,6 +15,49 @@ export class MidiHandler {
     this.sustainedNotes = new Set();
     this.lastError = null;
     this.recentMessages = new Map(); // For deduplicating simultaneous packets across ports
+    this.jsRxCount = 0;
+    this.lastMidiEventStr = 'none';
+    this.isCoreMidiListening = false;
+    this.externalMidiListeners = new Set();
+
+    if (typeof window !== 'undefined') {
+      window.midisteelParentBridge = {
+        isDeviceConnected: () => this.isMidiSteelConnected(),
+        getDeviceName: () => this.getMidiSteelDeviceName(),
+        sendMidi: (bytes, target) => this.sendMidi(bytes, target),
+        subscribeMidi: (cb) => this.subscribeMidi(cb),
+        unsubscribeMidi: (cb) => this.unsubscribeMidi(cb),
+        getInputs: () => [...this.inputs],
+        getNativeMidiAccess: () => this.midiAccess
+      };
+    }
+  }
+
+  /**
+   * Dispatches incoming native CoreMIDI packets to synth engine.
+   */
+  handleCoreMidiEvent(detail) {
+    if (!detail || !detail.data) return;
+    this.jsRxCount++;
+
+    const sourceId = detail.sourceId ? String(detail.sourceId) : '';
+    const sourceName = detail.sourceName || 'CoreMIDI';
+
+    // Auto resume Web Audio on incoming MIDI if suspended
+    if (this.synth.ctx && this.synth.ctx.state === 'suspended') {
+      this.synth.ctx.resume().catch(() => {});
+    }
+
+    // Filter by selectedInputId if a specific port is selected
+    if (this.selectedInputId !== 'all' && sourceId && this.selectedInputId !== sourceId) {
+      return;
+    }
+
+    const fakeEvent = {
+      data: new Uint8Array(detail.data),
+      timeStamp: detail.timestamp || performance.now()
+    };
+    this.handleMidiMessage(fakeEvent, sourceName);
   }
 
   /**
@@ -27,10 +70,24 @@ export class MidiHandler {
     }
     if (typeof window.Capacitor.registerPlugin === 'function') {
       try {
-        return window.Capacitor.registerPlugin('CoreMidiPlugin');
+        const reg = window.Capacitor.registerPlugin('CoreMidiPlugin');
+        if (reg) return reg;
       } catch (err) {
-        console.warn('Failed to register CoreMidiPlugin:', err);
+        console.warn('Failed to register CoreMidiPlugin via registerPlugin:', err);
       }
+    }
+    // Direct native bridge proxy fallback for iOS Capacitor
+    if (window.Capacitor.isNativePlatform?.() && window.Capacitor.getPlatform?.() === 'ios') {
+      const pluginName = 'CoreMidiPlugin';
+      return {
+        listInputs: (opts) => window.Capacitor.nativePromise(pluginName, 'listInputs', opts || {}),
+        scanInputs: (opts) => window.Capacitor.nativePromise(pluginName, 'scanInputs', opts || {}),
+        listOutputs: (opts) => window.Capacitor.nativePromise(pluginName, 'listOutputs', opts || {}),
+        sendMidi: (opts) => window.Capacitor.nativePromise(pluginName, 'sendMidi', opts || {}),
+        getDiagnostics: (opts) => window.Capacitor.nativePromise(pluginName, 'getDiagnostics', opts || {}),
+        addListener: (eventName, callback) => window.Capacitor.addListener(pluginName, eventName, callback),
+        removeAllListeners: () => window.Capacitor.nativePromise(pluginName, 'removeAllListeners', {})
+      };
     }
     return null;
   }
@@ -53,6 +110,26 @@ export class MidiHandler {
       isIOS,
       isAndroid: typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '')
     };
+  }
+
+  /**
+   * Prioritizes hardware / USB MIDI devices over virtual network sessions.
+   */
+  getPreferredInputId(inputs) {
+    if (!inputs || inputs.length === 0) return 'all';
+
+    const isVirtual = (d) => {
+      const n = (d.name || '').toLowerCase();
+      return d.isNetwork || n.includes('network session') || n.includes('session ') || n.includes('rtpmidi') || n.includes('network');
+    };
+
+    const hardwareDevices = inputs.filter(d => !isVirtual(d));
+    if (hardwareDevices.length > 0) {
+      // Pick the first physical hardware controller (e.g. Teensy MIDI)
+      return hardwareDevices[0].id;
+    }
+
+    return inputs[0].id;
   }
 
   /**
@@ -80,39 +157,56 @@ export class MidiHandler {
         this.inputs = (res.inputs || []).map(d => ({
           id: d.id,
           name: d.name,
+          isNetwork: d.isNetwork,
           manufacturer: 'Apple CoreMIDI',
           state: 'connected'
         }));
 
-        coreMidi.removeAllListeners?.('midiMessage');
-        coreMidi.addListener('midiMessage', (event) => {
-          if (event && event.data) {
-            const fakeEvent = {
-              data: new Uint8Array(event.data),
-              timeStamp: event.timestamp || performance.now()
-            };
-            this.handleMidiMessage(fakeEvent, 'CoreMIDI');
-          }
-        });
+        // Prioritize hardware controller over virtual network sessions
+        if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
+          this.selectedInputId = this.getPreferredInputId(this.inputs);
+        }
 
-        coreMidi.removeAllListeners?.('devicesChanged');
-        coreMidi.addListener('devicesChanged', (event) => {
-          this.inputs = (event.inputs || []).map(d => ({
-            id: d.id,
-            name: d.name,
-            manufacturer: 'Apple CoreMIDI',
-            state: 'connected'
-          }));
-          if (this.onDeviceListChange) {
-            this.onDeviceListChange(this.inputs);
-          }
-          const count = this.inputs.length;
-          if (count > 0) {
-            this.reportStatus('ready', `${count} CoreMIDI device(s) connected`);
-          } else {
-            this.reportStatus('no_devices', 'CoreMIDI ready. Connect a MIDI controller.');
-          }
-        });
+        // Set up CoreMIDI event listeners once
+        if (!this.isCoreMidiListening) {
+          this.isCoreMidiListening = true;
+
+          // 1a. Direct WebKit Custom Event (Primary, ultra-fast, zero-overhead)
+          window.addEventListener('coremidimessage', (event) => {
+            if (event && event.detail) {
+              this.handleCoreMidiEvent(event.detail);
+            }
+          });
+
+          // 1b. Capacitor Plugin Listener (Secondary bridge channel)
+          coreMidi.addListener('midiMessage', (event) => {
+            if (event && event.data) {
+              this.handleCoreMidiEvent(event);
+            }
+          });
+
+          coreMidi.addListener('devicesChanged', (event) => {
+            this.inputs = (event.inputs || []).map(d => ({
+              id: d.id,
+              name: d.name,
+              isNetwork: d.isNetwork,
+              manufacturer: 'Apple CoreMIDI',
+              state: 'connected'
+            }));
+            if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
+              this.selectedInputId = this.getPreferredInputId(this.inputs);
+            }
+            if (this.onDeviceListChange) {
+              this.onDeviceListChange(this.inputs, this.selectedInputId);
+            }
+            const count = this.inputs.length;
+            if (count > 0) {
+              this.reportStatus('ready', `${count} CoreMIDI device(s) connected`);
+            } else {
+              this.reportStatus('no_devices', 'CoreMIDI ready. Connect a MIDI controller.');
+            }
+          });
+        }
 
         this.midiAccess = { isCoreMidi: true };
         const deviceCount = this.inputs.length;
@@ -122,7 +216,7 @@ export class MidiHandler {
           this.reportStatus('no_devices', 'CoreMIDI ready. Connect a MIDI controller.');
         }
         if (this.onDeviceListChange) {
-          this.onDeviceListChange(this.inputs);
+          this.onDeviceListChange(this.inputs, this.selectedInputId);
         }
         return { supported: true, isSecureContext: true, inputs: this.inputs };
       } catch (err) {
@@ -151,13 +245,16 @@ export class MidiHandler {
     try {
       this.reportStatus('requesting', 'Requesting MIDI permissions...');
 
-      // Try requesting standard MIDI first
+      // Request MIDI with sysex support for controller bidirectional configuration
       let access = null;
       try {
-        access = await navigator.requestMIDIAccess({ sysex: false });
+        access = await navigator.requestMIDIAccess({ sysex: true });
       } catch (err) {
-        // Fallback without options object if first call failed
-        access = await navigator.requestMIDIAccess();
+        try {
+          access = await navigator.requestMIDIAccess({ sysex: false });
+        } catch (err2) {
+          access = await navigator.requestMIDIAccess();
+        }
       }
 
       this.midiAccess = access;
@@ -226,12 +323,9 @@ export class MidiHandler {
       });
     }
 
-    // If only 1 device is detected, auto-select it directly instead of processing 'all' inputs
-    if (this.inputs.length === 1) {
-      this.selectedInputId = this.inputs[0].id;
-    } else if (this.selectedInputId !== 'all' && !this.inputs.some(d => d.id === this.selectedInputId)) {
-      // Revert if previously selected device is no longer present
-      this.selectedInputId = this.inputs.length > 0 ? this.inputs[0].id : 'all';
+    // Prioritize physical hardware devices over virtual sessions
+    if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
+      this.selectedInputId = this.getPreferredInputId(this.inputs);
     }
 
     this.bindInputs();
@@ -261,6 +355,14 @@ export class MidiHandler {
 
   handleMidiMessage(message, sourceName = '') {
     if (!message || !message.data || message.data.length === 0) return;
+
+    // Broadcast raw incoming message to any external subscribers (such as MIDISteel settings)
+    if (this.externalMidiListeners && this.externalMidiListeners.size > 0) {
+      const rawBytes = message.data instanceof Uint8Array ? message.data : new Uint8Array(message.data);
+      for (const cb of this.externalMidiListeners) {
+        try { cb(rawBytes, sourceName); } catch (e) { console.error('Error in external MIDI listener:', e); }
+      }
+    }
 
     let offset = 0;
     while (offset < message.data.length) {
@@ -403,6 +505,7 @@ export class MidiHandler {
     if (logEvent && typeof this.onMidiActivity === 'function') {
       logEvent.time = new Date().toLocaleTimeString();
       logEvent.source = sourceName;
+      this.lastMidiEventStr = `${logEvent.type} Ch${channel} ${logEvent.note !== '-' ? 'Note:' + logEvent.note : ''} ${logEvent.detail || ''}`;
       this.onMidiActivity(logEvent);
     }
   }
@@ -417,18 +520,23 @@ export class MidiHandler {
 
   async getDiagnostics() {
     const env = this.checkEnvironment();
+    const coreMidi = this.getCoreMidiPlugin();
     const result = {
       isCapacitor: env.isCapacitor,
       isIOS: env.isIOS,
       isAndroid: env.isAndroid,
       isSecureContext: env.isSecureContext,
       hasMidiApi: env.hasMidiApi,
+      hasCoreMidiPlugin: !!coreMidi,
+      capacitorPlugins: typeof window !== 'undefined' && window.Capacitor?.Plugins ? Object.keys(window.Capacitor.Plugins) : [],
       selectedInputId: this.selectedInputId,
       cachedInputs: this.inputs,
+      jsRxPacketCount: this.jsRxCount,
+      lastMidiEvent: this.lastMidiEventStr,
+      audioContextState: this.synth.ctx ? this.synth.ctx.state : 'uninitialized',
       nativeDiagnostics: null
     };
 
-    const coreMidi = this.getCoreMidiPlugin();
     if (coreMidi && typeof coreMidi.getDiagnostics === 'function') {
       try {
         result.nativeDiagnostics = await coreMidi.getDiagnostics();
@@ -438,5 +546,104 @@ export class MidiHandler {
     }
 
     return result;
+  }
+
+  /**
+   * Subscribes an external listener to all incoming raw MIDI byte arrays.
+   */
+  subscribeMidi(callback) {
+    if (typeof callback === 'function') {
+      this.externalMidiListeners.add(callback);
+    }
+  }
+
+  /**
+   * Removes an external listener.
+   */
+  unsubscribeMidi(callback) {
+    this.externalMidiListeners.delete(callback);
+  }
+
+  /**
+   * Checks whether a connected device is named "MIDISteel" (case-insensitive, flexible spacing/hyphens).
+   */
+  isMidiSteelConnected(inputs = this.inputs) {
+    const pattern = /midi[-_\s]?steel|lap[-_\s]?steel/i;
+    const list = inputs && inputs.length > 0 ? inputs : this.inputs;
+    if (list && list.some(d => pattern.test(d.name || '') || pattern.test(d.manufacturer || '') || pattern.test(d.id || ''))) {
+      return true;
+    }
+    // Also check raw midiAccess.inputs if cached list has not been populated yet
+    if (this.midiAccess && this.midiAccess.inputs) {
+      for (const entry of this.midiAccess.inputs.values()) {
+        if (pattern.test(entry.name || '') || pattern.test(entry.manufacturer || '') || pattern.test(entry.id || '')) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns the display name of the connected MIDISteel device.
+   */
+  getMidiSteelDeviceName() {
+    const pattern = /midi[-_\s]?steel|lap[-_\s]?steel/i;
+    const check = (d) => pattern.test(`${d.name || ''} ${d.manufacturer || ''} ${d.id || ''}`);
+    let dev = this.inputs.find(check);
+    if (!dev && this.midiAccess?.inputs) {
+      dev = Array.from(this.midiAccess.inputs.values()).find(check);
+    }
+    return dev ? (dev.name || 'MIDISteel') : 'MIDISteel';
+  }
+
+  /**
+   * Transmits raw MIDI / SysEx bytes to connected hardware output port.
+   * Works on iOS Native via CoreMIDI or via WebMIDI API.
+   */
+  async sendMidi(bytes, targetNameOrId = null) {
+    const dataArray = Array.isArray(bytes) ? bytes : Array.from(bytes);
+    const env = this.checkEnvironment();
+
+    // 1. Native iOS CoreMIDI Output
+    if (env.isIOS || env.hasCoreMidiPlugin) {
+      const coreMidi = this.getCoreMidiPlugin();
+      if (coreMidi && typeof coreMidi.sendMidi === 'function') {
+        try {
+          return await coreMidi.sendMidi({
+            data: dataArray,
+            destinationName: targetNameOrId,
+            destinationId: targetNameOrId
+          });
+        } catch (err) {
+          console.warn('CoreMidiPlugin.sendMidi error:', err);
+          return { success: false, error: err.message };
+        }
+      }
+    }
+
+    // 2. Web MIDI API Output
+    if (this.midiAccess && this.midiAccess.outputs) {
+      let targetOutput = null;
+      const outputs = Array.from(this.midiAccess.outputs.values());
+      if (targetNameOrId) {
+        targetOutput = outputs.find(o => o.id === targetNameOrId || (o.name && o.name.toLowerCase().includes(targetNameOrId.toLowerCase())));
+      }
+      if (!targetOutput) {
+        targetOutput = outputs.find(o => /midisteel|teensy/i.test(o.name || '')) || outputs[0];
+      }
+      if (targetOutput && typeof targetOutput.send === 'function') {
+        try {
+          targetOutput.send(dataArray);
+          return { success: true };
+        } catch (err) {
+          console.warn('WebMIDI output.send error:', err);
+          return { success: false, error: err.message };
+        }
+      }
+    }
+
+    console.warn('sendMidi: No active MIDI output destination found');
+    return { success: false, error: 'No MIDI output available' };
   }
 }

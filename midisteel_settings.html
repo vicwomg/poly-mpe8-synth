@@ -1,0 +1,3980 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>MIDISteel – Settings</title>
+    <script src="js/midisteel-bridge.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --surface2: #22263a;
+        --border: #2e3350;
+        --accent: #6c63ff;
+        --accent2: #a78bfa;
+        --success: #34d399;
+        --error: #f87171;
+        --warn: #fbbf24;
+        --text: #e2e8f0;
+        --muted: #6b7280;
+        --radius: 10px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html, body {
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 12px 16px 80px 16px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 28px;
+      }
+
+      header h1 {
+        font-size: 1.4rem;
+        font-weight: 600;
+      }
+      header p {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 18px;
+        border: none;
+        border-radius: var(--radius);
+        font-family: inherit;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      #btnConnect {
+        background: var(--accent);
+        color: #fff;
+      }
+      #btnConnect:hover {
+        filter: brightness(1.15);
+      }
+      #btnConnect.connected {
+        background: var(--surface2);
+        color: var(--success);
+        border: 1px solid var(--success);
+      }
+
+      #btnLoad,
+      #btnReset {
+        background: var(--surface2);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      #btnLoad:hover,
+      #btnReset:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      #btnLoad:disabled,
+      #btnReset:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      #btnReset {
+        color: var(--error);
+        border-color: var(--error);
+      }
+      #btnReset:hover {
+        background: #3b1212;
+        border-color: var(--error);
+        color: var(--error);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+        transition: background 0.3s;
+      }
+      .status-dot.connected {
+        background: var(--success);
+        box-shadow: 0 0 6px var(--success);
+      }
+      .status-dot.error {
+        background: var(--error);
+      }
+
+      /* Tuning grid */
+      .grid-wrapper {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 24px;
+      }
+
+      .grid-inner {
+        min-width: 100%;
+        width: max-content;
+      }
+
+      .grid-header {
+        display: grid;
+        grid-template-columns: 110px repeat(8, minmax(76px, 1fr));
+        min-width: 730px;
+        width: 100%;
+        gap: 0;
+        background: var(--surface2);
+        border-bottom: 1px solid var(--border);
+        border-top-left-radius: calc(var(--radius) - 1px);
+        border-top-right-radius: calc(var(--radius) - 1px);
+        padding: 8px 6px;
+      }
+
+      .grid-header span {
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 2px;
+      }
+      .grid-header span:nth-child(1) {
+        text-align: left;
+        justify-content: center;
+        padding-left: 4px;
+      }
+      .grid-header span:not(:first-child) {
+        border-left: 1px solid var(--border);
+      }
+
+      .tuning-row {
+        display: grid;
+        grid-template-columns: 110px repeat(8, minmax(76px, 1fr));
+        min-width: 730px;
+        width: 100%;
+        gap: 0;
+        align-items: center;
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.1s;
+      }
+      .tuning-row:last-child {
+        border-bottom: none;
+      }
+      .tuning-row:hover {
+        background: var(--surface2);
+      }
+      .tuning-row.active {
+        background: rgba(108, 99, 255, 0.15) !important;
+        box-shadow: inset 4px 0 0 var(--accent);
+      }
+      .tuning-row.active .name-header .row-idx {
+        color: var(--accent2);
+        font-weight: 700;
+      }
+      .tuning-row.active .active-badge {
+        display: inline-block;
+        background: var(--accent);
+        box-shadow: 0 0 6px var(--accent);
+      }
+      .tuning-row.active .active-tag {
+        display: inline-block;
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent2);
+        font-weight: 700;
+      }
+
+      .name-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 3px;
+        cursor: pointer;
+      }
+
+      .name-header .row-idx {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .active-tag {
+        font-size: 0.62rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--accent2);
+        background: rgba(108, 99, 255, 0.2);
+        border: 1px solid rgba(108, 99, 255, 0.4);
+        padding: 1px 5px;
+        border-radius: 4px;
+        line-height: 1.2;
+      }
+
+      .active-badge {
+        display: none;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 5px var(--accent);
+      }
+
+      .name-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding-right: 8px;
+        box-sizing: border-box;
+      }
+
+      .name-wrap .name-input,
+      .name-wrap .preset-select,
+      .name-wrap .save-btn {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin: 0;
+        border-radius: 5px !important;
+        font-family: inherit;
+      }
+
+      .name-wrap .save-btn {
+        margin-top: 12px !important;
+      }
+
+      .name-wrap .name-input {
+        padding: 4px 6px;
+        font-size: 0.78rem;
+        font-weight: 500;
+      }
+
+      .name-wrap .preset-select {
+        padding: 3px 4px;
+        font-size: 0.72rem;
+        background: var(--surface2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        cursor: pointer;
+      }
+
+      input[type="text"] {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.78rem;
+        padding: 4px 6px;
+        width: 100%;
+        transition: border-color 0.15s;
+      }
+      input[type="text"]:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      input[type="text"].dirty {
+        border-color: var(--warn);
+      }
+      input[type="text"].saved {
+        border-color: var(--success);
+      }
+      input[type="text"].error {
+        border-color: var(--error);
+      }
+
+      .name-input {
+        margin-right: 8px;
+        font-weight: 500;
+      }
+
+      .note-cell {
+        padding: 0 3px;
+        border-left: 1px solid var(--border);
+      }
+      .note-input {
+        width: 100%;
+        max-width: 64px;
+        margin: 0 auto;
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 3px 2px;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        background: var(--surface2);
+        transition: all 0.15s ease;
+      }
+      .note-input:hover {
+        border-color: var(--accent);
+        background: rgba(108, 99, 255, 0.1);
+      }
+      .note-label {
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: color 0.15s ease;
+      }
+      .note-label:hover {
+        color: var(--accent2);
+      }
+
+      .save-btn {
+        background: transparent;
+        color: var(--accent2);
+        border: 1px solid var(--accent);
+        padding: 3px 4px;
+        font-size: 0.72rem;
+        border-radius: 5px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        transition: all 0.15s ease;
+      }
+      .save-btn:hover {
+        background: var(--accent);
+        color: #fff;
+      }
+      .save-btn.dirty {
+        background: #3b2005;
+        color: var(--warn);
+        border-color: var(--warn);
+        font-weight: 600;
+      }
+      .save-btn.dirty:hover {
+        background: var(--warn);
+        color: #fff;
+      }
+      .save-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+
+      .bender-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3px;
+        margin-top: 4px;
+        justify-items: center;
+      }
+      .bender-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+      }
+      .bender-wrap span {
+        font-size: 0.6rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+
+      .bend-input {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.72rem;
+        padding: 2px 1px;
+        width: 100%;
+        max-width: 30px;
+        flex-shrink: 0;
+        text-align: center;
+        transition: border-color 0.15s;
+        -moz-appearance: textfield;
+        appearance: textfield;
+      }
+      .bend-input::-webkit-outer-spin-button,
+      .bend-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+      }
+      .bend-input:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .bend-input.dirty {
+        border-color: var(--warn);
+      }
+      .bend-input.saved {
+        border-color: var(--success);
+      }
+      .p1-bend {
+        border-bottom: 2px solid #3b82f6; /* Blue indicator for P1 */
+      }
+      .p2-bend {
+        border-bottom: 2px solid #8b5cf6; /* Purple indicator for P2 */
+      }
+      .p3-bend {
+        border-bottom: 2px solid #10b981; /* Green indicator for P3 */
+      }
+      .p4-bend {
+        border-bottom: 2px solid #f59e0b; /* Orange indicator for P4 */
+      }
+
+      /* Note name hints */
+      .note-label {
+        font-size: 0.6rem;
+        color: var(--muted);
+        text-align: center;
+        margin-top: 2px;
+      }
+
+      .note-wrap {
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Log */
+      .log-section {
+        margin-top: 8px;
+      }
+      .log-section h3 {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+
+      #log {
+        background: #0a0c12;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 0.73rem;
+        color: #9ca3af;
+        height: 400px;
+        overflow-y: auto;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .log-ok {
+        color: var(--success);
+      }
+      .log-err {
+        color: var(--error);
+      }
+      .log-sent {
+        color: var(--accent2);
+      }
+      .log-info {
+        color: var(--warn);
+      }
+      .log-dim {
+        color: #3d4255;
+      }
+
+      .browser-note {
+        font-size: 0.68rem !important;
+        color: var(--muted);
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 6px 10px;
+        margin-top: 16px;
+        line-height: 1.35;
+      }
+      .browser-note strong,
+      .browser-note div,
+      .browser-note span {
+        font-size: 0.68rem !important;
+      }
+      .browser-note strong {
+        color: var(--warn);
+        font-weight: 600;
+      }
+
+      /* Controller settings panel */
+      .ctrl-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 18px;
+        align-items: flex-start;
+        opacity: 0.4;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .ctrl-panel.enabled {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .ctrl-panel h2 {
+        width: 100%;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin: 0 0 2px 0;
+      }
+      .ctrl-field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        flex: 0 0 auto;
+        min-width: 130px;
+        max-width: 250px;
+        width: 100%;
+      }
+      .ctrl-field.full-width {
+        flex: 1 1 100%;
+        max-width: 100%;
+        width: 100%;
+      }
+      .ctrl-field.oct-field {
+        flex: 0 0 auto;
+        min-width: 140px;
+        max-width: 250px;
+      }
+      .ctrl-field.taper-field {
+        flex: 0 0 auto;
+        min-width: 0;
+        max-width: 250px;
+        width: 100%;
+      }
+      .ctrl-field label {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ctrl-field .hint,
+      .ctrl-panel .hint {
+        font-size: 0.72rem;
+        color: var(--muted);
+        line-height: 1.35;
+        margin-top: 2px;
+      }
+      .ctrl-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: auto;
+      }
+      input[type="number"] {
+        flex: none;
+        width: 76px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 0.85rem;
+        padding: 7px 8px;
+        text-align: center;
+        transition: border-color 0.15s;
+        -moz-appearance: textfield;
+        appearance: textfield;
+      }
+      input[type="number"]::-webkit-outer-spin-button,
+      input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+      }
+      input[type="number"]:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      input[type="number"].ok,
+      input[type="number"].saved {
+        border-color: var(--success) !important;
+        box-shadow: 0 0 6px rgba(78, 201, 176, 0.4);
+      }
+      input[type="number"].err,
+      input[type="number"].error {
+        border-color: var(--error) !important;
+        box-shadow: 0 0 6px rgba(244, 71, 71, 0.4);
+      }
+
+      /* Range Slider for Curve Taper */
+      .slider-ctrl-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+      }
+      .slider-ctrl-row input[type="range"] {
+        flex: 1 1 0;
+        min-width: 0;
+        width: 100%;
+        cursor: pointer;
+      }
+      .curve-preview-field {
+        margin-top: 4px;
+      }
+      .curve-preview-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+      }
+      .curve-preview-box canvas {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        flex-shrink: 0;
+        width: 50px;
+        height: 50px;
+      }
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border);
+        outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        transition:
+          transform 0.1s,
+          background-color 0.15s;
+      }
+      input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+        background: var(--accent2);
+      }
+      input[type="range"]:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      input[type="range"]:disabled::-webkit-slider-thumb {
+        background: var(--muted);
+        cursor: not-allowed;
+      }
+
+      .apply-btn {
+        background: transparent;
+        color: var(--accent2);
+        border: 1px solid var(--accent);
+        padding: 7px 12px;
+        font-size: 0.78rem;
+        border-radius: 6px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .apply-btn:hover {
+        background: var(--accent);
+        color: #fff;
+      }
+      .apply-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      /* Segmented toggle (curve) */
+      .seg-toggle {
+        display: inline-flex;
+        width: fit-content;
+        max-width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .seg-toggle button {
+        flex: none;
+        border: none;
+        border-radius: 0;
+        background: var(--surface2);
+        color: var(--muted);
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-align: center;
+        justify-content: center;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .oct-field .seg-toggle button {
+        padding: 8px 6px;
+        font-size: 0.78rem;
+      }
+      .seg-toggle button.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      .seg-toggle button:not(:last-child) {
+        border-right: 1px solid var(--border);
+      }
+
+      .section-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 10px;
+      }
+
+      @media (max-width: 768px) {
+        body {
+          padding: 8px;
+        }
+        header {
+          margin-bottom: 14px;
+        }
+        header h1 {
+          font-size: 1.2rem;
+        }
+        .toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 14px;
+        }
+        .toolbar #btnConnect,
+        .toolbar #btnLoad {
+          flex: 1 1 calc(50% - 6px);
+          min-width: 130px;
+          justify-content: center;
+          padding: 9px 6px;
+          font-size: 0.78rem;
+          min-height: 40px;
+        }
+        .settings-actions {
+          justify-content: stretch;
+          margin-top: 10px;
+        }
+        .settings-actions #btnReset {
+          width: 100%;
+          justify-content: center;
+          min-height: 42px;
+        }
+        .status-dot {
+          display: none;
+        }
+        .ctrl-panel {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px 10px;
+          padding: 14px 10px;
+          margin-bottom: 16px;
+        }
+        .ctrl-panel h2 {
+          grid-column: span 2;
+        }
+        .ctrl-field {
+          flex: none;
+          min-width: 0;
+          width: 100%;
+        }
+        .ctrl-field.full-width {
+          grid-column: span 2;
+          width: 100%;
+        }
+        .ctrl-field label {
+          font-size: 16px;
+          font-weight: 600;
+          white-space: normal;
+          line-height: 1.25;
+        }
+        .ctrl-field .hint,
+        .ctrl-panel .hint {
+          font-size: 12px;
+          line-height: 1.35;
+          margin-top: 3px;
+        }
+        .seg-toggle {
+          width: 100%;
+        }
+        .seg-toggle button {
+          flex: 1;
+          padding: 7px 3px;
+          font-size: 0.72rem;
+          min-height: 38px;
+        }
+        .oct-field .seg-toggle button {
+          padding: 7px 1px;
+          font-size: 0.7rem;
+        }
+        .ctrl-row {
+          width: 100%;
+        }
+        .ctrl-row input[type="number"] {
+          flex: 1;
+          width: auto;
+          font-size: 16px;
+          padding: 6px 8px;
+          min-height: 38px;
+        }
+        input[type="text"],
+        input[type="number"],
+        select {
+          font-size: 16px !important;
+        }
+        .bend-input {
+          max-width: 32px;
+          padding: 2px 0;
+          text-align: center;
+        }
+        .apply-btn {
+          padding: 6px 8px;
+          min-height: 38px;
+          font-size: 0.72rem;
+        }
+        .modal-content {
+          width: 90vw;
+          max-width: 360px;
+          padding: 18px;
+        }
+        .grid-header span:not(:first-child) {
+          border-left: 1px solid var(--border);
+          padding: 0 2px;
+        }
+        .note-cell {
+          border-left: 1px solid var(--border);
+          padding: 0 3px;
+        }
+      }
+
+      @media (pointer: coarse) {
+        input[type="text"],
+        input[type="number"],
+        select {
+          font-size: 16px !important;
+        }
+      }
+
+      /* Modal and Help Button */
+      .label-with-help {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 5px;
+      }
+      .label-with-help label {
+        margin: 0;
+      }
+      .help-btn {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--surface2);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: all 0.15s;
+      }
+      .help-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+      }
+      .modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .modal-content {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        width: 320px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      }
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .modal-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      #closeModal {
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+      }
+      #ccList {
+        list-style: none;
+        padding: 0;
+      }
+      #ccList li {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.82rem;
+        display: flex;
+        justify-content: space-between;
+      }
+      #ccList li:last-child {
+        border-bottom: none;
+      }
+      #ccList li span:first-child {
+        color: var(--accent2);
+        font-weight: 600;
+        min-width: 40px;
+      }
+
+      /* Note Picker Modal */
+      .note-modal-content {
+        max-width: 520px;
+        width: 92vw;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+      }
+      .note-modal-subtitle {
+        font-size: 0.78rem;
+        color: var(--accent2);
+        margin-top: 2px;
+        margin-bottom: 8px;
+      }
+      .note-modal-body {
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+        padding-right: 4px;
+        margin-bottom: 12px;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+      }
+      .note-octave-section {
+        margin-bottom: 16px;
+      }
+      .note-octave-section-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 10px 0 8px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .note-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+        gap: 8px;
+      }
+      .note-picker-btn {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 4px;
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+        min-height: 52px;
+      }
+      .note-picker-btn:hover {
+        border-color: var(--accent);
+        background: rgba(108, 99, 255, 0.15);
+      }
+      .note-picker-btn.selected {
+        background: var(--accent);
+        border-color: var(--accent2);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(108, 99, 255, 0.5);
+      }
+      .note-picker-btn.selected .note-btn-midi,
+      .note-picker-btn.selected .alt-name {
+        color: rgba(255, 255, 255, 0.85);
+      }
+      .note-btn-name {
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+      .note-btn-name .alt-name {
+        font-size: 0.7rem;
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .note-btn-midi {
+        font-size: 0.68rem;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .note-picker-btn.note-btn-max {
+        border: 1px solid #fbbf24;
+        background: rgba(251, 191, 36, 0.08);
+      }
+      .note-picker-btn.note-btn-max:hover {
+        background: rgba(251, 191, 36, 0.2);
+        border-color: #f59e0b;
+      }
+      .note-picker-btn.note-btn-max.selected {
+        background: #f59e0b;
+        color: #000;
+        border-color: #fbbf24;
+        box-shadow: 0 0 14px rgba(245, 158, 11, 0.6);
+      }
+      .note-picker-btn.note-btn-max.selected .note-btn-midi,
+      .note-picker-btn.note-btn-max.selected .note-max-badge {
+        color: rgba(0, 0, 0, 0.85);
+      }
+      .note-max-badge {
+        font-size: 0.58rem;
+        font-weight: 800;
+        color: #fbbf24;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .note-min-badge {
+        font-size: 0.58rem;
+        font-weight: 700;
+        color: var(--accent2);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .note-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .note-modal-footer button {
+        padding: 8px 18px;
+        font-size: 0.82rem;
+      }
+
+      .six-string-mode .grid-header,
+      .six-string-mode .tuning-row {
+        grid-template-columns: 110px repeat(6, minmax(76px, 1fr)) !important;
+        min-width: 578px !important;
+      }
+      .six-string-mode .string-7-8 {
+        display: none !important;
+      }
+
+      /* Navigation Tabs */
+      .nav-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .nav-tab-btn {
+        background: transparent;
+        color: var(--muted);
+        border: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        padding: 10px 20px;
+        font-size: 0.92rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        position: relative;
+        bottom: -1px;
+      }
+      .nav-tab-btn:hover {
+        color: var(--text);
+        background: transparent;
+      }
+      .nav-tab-btn.active {
+        color: var(--accent2);
+        border-bottom-color: var(--accent);
+        font-weight: 600;
+      }
+      .not-connected-notice {
+        background: var(--surface);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 20px 20px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin-bottom: 24px;
+        text-align: left;
+      }
+      .settings-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: 14px;
+        margin-bottom: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>MIDISTEEL – Settings</h1>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="status-dot" id="statusDot"></div>
+      <button id="btnConnect">🔌 Connect</button>
+      <button id="btnLoad" disabled style="display: none">
+        ↓ Refresh settings
+      </button>
+    </div>
+
+    <nav class="nav-tabs" id="navTabs">
+      <button class="nav-tab-btn active" data-tab="tabSettings">
+        Settings
+      </button>
+      <button class="nav-tab-btn" data-tab="tabTunings">Tunings</button>
+      <button class="nav-tab-btn" data-tab="tabLog">Serial log</button>
+    </nav>
+
+    <div id="notConnectedNotice" class="not-connected-notice">
+      <div>
+        Connect the MIDISteel via USB, wait a couple of seconds for it to start
+        up, then click
+        <strong>Connect</strong>.
+      </div>
+
+      <div class="browser-note" id="browserNote" style="display: none">
+        <strong>⚠ WebMIDI or Web Serial Support Required</strong><br />
+        <div style="margin-top: 3px; line-height: 1.35">
+          • <strong>iOS / iPadOS:</strong> Open this page in the free
+          <a href="https://apps.apple.com/us/app/midiweb-browser/id6757226617"
+            ><strong>MIDIWeb Browser</strong></a
+          >
+          app from the App Store.<br />
+          • <strong>Desktop & Android:</strong> Open this page in
+          <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, or
+          <strong>Firefox</strong>.
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsBlocks" style="display: none">
+      <!-- Tab 1: Settings -->
+      <div id="tabSettings" class="tab-panel active">
+        <!-- Controller Settings panel -->
+        <div class="ctrl-panel" id="ctrlPanel">
+          <h2>Controller Settings</h2>
+
+          <div class="ctrl-field">
+            <label>Sustain Mode</label>
+            <div class="seg-toggle" id="sustainModeSeg">
+              <button
+                id="susModeStandard"
+                title="Notes sustain while key is held"
+              >
+                Keyboard
+              </button>
+              <button
+                id="susModePalm"
+                class="active"
+                title="Notes sustain until palm mute sensor is touched"
+              >
+                Palm Mute
+              </button>
+            </div>
+            <div class="hint" id="sustainHint">
+              Sustain until palm mute touched (Mode + 2&5)
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>MIDI Mode</label>
+            <div class="seg-toggle" id="midiModeSeg">
+              <button
+                id="midiModeMpe"
+                title="MPE Mode (per-string channels 2-7/9)"
+              >
+                MPE
+              </button>
+              <button id="midiModeMono" title="Mono Mode (channel 1 shared)">
+                Mono
+              </button>
+            </div>
+            <div class="hint" id="midiModeHint">
+              MPE = per-string bend. Mono = single channel (Mode + 1&6).
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>String Mode</label>
+            <div class="seg-toggle" id="strModeSeg">
+              <button id="strMode6" title="6 String Mode">6 Strings</button>
+              <button id="strMode8" title="8 String Mode">8 Strings</button>
+            </div>
+            <div class="hint" id="strModeHint">
+              Device string triggers (6 or 8 strings)
+            </div>
+          </div>
+
+          <div class="ctrl-field oct-field">
+            <label>Octave Shift</label>
+            <div class="seg-toggle" id="octaveSeg">
+              <button id="octaveDn2" title="Shift down 2 octaves">-2</button>
+              <button id="octaveDn1" title="Shift down 1 octave">-1</button>
+              <button id="octave0" title="Normal tuning">0</button>
+              <button id="octaveUp1" title="Shift up 1 octave">+1</button>
+              <button id="octaveUp2" title="Shift up 2 octaves">+2</button>
+            </div>
+            <div class="hint" id="octaveHint">
+              Pitch shift (Hotkeys: Mode + 1&2 / 5&6)
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <span class="label-with-help">
+              <label>Pot 1 — MIDI CC</label>
+              <button class="help-btn" id="openCCModal1" title="CC Reference">
+                ?
+              </button>
+            </span>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="pot1ccInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                max="127"
+                value="1"
+              />
+            </div>
+            <div class="hint" id="pot1ccHint">CC 1 — Modulation</div>
+          </div>
+
+          <div class="ctrl-field">
+            <span class="label-with-help">
+              <label>Pot 2 — MIDI CC</label>
+              <button class="help-btn" id="openCCModal2" title="CC Reference">
+                ?
+              </button>
+            </span>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="pot2ccInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                max="127"
+                value="73"
+              />
+            </div>
+            <div class="hint" id="pot2ccHint">CC 73 — Attack</div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Preset Bank Size</label>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="numProgramsInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="1"
+                max="128"
+                step="1"
+                value="128"
+              />
+            </div>
+            <div class="hint">
+              Preset bank limit (1–128). Set this if you want hotkey patch
+              navigtion to wrap when they reach the end of the limit otherwise
+              leave at 128. Hotkey: Mode + 2&3 (Bank Up), Mode + 4&5 (Bank
+              Down).
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Auto-Decay (ms)</label>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="autoDecayInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                max="60000"
+                step="100"
+                value="0"
+              />
+            </div>
+            <div class="hint">
+              0 = infinite sustain. Hotkey: Hold Mode + turn CC Pot 1 (0–20s).
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Bender Speed (ms)</label>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="bendTimeInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                max="10000"
+                step="50"
+                value="500"
+              />
+            </div>
+            <div class="hint">
+              Pedal bend transition time. Hotkey: Hold Mode + turn CC Pot 2
+              (0–2000ms).
+            </div>
+          </div>
+        </div>
+
+        <!-- Expression Pedal panel -->
+        <div class="ctrl-panel" id="exprPanel">
+          <h2>Expression Pedal</h2>
+
+          <div class="ctrl-field">
+            <span class="label-with-help">
+              <label>Pedal — MIDI CC</label>
+              <button
+                class="help-btn"
+                id="openCCModalExpr"
+                title="CC Reference"
+              >
+                ?
+              </button>
+            </span>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="exprccInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                max="127"
+                value="11"
+              />
+            </div>
+            <div class="hint" id="exprccHint">
+              CC 11 — Volume. CC 74 for MPE Timbre.
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Pedal Calibration</label>
+            <div class="ctrl-row">
+              <button class="apply-btn" id="btnCalibrateExpr">START</button>
+            </div>
+            <div class="hint" id="exprCalHint">Range: Unknown</div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Response Curve</label>
+            <div class="seg-toggle" id="curveSeg">
+              <button
+                id="curveLog"
+                class="active"
+                title="Logarithmic: natural volume pedal taper"
+              >
+                Logarithmic
+              </button>
+              <button id="curveLinear" title="Linear: 1:1 pedal-to-CC mapping">
+                Linear
+              </button>
+            </div>
+            <div class="hint">Logarithmic recommended for volume</div>
+          </div>
+
+          <div class="ctrl-field taper-field" id="exprHalfField">
+            <label>Logarithmic Taper</label>
+            <div class="slider-ctrl-row">
+              <input
+                type="range"
+                id="exprHalfSlider"
+                min="50"
+                max="99"
+                value="90"
+                step="1"
+              />
+              <span
+                id="exprHalfLabel"
+                style="min-width: 32px; font-weight: 600; text-align: right"
+                >90%</span
+              >
+            </div>
+            <div class="hint">Taper percentage at 50% pedal travel</div>
+          </div>
+
+          <div
+            class="ctrl-field full-width curve-preview-field"
+            id="curvePreviewField"
+          >
+            <div class="curve-preview-box">
+              <canvas id="curveCanvas" width="70" height="70"></canvas>
+              <div class="hint" style="margin-top: 0; line-height: 1.35">
+                Live curve preview at halfway pedal travel.<br />
+                • 50% = linear sweep. 90% = standard volume pedal curve.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fretboard & Scale Calibration panel -->
+        <div class="ctrl-panel" id="calPanel">
+          <h2>Fretboard & Scale Calibration</h2>
+
+          <div class="ctrl-field">
+            <label>Scale Calibration</label>
+            <div class="ctrl-row">
+              <button class="apply-btn" id="btnCalibrateScale">START</button>
+            </div>
+            <div class="hint" id="scaleCalHint">Range: Unknown</div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Calibration Target</label>
+            <div class="seg-toggle" id="calTargetSeg">
+              <button
+                id="calTargetBoth"
+                class="active"
+                title="Calibrate both softpots simultaneously"
+              >
+                Both
+              </button>
+              <button id="calTargetP1" title="Calibrate Bass softpot (P1) only">
+                Bass (P1)
+              </button>
+              <button
+                id="calTargetP2"
+                title="Calibrate Treble softpot (P2) only"
+              >
+                Treble (P2)
+              </button>
+            </div>
+            <div class="hint">
+              Softpot selection. "Both" will calibrate bass and treble softpots
+              simultaneously
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>Maximum Fret Number</label>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="maxFretInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                max="24"
+                value="20"
+              />
+            </div>
+            <div class="hint">
+              0 = bridge. 20 = 20th fret. Used during calibration
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button id="btnReset" disabled>
+            ⟳ Reset all settings and tunings to factory defaults
+          </button>
+        </div>
+      </div>
+      <!-- /tabSettings -->
+
+      <!-- Tab 2: Tunings -->
+      <div id="tabTunings" class="tab-panel" style="display: none">
+        <div class="hint" style="margin-bottom: 8px; color: var(--muted)">
+          Hotkey to switch active tuning:
+          <strong>Mode + Strings 1 to 8</strong>. Pedal bends are specified by
+          semitones. Ex: 2 for bending up a whole-step, -1 for bending down a
+          half-step
+        </div>
+        <div class="grid-wrapper" id="gridWrapper">
+          <div class="grid-inner" id="gridInner">
+            <div class="grid-header">
+              <span>Tuning</span>
+              <span
+                >Str 1<br /><small style="font-weight: 400">treble</small></span
+              >
+              <span>Str 2</span>
+              <span>Str 3</span>
+              <span>Str 4</span>
+              <span>Str 5</span>
+              <span>Str 6</span>
+              <span class="string-7-8">Str 7</span>
+              <span class="string-7-8"
+                >Str 8<br /><small style="font-weight: 400">bass</small></span
+              >
+            </div>
+            <!-- rows injected by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /settingsBlocks -->
+
+    <!-- Tab 3: Serial log -->
+    <div id="tabLog" class="tab-panel" style="display: none">
+      <div class="log-section">
+        <h3>Serial log</h3>
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: var(--muted);
+            cursor: pointer;
+            margin-bottom: 8px;
+          "
+        >
+          <input
+            type="checkbox"
+            id="chkDebug"
+            style="width: 14px; height: 14px; cursor: pointer"
+            disabled
+          />
+          Enable serial debug
+        </label>
+        <div id="log"></div>
+      </div>
+    </div>
+
+    <!-- Note Picker Modal -->
+    <div id="noteModal" class="modal-overlay">
+      <div class="modal-content note-modal-content">
+        <div class="modal-header">
+          <div>
+            <h3 id="noteModalTitle" style="margin: 0">Select Tuning Note</h3>
+            <div id="noteModalSubtitle" class="note-modal-subtitle">
+              String 1
+            </div>
+          </div>
+          <button class="modal-close" id="closeNoteModal">&times;</button>
+        </div>
+
+        <div class="note-modal-body" id="noteModalBody">
+          <!-- Dynamically filled with octave sections & note buttons -->
+        </div>
+
+        <div class="note-modal-footer">
+          <button
+            type="button"
+            class="apply-btn alert-cancel-btn"
+            id="cancelNoteModal"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="ccModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>CC Reference</h3>
+          <button id="closeModal">&times;</button>
+        </div>
+        <ul id="ccList"></ul>
+      </div>
+    </div>
+
+    <div id="alertModal" class="modal-overlay">
+      <div
+        class="modal-content"
+        style="max-width: 400px; text-align: center; position: relative"
+      >
+        <h3 id="alertTitle" style="margin-top: 0">Notice</h3>
+        <p id="alertMessage" style="margin: 20px 0; line-height: 1.5"></p>
+        <div style="display: flex; gap: 10px; justify-content: center">
+          <button
+            id="alertCancelBtn"
+            class="apply-btn"
+            style="
+              flex: 1;
+              padding: 10px;
+              display: none;
+              background: var(--surface2);
+              color: var(--muted);
+              border-color: var(--border);
+            "
+          >
+            Cancel
+          </button>
+          <button
+            id="alertOkBtn"
+            class="apply-btn"
+            style="
+              flex: 1;
+              padding: 10px;
+              background: var(--accent);
+              color: #fff;
+              border-color: var(--accent);
+            "
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let alertResolve = null;
+      let alertOpenedTime = 0;
+
+      function triggerAlertAdvance() {
+        if (alertResolve && Date.now() - alertOpenedTime > 150) {
+          alertResolve(true);
+        }
+      }
+
+      function customAlert(msg, title = "Notice", showCancel = false) {
+        return new Promise((resolve) => {
+          const titleEl = document.getElementById("alertTitle");
+          if (titleEl) titleEl.textContent = title;
+          document.getElementById("alertMessage").textContent = msg;
+          const modal = document.getElementById("alertModal");
+          const okBtn = document.getElementById("alertOkBtn");
+          const cancelBtn = document.getElementById("alertCancelBtn");
+
+          if (cancelBtn)
+            cancelBtn.style.display = showCancel ? "block" : "none";
+
+          modal.classList.add("active");
+          okBtn.focus();
+          alertOpenedTime = Date.now();
+
+          const cleanup = () => {
+            modal.classList.remove("active");
+            okBtn.removeEventListener("click", onOk);
+            if (cancelBtn) cancelBtn.removeEventListener("click", onCancel);
+            document.removeEventListener("keydown", onKeyDown);
+            alertResolve = null;
+          };
+
+          const onOk = () => {
+            cleanup();
+            resolve(true);
+          };
+
+          const onCancel = () => {
+            cleanup();
+            resolve(false);
+          };
+
+          const onKeyDown = (e) => {
+            if (e.key === "Escape" && showCancel) {
+              onCancel();
+            } else if (e.key === "Enter") {
+              onOk();
+            }
+          };
+
+          alertResolve = (val) => {
+            cleanup();
+            resolve(val !== undefined ? val : true);
+          };
+
+          okBtn.addEventListener("click", onOk);
+          if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
+          document.addEventListener("keydown", onKeyDown);
+        });
+      }
+
+      // ── MIDI note number ↔ name ──────────────────────────────────────────────
+      const NOTE_NAMES = [
+        "C",
+        "C#",
+        "D",
+        "D#",
+        "E",
+        "F",
+        "F#",
+        "G",
+        "G#",
+        "A",
+        "A#",
+        "B",
+      ];
+
+      function midiToName(n) {
+        n = parseInt(n, 10);
+        if (isNaN(n) || n < 0 || n > 127) return "";
+        const octave = Math.floor(n / 12) - 1;
+        return NOTE_NAMES[n % 12] + octave;
+      }
+
+      function nameToMidi(s) {
+        s = s.trim();
+        // Match: note letter + optional sharp/flat + octave number  e.g. C#4, Bb3, E4
+        const m = s.match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+        if (!m) return null;
+        const noteIdx = NOTE_NAMES.indexOf(
+          m[1].toUpperCase() + (m[2] === "#" ? "#" : ""),
+        );
+        if (noteIdx < 0) {
+          // try flat → sharp conversion
+          const flatMap = { Ab: 8, Bb: 10, Cb: 11, Db: 1, Eb: 3, Fb: 4, Gb: 6 };
+          const key = m[1].toUpperCase() + (m[2] === "b" ? "b" : "");
+          if (flatMap[key] === undefined) return null;
+          const oct = parseInt(m[3], 10);
+          return (oct + 1) * 12 + flatMap[key];
+        }
+        const oct = parseInt(m[3], 10);
+        return (oct + 1) * 12 + noteIdx;
+      }
+
+      // ── Note Picker Modal (Range: A1 to A6) ───────────────────────────────────
+      let currentNotePickerCallback = null;
+
+      function setupNotePicker() {
+        const modal = document.getElementById("noteModal");
+        const closeBtn = document.getElementById("closeNoteModal");
+        const cancelBtn = document.getElementById("cancelNoteModal");
+        const body = document.getElementById("noteModalBody");
+        const nav = document.getElementById("noteOctaveNav");
+
+        const close = () => {
+          modal.classList.remove("active");
+          currentNotePickerCallback = null;
+        };
+
+        if (closeBtn) closeBtn.addEventListener("click", close);
+        if (cancelBtn) cancelBtn.addEventListener("click", close);
+        if (modal) {
+          modal.addEventListener("click", (e) => {
+            if (e.target === modal) close();
+          });
+        }
+        document.addEventListener("keydown", (e) => {
+          if (
+            e.key === "Escape" &&
+            modal &&
+            modal.classList.contains("active")
+          ) {
+            close();
+          }
+        });
+
+        // Generate note data for full 88-key piano range: A0 (21) to C8 (108)
+        const notesByOctave = {};
+        for (let oct = 0; oct <= 8; oct++) {
+          notesByOctave[oct] = [];
+        }
+
+        const altFlats = {
+          "C#": "Db",
+          "D#": "Eb",
+          "F#": "Gb",
+          "G#": "Ab",
+          "A#": "Bb",
+        };
+
+        for (let midi = 21; midi <= 108; midi++) {
+          const oct = Math.floor(midi / 12) - 1;
+          const noteNameOnly = NOTE_NAMES[midi % 12];
+          const fullName = noteNameOnly + oct;
+          const flat = altFlats[noteNameOnly]
+            ? altFlats[noteNameOnly] + oct
+            : null;
+
+          if (notesByOctave[oct]) {
+            notesByOctave[oct].push({
+              midi,
+              name: fullName,
+              alt: flat,
+            });
+          }
+        }
+
+        body.innerHTML = "";
+        for (let oct = 0; oct <= 8; oct++) {
+          const list = notesByOctave[oct];
+          if (!list || list.length === 0) continue;
+
+          const sec = document.createElement("div");
+          sec.className = "note-octave-section";
+          sec.id = `noteOctSection_${oct}`;
+
+          const title = document.createElement("div");
+          title.className = "note-octave-section-title";
+          let desc = `Octave ${oct}`;
+          if (oct === 0) desc += " (Sub-bass • A0–B0)";
+          else if (oct === 1) desc += " (Bass)";
+          else if (oct === 4) desc += " (Middle C)";
+          else if (oct === 8) desc += " (High • C8)";
+          title.innerHTML = `<span>${desc}</span><span style="font-size:0.7rem;opacity:0.7">${list[0].name} – ${list[list.length - 1].name}</span>`;
+          sec.appendChild(title);
+
+          const grid = document.createElement("div");
+          grid.className = "note-picker-grid";
+
+          list.forEach((n) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "note-picker-btn";
+            btn.dataset.midi = n.midi;
+            btn.dataset.name = n.name;
+
+            let nameHtml = n.name;
+            if (n.alt) {
+              nameHtml += ` <small class="alt-name">/${n.alt}</small>`;
+            }
+
+            btn.innerHTML = `
+              <span class="note-btn-name">${nameHtml}</span>
+              <span class="note-btn-midi">MIDI ${n.midi}</span>
+            `;
+
+            btn.addEventListener("click", () => {
+              if (currentNotePickerCallback) {
+                currentNotePickerCallback(n.midi, n.name);
+              }
+              close();
+            });
+
+            grid.appendChild(btn);
+          });
+
+          sec.appendChild(grid);
+          body.appendChild(sec);
+        }
+      }
+
+      function openNotePicker(stringNum, currentMidi, onSelect) {
+        currentNotePickerCallback = onSelect;
+        const modal = document.getElementById("noteModal");
+        const title = document.getElementById("noteModalTitle");
+        const subtitle = document.getElementById("noteModalSubtitle");
+        const body = document.getElementById("noteModalBody");
+
+        const curName = midiToName(currentMidi);
+        if (title) title.textContent = `Select Note for String ${stringNum}`;
+        if (subtitle)
+          subtitle.textContent = `Current: ${curName || "None"} (${currentMidi ? "MIDI " + currentMidi : ""})`;
+
+        // Highlight selected note
+        if (body) {
+          body.querySelectorAll(".note-picker-btn").forEach((btn) => {
+            const isCur =
+              parseInt(btn.dataset.midi, 10) === parseInt(currentMidi, 10);
+            btn.classList.toggle("selected", isCur);
+          });
+        }
+
+        if (modal) modal.classList.add("active");
+
+        // Scroll to active section or selected button
+        const curOct = currentMidi
+          ? Math.max(0, Math.min(8, Math.floor(currentMidi / 12) - 1))
+          : 4;
+
+        setTimeout(() => {
+          if (body) {
+            const selBtn = body.querySelector(".note-picker-btn.selected");
+            if (selBtn) {
+              selBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+            } else {
+              const octSec = document.getElementById(
+                `noteOctSection_${curOct}`,
+              );
+              if (octSec) {
+                octSec.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }
+          }
+        }, 120);
+      }
+
+      // ── State ────────────────────────────────────────────────────────────────
+      let port = null,
+        reader = null,
+        writer = null;
+      let readBuffer = "";
+      let pendingResolve = null; // resolves when a response line arrives
+      let pendingReject = null;
+      let pendingTimeoutId = null;
+
+      // ── Log ─────────────────────────────────────────────────────────────────
+      const logEl = document.getElementById("log");
+
+      function appendLog(text, cls) {
+        const span = document.createElement("span");
+        if (cls) span.className = cls;
+        span.textContent = text + "\n";
+        logEl.appendChild(span);
+        logEl.scrollTop = logEl.scrollHeight;
+
+        // Show an alert for frontend-generated errors (but not for raw serial input)
+        if (cls === "log-err" && !text.startsWith("\u2190")) {
+          // Delay very slightly so the UI can paint the log text before blocking
+          setTimeout(() => alert(text), 10);
+        }
+      }
+
+      // ── Serial connect / disconnect ──────────────────────────────────────────
+      const btnConnect = document.getElementById("btnConnect");
+      const btnLoad = document.getElementById("btnLoad");
+      const btnReset = document.getElementById("btnReset");
+      const statusDot = document.getElementById("statusDot");
+      const ctrlPanel = document.getElementById("ctrlPanel");
+
+      // ── Controller Settings helpers ──────────────────────────────────────────
+      // Common CC name table for hint display
+      const CC_NAMES = {
+        1: "Modulation",
+        2: "Breath",
+        7: "Volume",
+        10: "Pan",
+        11: "Expression",
+        64: "Sustain",
+        71: "Resonance",
+        72: "Release",
+        73: "Attack",
+        74: "Brightness / MPE Timbre",
+        75: "Decay",
+        76: "Vibrato Rate",
+        77: "Vibrato Depth",
+        78: "Vibrato Delay",
+        91: "Reverb",
+        93: "Chorus",
+        94: "Detune",
+      };
+
+      function ccHint(n) {
+        n = parseInt(n, 10);
+        if (isNaN(n) || n < 0 || n > 127) return "";
+        return CC_NAMES[n] ? `CC ${n} \u2014 ${CC_NAMES[n]}` : `CC ${n}`;
+      }
+
+      // Flash border on an input: 'ok' or 'err'
+      function flashInput(el, cls) {
+        el.classList.remove("ok", "err");
+        el.classList.add(cls);
+        setTimeout(() => el.classList.remove(cls), 1500);
+      }
+
+      // Generic apply helper
+      async function applyCtrlSetting(cmd, inputEl) {
+        try {
+          await sendLine(cmd);
+          await waitForResponse(cmd);
+          if (inputEl) flashInput(inputEl, "ok");
+        } catch (e) {
+          if (inputEl) flashInput(inputEl, "err");
+          appendLog(
+            "Setting failed, please try again: " + e.message,
+            "log-err",
+          );
+          await customAlert(
+            `Failed to save setting (${cmd}):\n${e.message}`,
+            "Error Saving Setting",
+          );
+        }
+      }
+
+      function sanitizeNumberInput(input, allowNegative = false) {
+        input.addEventListener("beforeinput", (e) => {
+          if (!e.data) return;
+          if (allowNegative) {
+            if (e.data === "-") {
+              const start = input.selectionStart || 0;
+              if (start !== 0 || input.value.includes("-")) {
+                e.preventDefault();
+              }
+            } else if (/[^0-9]/.test(e.data)) {
+              e.preventDefault();
+            }
+          } else {
+            if (/[^0-9]/.test(e.data)) {
+              e.preventDefault();
+            }
+          }
+        });
+
+        input.addEventListener("keydown", (e) => {
+          if (
+            e.key === "Backspace" ||
+            e.key === "Delete" ||
+            e.key === "Tab" ||
+            e.key === "Escape" ||
+            e.key === "Enter" ||
+            e.key === "ArrowLeft" ||
+            e.key === "ArrowRight" ||
+            e.key === "ArrowUp" ||
+            e.key === "ArrowDown" ||
+            e.key === "Home" ||
+            e.key === "End" ||
+            e.ctrlKey ||
+            e.metaKey
+          ) {
+            return;
+          }
+
+          if (allowNegative && e.key === "-") {
+            const val = input.value;
+            const start = input.selectionStart || 0;
+            if (start === 0 && !val.includes("-")) {
+              return;
+            }
+          }
+
+          if (!/^\d$/.test(e.key)) {
+            e.preventDefault();
+          }
+        });
+
+        input.addEventListener("input", () => {
+          const prev = input.value;
+          let cleaned = allowNegative
+            ? prev.replace(/(?!^)-|[^0-9-]/g, "")
+            : prev.replace(/[^0-9]/g, "");
+          if (prev !== cleaned) {
+            input.value = cleaned;
+          }
+        });
+      }
+
+      function bindAutoSaveInput({
+        input,
+        min,
+        max,
+        cmdPrefix,
+        onInput = null,
+        debounceMs = 500,
+      }) {
+        if (!input) return;
+        sanitizeNumberInput(input, min < 0);
+        let debounceTimer = null;
+        let lastSentValue = null;
+
+        const save = async () => {
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+          }
+          const raw = input.value.trim();
+          if (raw === "") return;
+          const v = parseInt(raw, 10);
+          if (isNaN(v) || v < min || v > max) {
+            flashInput(input, "err");
+            await customAlert(
+              `Invalid value "${raw}". Must be a number between ${min} and ${max}.`,
+              "Invalid Setting",
+            );
+            return;
+          }
+          if (v === lastSentValue) return;
+          lastSentValue = v;
+          await applyCtrlSetting(`${cmdPrefix} ${v}`, input);
+        };
+
+        input.addEventListener("input", () => {
+          if (onInput) onInput(input.value);
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(save, debounceMs);
+        });
+
+        input.addEventListener("change", save);
+        input.addEventListener("blur", save);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            input.blur();
+          }
+        });
+      }
+
+      // Pot 1 CC
+      const pot1ccInput = document.getElementById("pot1ccInput");
+      const pot1ccHint = document.getElementById("pot1ccHint");
+      bindAutoSaveInput({
+        input: pot1ccInput,
+        min: 0,
+        max: 127,
+        cmdPrefix: "pot1cc",
+        onInput: (val) => {
+          pot1ccHint.textContent = ccHint(val);
+        },
+      });
+
+      // Pot 2 CC
+      const pot2ccInput = document.getElementById("pot2ccInput");
+      const pot2ccHint = document.getElementById("pot2ccHint");
+      bindAutoSaveInput({
+        input: pot2ccInput,
+        min: 0,
+        max: 127,
+        cmdPrefix: "pot2cc",
+        onInput: (val) => {
+          pot2ccHint.textContent = ccHint(val);
+        },
+      });
+
+      // Modal logic
+      const ccModal = document.getElementById("ccModal");
+      const ccList = document.getElementById("ccList");
+      const closeModal = document.getElementById("closeModal");
+
+      function toggleModal(show) {
+        ccModal.classList.toggle("active", show);
+        if (show) populateCCList();
+      }
+
+      function populateCCList() {
+        if (ccList.innerHTML !== "") return;
+        // Sorted list of common CCs
+        const entries = Object.entries(CC_NAMES).sort((a, b) => a[0] - b[0]);
+        ccList.innerHTML = entries
+          .map(
+            ([cc, name]) =>
+              `<li><span>CC ${cc}</span> <span>${name}</span></li>`,
+          )
+          .join("");
+      }
+
+      document
+        .getElementById("openCCModal1")
+        .addEventListener("click", () => toggleModal(true));
+      document
+        .getElementById("openCCModal2")
+        .addEventListener("click", () => toggleModal(true));
+      document
+        .getElementById("openCCModalExpr")
+        .addEventListener("click", () => toggleModal(true));
+      closeModal.addEventListener("click", () => toggleModal(false));
+      ccModal.addEventListener("click", (e) => {
+        if (e.target === ccModal) toggleModal(false);
+      });
+
+      // Expression Pedal CC
+      const exprccInput = document.getElementById("exprccInput");
+      const exprccBtn = document.getElementById("exprccBtn");
+      const exprccHint = document.getElementById("exprccHint");
+      function exprHintText(n) {
+        n = parseInt(n, 10);
+        if (isNaN(n) || n < 0 || n > 127) return "";
+        let base = CC_NAMES[n] ? `CC ${n} \u2014 ${CC_NAMES[n]}` : `CC ${n}`;
+        if (n === 11) {
+          return `${base} (Standard Volume)`;
+        } else if (n === 74) {
+          return `${base} (MPE Timbre / Slide, Volume fixed at full)`;
+        } else {
+          return `${base} (Custom CC, Volume fixed at full)`;
+        }
+      }
+      bindAutoSaveInput({
+        input: exprccInput,
+        min: 0,
+        max: 127,
+        cmdPrefix: "exprcc",
+        onInput: (val) => {
+          exprccHint.textContent = exprHintText(val);
+        },
+      });
+
+      // Volume curve toggle
+      const curveLog = document.getElementById("curveLog");
+      const curveLinear = document.getElementById("curveLinear");
+      function setCurveUI(v) {
+        // v = 'log' | 'linear'
+        curveLog.classList.toggle("active", v === "log");
+        curveLinear.classList.toggle("active", v === "linear");
+
+        // Enable or disable the taper setting
+        const slider = document.getElementById("exprHalfSlider");
+        const canvas = document.getElementById("curveCanvas");
+        const isLog = v === "log";
+        if (slider) slider.disabled = !isLog;
+        if (canvas) {
+          canvas.style.opacity = isLog ? "1.0" : "0.4";
+        }
+        // Redraw curve
+        drawCurve();
+      }
+      async function applyCurve(v) {
+        curveLog.disabled = true;
+        curveLinear.disabled = true;
+        try {
+          await sendLine(`exprcurve ${v}`);
+          await waitForResponse(`exprcurve ${v}`);
+          setCurveUI(v);
+        } catch (e) {
+          appendLog(
+            "Curve change failed, please try again: " + e.message,
+            "log-err",
+          );
+        }
+        curveLog.disabled = false;
+        curveLinear.disabled = false;
+      }
+      curveLog.addEventListener("click", () => applyCurve("log"));
+      curveLinear.addEventListener("click", () => applyCurve("linear"));
+
+      // Curve visualizer drawing
+      function drawCurve() {
+        const canvas = document.getElementById("curveCanvas");
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Grid parameters
+        const padding = 8;
+        const graphWidth = width - 2 * padding;
+        const graphHeight = height - 2 * padding;
+
+        // Draw light background grid
+        ctx.strokeStyle = "#2e3350"; // var(--border)
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 4; i++) {
+          const y = padding + (i / 4) * graphHeight;
+          ctx.moveTo(padding, y);
+          ctx.lineTo(padding + graphWidth, y);
+        }
+        for (let i = 0; i <= 4; i++) {
+          const x = padding + (i / 4) * graphWidth;
+          ctx.moveTo(x, padding);
+          ctx.lineTo(x, padding + graphHeight);
+        }
+        ctx.stroke();
+
+        // Check if curve is linear or log
+        const isLog = curveLog.classList.contains("active");
+
+        // Taper percentage
+        const slider = document.getElementById("exprHalfSlider");
+        const hVal = slider ? parseInt(slider.value, 10) : 90;
+        const h = hVal / 100.0;
+
+        // coefficients
+        const a = 2.0;
+        const b = -1.0 - 4.0 * h;
+        const c = 4.0 * h;
+
+        // Draw curve
+        ctx.strokeStyle = isLog ? "#6c63ff" : "#a78bfa"; // var(--accent) or var(--accent2)
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+
+        for (let i = 0; i <= 50; i++) {
+          const t = i / 50; // normalized x
+          let val = 0;
+          if (isLog) {
+            val = t * (t * (a * t + b) + c);
+          } else {
+            val = t;
+          }
+          val = Math.max(0, Math.min(1, val));
+
+          const cx = padding + t * graphWidth;
+          const cy = padding + graphHeight - val * graphHeight;
+          if (i === 0) {
+            ctx.moveTo(cx, cy);
+          } else {
+            ctx.lineTo(cx, cy);
+          }
+        }
+        ctx.stroke();
+
+        // Draw halfway dot if in log mode
+        if (isLog) {
+          ctx.fillStyle = "#34d399"; // var(--success)
+          const hx = padding + 0.5 * graphWidth;
+          const hy = padding + graphHeight - h * graphHeight;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 4, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
+
+      // Volume Curve Taper Slider with debounced auto-save
+      const exprHalfSlider = document.getElementById("exprHalfSlider");
+      const exprHalfLabel = document.getElementById("exprHalfLabel");
+
+      if (exprHalfSlider) {
+        let halfTimer = null;
+        let lastHalf = null;
+        const saveHalf = async () => {
+          if (halfTimer) {
+            clearTimeout(halfTimer);
+            halfTimer = null;
+          }
+          const v = parseInt(exprHalfSlider.value, 10);
+          if (isNaN(v) || v < 50 || v > 99) return;
+          if (v === lastHalf) return;
+          lastHalf = v;
+          await applyCtrlSetting(`exprhalf ${v}`, exprHalfSlider);
+        };
+
+        exprHalfSlider.addEventListener("input", () => {
+          exprHalfLabel.textContent = exprHalfSlider.value + "%";
+          drawCurve();
+          if (halfTimer) clearTimeout(halfTimer);
+          halfTimer = setTimeout(saveHalf, 400);
+        });
+
+        exprHalfSlider.addEventListener("change", saveHalf);
+      }
+
+      // Sustain mode toggle
+      const susModeStandard = document.getElementById("susModeStandard");
+      const susModePalm = document.getElementById("susModePalm");
+      function setSustainUI(v) {
+        susModeStandard.classList.toggle("active", v === 0);
+        susModePalm.classList.toggle("active", v === 1);
+        const hintEl = document.getElementById("sustainHint");
+        if (hintEl) {
+          if (v === 0) {
+            hintEl.textContent =
+              "Notes sustain for as long as you hold a key (Hotkey toggle: Mode + Strings 2 & 5)";
+          } else {
+            hintEl.textContent =
+              "Notes sustain until you touch the palm mute sensor (Hotkey toggle: Mode + Strings 2 & 5)";
+          }
+        }
+      }
+      async function applySustainMode(v) {
+        susModeStandard.disabled = true;
+        susModePalm.disabled = true;
+        try {
+          await sendLine(`sustainmode ${v}`);
+          await waitForResponse(`sustainmode ${v}`);
+          setSustainUI(v);
+        } catch (e) {
+          appendLog(
+            "Sustain mode change failed, please try again: " + e.message,
+            "log-err",
+          );
+        }
+        susModeStandard.disabled = false;
+        susModePalm.disabled = false;
+      }
+      susModeStandard.addEventListener("click", () => applySustainMode(0));
+      susModePalm.addEventListener("click", () => applySustainMode(1));
+
+      // MIDI Mode toggle
+      const midiModeMpe = document.getElementById("midiModeMpe");
+      const midiModeMono = document.getElementById("midiModeMono");
+      function setMidiModeUI(v) {
+        midiModeMpe.classList.toggle("active", v === 1);
+        midiModeMono.classList.toggle("active", v === 0);
+        const hintEl = document.getElementById("midiModeHint");
+        if (hintEl) {
+          hintEl.textContent =
+            v === 1
+              ? "MPE Mode: per-string bend (Hotkey toggle: Mode + Strings 1 & 6)"
+              : "Mono Mode: single channel 1 shared (Hotkey toggle: Mode + Strings 1 & 6)";
+        }
+      }
+      async function applyMidiMode(v) {
+        midiModeMpe.disabled = true;
+        midiModeMono.disabled = true;
+        try {
+          await sendLine(`midimode ${v}`);
+          await waitForResponse(`midimode ${v}`);
+          setMidiModeUI(v);
+        } catch (e) {
+          appendLog(
+            "MIDI mode change failed, please try again: " + e.message,
+            "log-err",
+          );
+        }
+        midiModeMpe.disabled = false;
+        midiModeMono.disabled = false;
+      }
+      midiModeMpe.addEventListener("click", () => applyMidiMode(1));
+      midiModeMono.addEventListener("click", () => applyMidiMode(0));
+
+      // String Mode toggle
+      const strMode6 = document.getElementById("strMode6");
+      const strMode8 = document.getElementById("strMode8");
+
+      function setStrModeUI(v) {
+        window.activeStrings = v;
+        strMode6.classList.toggle("active", v === 6);
+        strMode8.classList.toggle("active", v === 8);
+        const gridWrapper = document.getElementById("gridWrapper");
+        if (v === 6) {
+          gridWrapper.classList.add("six-string-mode");
+        } else {
+          gridWrapper.classList.remove("six-string-mode");
+        }
+        // Force a re-render of the grid since the number of inputs changes
+        if (window.lastTunings) {
+          renderGrid(window.lastTunings, window.lastActiveTuning);
+        }
+      }
+
+      async function applyStrMode(v) {
+        strMode6.disabled = true;
+        strMode8.disabled = true;
+        try {
+          await sendLine(`numstrings ${v}`);
+          await waitForResponse(`numstrings ${v}`);
+          setStrModeUI(v);
+        } catch (e) {
+          appendLog("String mode change failed: " + e.message, "log-err");
+        }
+        strMode6.disabled = false;
+        strMode8.disabled = false;
+      }
+
+      strMode6.addEventListener("click", () => applyStrMode(6));
+      strMode8.addEventListener("click", () => applyStrMode(8));
+
+      // Octave Shift toggle
+      const octaveDn2 = document.getElementById("octaveDn2");
+      const octaveDn1 = document.getElementById("octaveDn1");
+      const octave0 = document.getElementById("octave0");
+      const octaveUp1 = document.getElementById("octaveUp1");
+      const octaveUp2 = document.getElementById("octaveUp2");
+      const octaveBtns = [octaveDn2, octaveDn1, octave0, octaveUp1, octaveUp2];
+      function setOctaveUI(v) {
+        octaveDn2.classList.toggle("active", v === -2);
+        octaveDn1.classList.toggle("active", v === -1);
+        octave0.classList.toggle("active", v === 0);
+        octaveUp1.classList.toggle("active", v === 1);
+        octaveUp2.classList.toggle("active", v === 2);
+      }
+      async function applyOctave(v) {
+        octaveBtns.forEach((btn) => (btn.disabled = true));
+        try {
+          await sendLine(`octave ${v}`);
+          await waitForResponse(`octave ${v}`);
+          setOctaveUI(v);
+        } catch (e) {
+          appendLog("Octave shift change failed: " + e.message, "log-err");
+        }
+        octaveBtns.forEach((btn) => (btn.disabled = false));
+      }
+      octaveDn2.addEventListener("click", () => applyOctave(-2));
+      octaveDn1.addEventListener("click", () => applyOctave(-1));
+      octave0.addEventListener("click", () => applyOctave(0));
+      octaveUp1.addEventListener("click", () => applyOctave(1));
+      octaveUp2.addEventListener("click", () => applyOctave(2));
+
+      // Auto Decay
+      const autoDecayInput = document.getElementById("autoDecayInput");
+      bindAutoSaveInput({
+        input: autoDecayInput,
+        min: 0,
+        max: 60000,
+        cmdPrefix: "autodecay",
+      });
+
+      // Bender Speed
+      const bendTimeInput = document.getElementById("bendTimeInput");
+      bindAutoSaveInput({
+        input: bendTimeInput,
+        min: 0,
+        max: 10000,
+        cmdPrefix: "bendtime",
+      });
+
+      // Preset Bank Size
+      const numProgramsInput = document.getElementById("numProgramsInput");
+      bindAutoSaveInput({
+        input: numProgramsInput,
+        min: 1,
+        max: 128,
+        cmdPrefix: "numprograms",
+      });
+
+      // Max Fret
+      const maxFretInput = document.getElementById("maxFretInput");
+      bindAutoSaveInput({
+        input: maxFretInput,
+        min: 0,
+        max: 24,
+        cmdPrefix: "maxfret",
+      });
+
+      async function doCalStep(
+        promptMsg,
+        cmd,
+        timeoutMs = 5000,
+        allowCancel = true,
+      ) {
+        while (true) {
+          if (promptMsg) {
+            const ok = await customAlert(
+              promptMsg,
+              "Calibration Step",
+              allowCancel,
+            );
+            if (!ok) {
+              return null;
+            }
+          }
+          if (!cmd) return "OK";
+          const attempts = 3;
+          for (let i = 0; i < attempts; i++) {
+            try {
+              if (i > 0) {
+                appendLog(
+                  `Retrying calibration command '${cmd}' (attempt ${i + 1}/${attempts})...`,
+                  "log-info",
+                );
+                // Wait 200ms between retries to let the port settle
+                await new Promise((r) => setTimeout(r, 200));
+              }
+              await sendLine(cmd);
+              return await waitForResponse(cmd, timeoutMs);
+            } catch (e) {
+              if (e.message !== "Timeout") {
+                throw e;
+              }
+              if (i === attempts - 1) {
+                const retry = await customAlert(
+                  `Timeout waiting for device during step: ${cmd} after 3 attempts. Let's try that step again.`,
+                  "Calibration Timeout",
+                  true,
+                );
+                if (!retry) return null;
+              }
+            }
+          }
+        }
+      }
+
+      const btnCalibrateExpr = document.getElementById("btnCalibrateExpr");
+      btnCalibrateExpr.addEventListener("click", async () => {
+        btnCalibrateExpr.disabled = true;
+        try {
+          let respMax = await doCalStep(
+            "Please move the expression pedal to its MAXIMUM (toe down) position, hold it there, and click OK (or press any string key).",
+            "cal_expr_max",
+            5000,
+            true,
+          );
+          if (respMax === null) {
+            appendLog("Expression pedal calibration cancelled.", "log-dim");
+            btnCalibrateExpr.disabled = false;
+            return;
+          }
+          let parsedMax = respMax.replace("OK cal_expr_max ", "").trim();
+
+          let respMin = await doCalStep(
+            "Please move the expression pedal to its MINIMUM (heel down) position, hold it there, and click OK (or press any string key).",
+            "cal_expr_min",
+            5000,
+            true,
+          );
+          if (respMin === null) {
+            appendLog("Expression pedal calibration cancelled.", "log-dim");
+            btnCalibrateExpr.disabled = false;
+            return;
+          }
+          let parsedMin = respMin.replace("OK cal_expr_min ", "").trim();
+
+          await customAlert(
+            "Calibration complete!",
+            "Calibration Complete",
+            false,
+          );
+          document.getElementById("exprCalHint").textContent =
+            `Range: ${parsedMin} \u2014 ${parsedMax}`;
+          appendLog("Expression Calibration complete!", "log-ok");
+        } catch (e) {
+          appendLog(
+            "Calibration failed, please try again: " + e.message,
+            "log-err",
+          );
+        }
+        btnCalibrateExpr.disabled = false;
+      });
+
+      // Calibration target selection
+      let calTarget = "both"; // "both", "p1", "p2"
+      const calTargetBoth = document.getElementById("calTargetBoth");
+      const calTargetP1 = document.getElementById("calTargetP1");
+      const calTargetP2 = document.getElementById("calTargetP2");
+
+      function setCalTargetUI(target) {
+        calTarget = target;
+        calTargetBoth.classList.toggle("active", target === "both");
+        calTargetP1.classList.toggle("active", target === "p1");
+        calTargetP2.classList.toggle("active", target === "p2");
+      }
+
+      calTargetBoth.addEventListener("click", () => setCalTargetUI("both"));
+      calTargetP1.addEventListener("click", () => setCalTargetUI("p1"));
+      calTargetP2.addEventListener("click", () => setCalTargetUI("p2"));
+
+      const btnCalibrateScale = document.getElementById("btnCalibrateScale");
+      btnCalibrateScale.addEventListener("click", async () => {
+        btnCalibrateScale.disabled = true;
+        try {
+          const suffix =
+            calTarget === "both" ? "" : calTarget === "p1" ? "_p1" : "_p2";
+          const targetLabel =
+            calTarget === "both"
+              ? "both softpots"
+              : calTarget === "p1"
+                ? "Bass softpot (P1)"
+                : "Treble softpot (P2)";
+
+          // Step 1: Nut
+          let respNut = await doCalStep(
+            `Please press firmly at the MINIMUM position (Nut) on ${targetLabel}, hold it there, and click OK (or press any string key).`,
+            `cal_nut${suffix}`,
+            5000,
+            true,
+          );
+          if (respNut === null) {
+            appendLog("Scale calibration cancelled.", "log-dim");
+            btnCalibrateScale.disabled = false;
+            return;
+          }
+
+          // Step 2: 1st Fret
+          let resp1 = await doCalStep(
+            `Please press firmly in the middle of the 1st fret on ${targetLabel}, hold it there, and click OK (or press any string key).`,
+            `cal_fret 1${suffix}`,
+            5000,
+            true,
+          );
+          if (resp1 === null) {
+            appendLog("Scale calibration cancelled.", "log-dim");
+            btnCalibrateScale.disabled = false;
+            return;
+          }
+          let parsed1 = resp1
+            .replace("OK cal_fret 1_p1 ", "")
+            .replace("OK cal_fret 1_p2 ", "")
+            .replace("OK cal_fret 1 ", "")
+            .trim();
+
+          // Step 3: 13th Fret
+          let resp13 = await doCalStep(
+            `Please press firmly in the middle of the 13th fret (one octave up) on ${targetLabel}, hold it there, and click OK (or press any string key).`,
+            `cal_fret 13${suffix}`,
+            5000,
+            true,
+          );
+          if (resp13 === null) {
+            appendLog("Scale calibration cancelled.", "log-dim");
+            btnCalibrateScale.disabled = false;
+            return;
+          }
+          let parsed13 = resp13
+            .replace("OK cal_fret 13_p1 ", "")
+            .replace("OK cal_fret 13_p2 ", "")
+            .replace("OK cal_fret 13 ", "")
+            .trim();
+
+          // Step 4: Max Fret / Bridge
+          const mFret =
+            parseInt(document.getElementById("maxFretInput").value, 10) || 0;
+          const maxPrompt =
+            mFret === 0
+              ? `Please press firmly at the MAXIMUM position (Bridge) on ${targetLabel}, hold it there, and click OK (or press any string key).`
+              : `Please press firmly in the middle of Fret ${mFret} (or your maximum fret) on ${targetLabel}, hold it there, and click OK (or press any string key).`;
+          let respMax = await doCalStep(
+            maxPrompt,
+            `cal_max${suffix}`,
+            5000,
+            true,
+          );
+          if (respMax === null) {
+            appendLog("Scale calibration cancelled.", "log-dim");
+            btnCalibrateScale.disabled = false;
+            return;
+          }
+
+          // Commit
+          await doCalStep(null, "cal_commit");
+
+          await customAlert(
+            `${targetLabel.charAt(0).toUpperCase() + targetLabel.slice(1)} Calibration complete!`,
+            "Calibration Complete",
+            false,
+          );
+
+          document.getElementById("scaleCalHint").textContent =
+            `Range: ${parsed1} \u2014 ${parsed13}`;
+          appendLog("Scale calibration complete!", "log-ok");
+        } catch (e) {
+          appendLog(
+            "Scale calibration failed, please try again: " + e.message,
+            "log-err",
+          );
+        }
+        btnCalibrateScale.disabled = false;
+      });
+
+      const chkDebug = document.getElementById("chkDebug");
+      chkDebug.addEventListener("change", async () => {
+        try {
+          const cmd = chkDebug.checked ? "debug on" : "debug off";
+          await sendLine(cmd);
+          await waitForResponse(cmd);
+        } catch (e) {
+          appendLog(
+            "Debug toggle failed, please try again: " + e.message,
+            "log-err",
+          );
+          chkDebug.checked = !chkDebug.checked;
+        }
+      });
+
+      function applyCtrlFromJson(data) {
+        if (data.pot1cc !== undefined) {
+          pot1ccInput.value = data.pot1cc;
+          pot1ccHint.textContent = ccHint(data.pot1cc);
+        }
+        if (data.pot2cc !== undefined) {
+          pot2ccInput.value = data.pot2cc;
+          pot2ccHint.textContent = ccHint(data.pot2cc);
+        }
+        if (data.exprcurve || data.volcurve)
+          setCurveUI(data.exprcurve || data.volcurve);
+        if (data.exprcc !== undefined) {
+          exprccInput.value = data.exprcc;
+          exprccHint.textContent = exprHintText(data.exprcc);
+        }
+        if (data.exprhalf !== undefined) {
+          const slider = document.getElementById("exprHalfSlider");
+          const label = document.getElementById("exprHalfLabel");
+          if (slider) slider.value = data.exprhalf;
+          if (label) label.textContent = data.exprhalf + "%";
+          drawCurve();
+        }
+        if (data.midimode !== undefined) setMidiModeUI(data.midimode);
+        if (data.octave !== undefined) setOctaveUI(data.octave);
+        if (data.activeStrings !== undefined) setStrModeUI(data.activeStrings);
+        if (data.sustainmode !== undefined) setSustainUI(data.sustainmode);
+        if (data.autodecay !== undefined) {
+          autoDecayInput.value = data.autodecay;
+        }
+        if (data.bendtime !== undefined) {
+          bendTimeInput.value = data.bendtime;
+        }
+        if (data.numprograms !== undefined) {
+          numProgramsInput.value = data.numprograms;
+        }
+        if (data.maxfret !== undefined) {
+          maxFretInput.value = data.maxfret;
+        }
+        if (data.exprmin !== undefined && data.exprmax !== undefined) {
+          document.getElementById("exprCalHint").textContent =
+            `Range: ${data.exprmin} \u2014 ${data.exprmax}`;
+        }
+
+        if (data.rawfret1 !== undefined && data.rawfret13 !== undefined) {
+          if (data.rawfret1 === 0 && data.rawfret13 === 0) {
+            document.getElementById("scaleCalHint").textContent =
+              "Range: Uncalibrated (Defaults)";
+          } else {
+            document.getElementById("scaleCalHint").textContent =
+              `Range: ${data.rawfret1} \u2014 ${data.rawfret13}`;
+          }
+        }
+        if (data.debug !== undefined) {
+          chkDebug.checked = data.debug === true || data.debug === "true";
+        }
+      }
+
+      // Transport mode: WebMIDI is default. Web Serial remains supported under the hood (?transport=serial or setTransport("serial")).
+      const urlParams = new URLSearchParams(window.location.search);
+      let activeTransport =
+        urlParams.get("transport") === "serial" ? "serial" : "midi";
+      let midiAccess = null;
+      let midiInput = null;
+      let midiOutput = null;
+
+      window.setTransport = (t) => {
+        activeTransport = t;
+        appendLog(`Transport set to: ${t}`, "log-info");
+      };
+
+      btnConnect.addEventListener("click", async () => {
+        if (isConnected()) {
+          await disconnect();
+        } else {
+          await connect();
+        }
+      });
+
+      function isConnected() {
+        return !!(midiOutput || port);
+      }
+
+      async function connect() {
+        if (activeTransport === "serial") {
+          await connectSerial();
+        } else {
+          await connectMIDI();
+        }
+      }
+
+      function getMIDIPorts(mapOrObj) {
+        if (!mapOrObj) return [];
+
+        // If mapOrObj is a function (early WebMIDI draft spec in some shims): call it
+        if (typeof mapOrObj === "function") {
+          try {
+            mapOrObj = mapOrObj();
+          } catch (_) {}
+        }
+        if (!mapOrObj) return [];
+
+        const ports = [];
+
+        // 1. Has .forEach method (standard WebMIDI Map & Polyfills)
+        if (typeof mapOrObj.forEach === "function") {
+          try {
+            mapOrObj.forEach((val) => {
+              if (val) ports.push(val);
+            });
+            if (ports.length > 0) return ports;
+          } catch (_) {}
+        }
+
+        // 2. Standard ES6 .values() iterator (Chrome, Edge, Firefox)
+        if (typeof mapOrObj.values === "function") {
+          try {
+            const arr = Array.from(mapOrObj.values());
+            if (arr.length > 0) return arr;
+          } catch (_) {}
+        }
+
+        // 3. Array or Array-like object with numeric length
+        if (typeof mapOrObj.length === "number") {
+          try {
+            for (let i = 0; i < mapOrObj.length; i++) {
+              if (mapOrObj[i]) ports.push(mapOrObj[i]);
+            }
+            if (ports.length > 0) return ports;
+          } catch (_) {}
+        }
+
+        // 4. Plain JS Object { id1: port1, id2: port2 }
+        if (typeof mapOrObj === "object") {
+          try {
+            const keys = Object.keys(mapOrObj);
+            for (const k of keys) {
+              if (mapOrObj[k] && typeof mapOrObj[k] === "object") {
+                ports.push(mapOrObj[k]);
+              }
+            }
+          } catch (_) {}
+        }
+
+        return ports;
+      }
+
+      let currentTab = "tabSettings";
+      function switchTab(tabId) {
+        currentTab = tabId;
+        document.querySelectorAll(".nav-tab-btn").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.tab === tabId);
+        });
+
+        const tabSettings = document.getElementById("tabSettings");
+        const tabTunings = document.getElementById("tabTunings");
+        const tabLog = document.getElementById("tabLog");
+        const notConnectedNotice =
+          document.getElementById("notConnectedNotice");
+        const settingsBlocks = document.getElementById("settingsBlocks");
+        const connected = isConnected();
+
+        if (tabId === "tabLog") {
+          if (tabSettings) tabSettings.style.display = "none";
+          if (tabTunings) tabTunings.style.display = "none";
+          if (tabLog) tabLog.style.display = "block";
+          if (notConnectedNotice) notConnectedNotice.style.display = "none";
+          if (settingsBlocks) settingsBlocks.style.display = "none";
+        } else {
+          if (tabLog) tabLog.style.display = "none";
+          if (tabSettings)
+            tabSettings.style.display =
+              tabId === "tabSettings" ? "block" : "none";
+          if (tabTunings)
+            tabTunings.style.display =
+              tabId === "tabTunings" ? "block" : "none";
+
+          if (connected) {
+            if (notConnectedNotice) notConnectedNotice.style.display = "none";
+            if (settingsBlocks) settingsBlocks.style.display = "block";
+            if (tabId === "tabSettings") {
+              drawCurve();
+            }
+          } else {
+            if (notConnectedNotice) notConnectedNotice.style.display = "block";
+            if (settingsBlocks) settingsBlocks.style.display = "none";
+          }
+        }
+      }
+
+      document.querySelectorAll(".nav-tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+
+      function updateConnectionUI(connected) {
+        if (connected) {
+          btnConnect.textContent = "⏏ Disconnect";
+          btnConnect.classList.add("connected");
+          btnLoad.disabled = false;
+          btnLoad.style.display = "";
+          btnReset.disabled = false;
+          btnReset.style.display = "";
+          chkDebug.disabled = false;
+          document
+            .querySelectorAll(".ctrl-panel")
+            .forEach((p) => p.classList.add("enabled"));
+          statusDot.className = "status-dot connected";
+        } else {
+          btnConnect.textContent = "🔌 Connect";
+          btnConnect.classList.remove("connected");
+          btnLoad.disabled = true;
+          btnLoad.style.display = "none";
+          btnReset.disabled = true;
+          btnReset.style.display = "none";
+          chkDebug.disabled = true;
+          document
+            .querySelectorAll(".ctrl-panel")
+            .forEach((p) => p.classList.remove("enabled"));
+          statusDot.className = "status-dot";
+        }
+        switchTab(currentTab);
+      }
+
+      async function connectMIDI() {
+        try {
+          if (!("requestMIDIAccess" in navigator)) {
+            throw new Error(
+              "WebMIDI API is not supported in this browser. Please use Chrome/Edge, or WebMIDI Browser on iOS.",
+            );
+          }
+          midiAccess = await navigator.requestMIDIAccess({ sysex: true });
+
+          const inputs = getMIDIPorts(midiAccess.inputs);
+          const outputs = getMIDIPorts(midiAccess.outputs);
+
+          appendLog(
+            `Discovered ${inputs.length} MIDI input(s) and ${outputs.length} MIDI output(s).`,
+            "log-info",
+          );
+          inputs.forEach((inp, i) =>
+            appendLog(
+              `  Input [${i}]: ${inp ? inp.name || inp.id || "Unnamed" : "null"}`,
+              "log-dim",
+            ),
+          );
+          outputs.forEach((out, i) =>
+            appendLog(
+              `  Output [${i}]: ${out ? out.name || out.id || "Unnamed" : "null"}`,
+              "log-dim",
+            ),
+          );
+
+          let foundInput = null;
+          let foundOutput = null;
+
+          // Priority 1: Match keyword "teensy", "midisteel", "lapsteel" (case-insensitive)
+          for (const input of inputs) {
+            if (
+              input &&
+              input.name &&
+              /teensy|midisteel|lapsteel/i.test(input.name)
+            ) {
+              foundInput = input;
+              break;
+            }
+          }
+
+          for (const output of outputs) {
+            if (
+              output &&
+              output.name &&
+              /teensy|midisteel|lapsteel/i.test(output.name)
+            ) {
+              foundOutput = output;
+              break;
+            }
+          }
+
+          // Priority 2: Fallback to the first available input and output port
+          if (!foundInput && inputs.length > 0) foundInput = inputs[0];
+          if (!foundOutput && outputs.length > 0) foundOutput = outputs[0];
+
+          if (!foundInput || !foundOutput) {
+            throw new Error(
+              `No active MIDI device connected (Found ${inputs.length} inputs, ${outputs.length} outputs). Please check USB OTG cable.`,
+            );
+          }
+
+          midiInput = foundInput;
+          midiOutput = foundOutput;
+          midiInput.onmidimessage = onMIDIMessage;
+
+          updateConnectionUI(true);
+          appendLog(
+            `Connected via WebMIDI (${midiOutput.name || midiOutput.id || "MIDI Device"}). Loading settings...`,
+            "log-info",
+          );
+          readBuffer = "";
+
+          setTimeout(() => loadFromDevice(), 500);
+        } catch (e) {
+          appendLog("MIDI Connect failed: " + e.message, "log-err");
+          midiInput = null;
+          midiOutput = null;
+          updateConnectionUI(false);
+          statusDot.className = "status-dot error";
+        }
+      }
+
+      function onMIDIMessage(event) {
+        const data = event.data;
+        if (!data || data.length === 0) return;
+
+        // Check for MIDI Note On (status 0x90-0x9F with velocity > 0) to advance modal
+        const status = data[0] & 0xf0;
+        if (status === 0x90 && data.length >= 3 && data[2] > 0) {
+          triggerAlertAdvance();
+        }
+
+        if (data.length < 5) return;
+        // Check SysEx header: F0 7D 4D 53 ... F7
+        if (
+          data[0] === 0xf0 &&
+          data[1] === 0x7d &&
+          data[2] === 0x4d &&
+          data[3] === 0x53
+        ) {
+          const endIdx =
+            data[data.length - 1] === 0xf7 ? data.length - 1 : data.length;
+          const textBytes = data.subarray
+            ? data.subarray(4, endIdx)
+            : new Uint8Array(Array.prototype.slice.call(data, 4, endIdx));
+          const line = new TextDecoder().decode(textBytes);
+          onLine(line);
+        }
+      }
+
+      async function connectSerial() {
+        try {
+          if (!("serial" in navigator)) {
+            throw new Error(
+              "Web Serial API is not supported in this browser. Switch connection mode to WebMIDI.",
+            );
+          }
+          const ports = await navigator.serial.getPorts();
+          if (ports.length > 0) {
+            port = ports[0];
+          }
+
+          if (!port) {
+            port = await navigator.serial.requestPort();
+          }
+          await port.open({ baudRate: 115200 });
+
+          reader = port.readable.getReader();
+          writer = port.writable.getWriter();
+
+          updateConnectionUI(true);
+          appendLog(
+            "Connected via Web Serial. Loading settings...",
+            "log-info",
+          );
+          readBuffer = "";
+
+          readLoop();
+          setTimeout(() => loadFromDevice(), 1000);
+        } catch (e) {
+          appendLog("Serial Connect failed: " + e.message, "log-err");
+          port = null;
+          updateConnectionUI(false);
+          statusDot.className = "status-dot error";
+        }
+      }
+
+      async function disconnect() {
+        if (midiInput) {
+          try {
+            midiInput.onmidimessage = null;
+          } catch (_) {}
+          midiInput = null;
+          midiOutput = null;
+        }
+
+        try {
+          if (reader) await reader.cancel();
+        } catch (_) {}
+        reader = null;
+
+        try {
+          if (writer) writer.releaseLock();
+        } catch (_) {}
+        writer = null;
+
+        if (pendingReject) {
+          pendingReject(new Error("Disconnected by user"));
+          pendingResolve = null;
+          pendingReject = null;
+          if (pendingTimeoutId) {
+            clearTimeout(pendingTimeoutId);
+            pendingTimeoutId = null;
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        try {
+          if (port) {
+            await port.close();
+          }
+        } catch (e) {
+          console.error("Error closing port:", e);
+        }
+        port = null;
+
+        updateConnectionUI(false);
+        readBuffer = "";
+        appendLog("Disconnected.", "log-info");
+      }
+
+      // ── Read loop ────────────────────────────────────────────────────────────
+      const textDecoder = new TextDecoder();
+      async function readLoop() {
+        try {
+          while (reader) {
+            const { value, done } = await reader.read(); // value is Uint8Array
+            if (done) {
+              appendLog("Stream closed by device.", "log-info");
+              break;
+            }
+            // Decode bytes to text; { stream: true } handles multi-byte chars split across chunks
+            const text = textDecoder.decode(value, { stream: true });
+            readBuffer += text;
+            let nl;
+            while ((nl = readBuffer.indexOf("\n")) !== -1) {
+              const line = readBuffer.slice(0, nl).replace(/\r$/, "");
+              readBuffer = readBuffer.slice(nl + 1);
+              onLine(line);
+            }
+          }
+        } catch (e) {
+          // Ignore the expected error when we manually cancel the reader during disconnect
+          if (!e.message.includes("The stream has been aborted")) {
+            appendLog("Read error: " + e.message, "log-err");
+          }
+        }
+      }
+
+      function onLine(line) {
+        if (line.trim() === "") return;
+
+        // Check if string button pressed in Serial mode to advance modal
+        if (/^String \d+ ON/.test(line.trim())) {
+          triggerAlertAdvance();
+        }
+
+        // Sensor debug lines: show in dim grey so we can see what the Teensy is sending
+        if (
+          /^(bassPot raw=|treblePot raw=|Pot[12]? raw=|raw=|mm=|st=|CC\d|Mod |String |Expr )/.test(
+            line,
+          )
+        ) {
+          appendLog("\u2026 " + line, "log-dim");
+          return;
+        }
+
+        const isJson = line.includes('{"tunings"');
+        const isOk = line.includes("OK");
+        const isErr = line.includes("ERR");
+
+        const cls = isJson
+          ? "log-ok"
+          : isOk
+            ? "log-ok"
+            : isErr
+              ? "log-err"
+              : "";
+        appendLog("\u2190 " + line, cls);
+
+        if (line.includes("Tuning changed to:")) {
+          const tName = line.replace("Tuning changed to:", "").trim();
+          if (window.lastTunings) {
+            const tIdx = window.lastTunings.findIndex(
+              (t) => t.name.trim() === tName,
+            );
+            if (tIdx >= 0) setActiveTuning(tIdx);
+          }
+        }
+        if (line.startsWith("CURRENT_TUNING ")) {
+          const tIdx = parseInt(line.substring(15), 10);
+          if (!isNaN(tIdx)) setActiveTuning(tIdx);
+        }
+
+        if (pendingResolve) {
+          // Only resolve on actual command responses, never on boot/status messages
+          const cmd = pendingCmd || "";
+          const isJsonRequest = cmd.trim() === "loadSettings";
+          if (
+            (isJsonRequest && isJson) ||
+            (!isJsonRequest && (isJson || isOk || isErr))
+          ) {
+            pendingResolve(line.trim());
+            pendingResolve = null;
+            pendingReject = null;
+            if (pendingTimeoutId) {
+              clearTimeout(pendingTimeoutId);
+              pendingTimeoutId = null;
+            }
+          } else {
+            appendLog(
+              "  (waiting for response, skipping this line)",
+              "log-dim",
+            );
+          }
+        } else {
+          if (isJson || isOk || isErr) {
+            unhandledResponses.push(line.trim());
+            if (unhandledResponses.length > 20) unhandledResponses.shift();
+          }
+        }
+      }
+
+      async function sendLine(cmd) {
+        appendLog("→ " + cmd, "log-sent");
+        pendingCmd = cmd;
+        if (activeTransport === "midi" && midiOutput) {
+          const textBytes = new TextEncoder().encode(cmd);
+          const sysEx = [0xf0, 0x7d, 0x4d, 0x53];
+          for (let i = 0; i < textBytes.length; i++) sysEx.push(textBytes[i]);
+          sysEx.push(0xf7);
+          midiOutput.send(sysEx);
+        } else if (activeTransport === "serial" && writer) {
+          await writer.write(new TextEncoder().encode(cmd + "\n"));
+        }
+      }
+
+      // Wait for the next meaningful response line
+      let pendingCmd = "";
+      let unhandledResponses = [];
+      function waitForResponse(cmd, timeoutMs = 5000) {
+        pendingCmd = cmd;
+        return new Promise((resolve, reject) => {
+          // Check if it already arrived during the await of sendLine
+          for (let i = 0; i < unhandledResponses.length; i++) {
+            let line = unhandledResponses[i];
+            const isJsonRequest = cmd.trim() === "loadSettings";
+            if (
+              (isJsonRequest && line.includes('{"tunings"')) ||
+              (!isJsonRequest && (line.includes("OK") || line.includes("ERR")))
+            ) {
+              if (
+                !isJsonRequest &&
+                !line.includes("ERR") &&
+                cmd.trim() !== "reset" &&
+                !line.includes(cmd.split(" ")[0])
+              ) {
+                continue; // Not the response we want
+              }
+              unhandledResponses.splice(i, 1);
+              return resolve(line);
+            }
+          }
+
+          pendingResolve = resolve;
+          pendingReject = reject;
+          if (pendingTimeoutId) {
+            clearTimeout(pendingTimeoutId);
+          }
+          pendingTimeoutId = setTimeout(() => {
+            if (pendingResolve === resolve) {
+              pendingResolve = null;
+              pendingReject = null;
+              pendingTimeoutId = null;
+              reject(new Error("Timeout"));
+            }
+          }, timeoutMs);
+        });
+      }
+
+      // ── Load tunings from device ─────────────────────────────────────────────
+      btnLoad.addEventListener("click", loadFromDevice);
+
+      async function loadFromDevice(retries = 2) {
+        try {
+          // Give the board a moment to finish any boot messages that might corrupt the JSON
+          await new Promise((r) => setTimeout(r, 200));
+          readBuffer = ""; // Flush the buffer before requesting JSON to avoid prepending stale text
+
+          await sendLine("loadSettings");
+          const line = await waitForResponse("loadSettings", 4000);
+          const data = JSON.parse(line);
+          window.lastTunings = data.tunings;
+          window.lastActiveTuning = data.current;
+          renderGrid(data.tunings, data.current);
+          applyCtrlFromJson(data);
+          switchTab(currentTab);
+        } catch (e) {
+          if (retries > 0) {
+            appendLog("Retrying… (" + retries + " left)", "log-info");
+            await new Promise((r) => setTimeout(r, 600));
+            return loadFromDevice(retries - 1);
+          }
+          appendLog("Load failed, please try again: " + e.message, "log-err");
+        }
+      }
+
+      // ── Reset to defaults ────────────────────────────────────────────
+      btnReset.addEventListener("click", async () => {
+        if (
+          !confirm(
+            "Reset all settings and tunings to factory defaults? This cannot be undone.",
+          )
+        )
+          return;
+        try {
+          await sendLine("reset");
+          await waitForResponse("reset");
+          await loadFromDevice();
+        } catch (e) {
+          appendLog("Reset failed, please try again: " + e.message, "log-err");
+        }
+      });
+
+      // ── Render tuning grid ───────────────────────────────────────────────────
+      const presets = {
+        "A6(Rem)": {
+          notes: [64, 61, 57, 54, 52, 49, 45, 42],
+          p1: [0, 0, 2, 2, 0, 0, 0, 0],
+          p2: [0, 0, 1, 1, 0, 0, 0, 0],
+          p3: [1, 0, 0, 0, -1, 0, 0, 0],
+          p4: [0, 0, 0, 1, 0, 0, 0, 1],
+          p5: [0, 1, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 1, 0, 0, 0, 0, 0],
+        },
+        "E9(Emm)": {
+          notes: [66, 63, 68, 64, 59, 56, 54, 52],
+          p1: [0, 0, 0, 0, 2, 0, 0, 0],
+          p2: [0, 0, 1, 0, 0, 1, 0, 0],
+          p3: [0, 0, 0, 2, 2, 0, 0, 0],
+          p4: [0, 0, 0, 1, 0, 0, 0, 1],
+          p5: [0, 0, 0, -1, 0, 0, 0, -1],
+          p6: [0, 1, 0, 0, 0, -2, 0, 0],
+        },
+        "E9(Day)": {
+          notes: [66, 63, 68, 64, 59, 56, 54, 52],
+          p1: [0, 0, 0, 2, 2, 0, 0, 0],
+          p2: [0, 0, 1, 0, 0, 1, 0, 0],
+          p3: [0, 0, 0, 0, 2, 0, 0, 0],
+          p4: [0, 0, 0, 1, 0, 0, 0, 1],
+          p5: [0, 0, 1, 0, 0, 1, 0, 0],
+          p6: [-1, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "E13(Vic)": {
+          notes: [64, 61, 56, 54, 50, 47, 44, 40],
+          p1: [2, 1, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 1, 0, 2, 2, 1, 2],
+          p3: [0, 0, 0, -2, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "Open G": {
+          notes: [62, 59, 55, 50, 43, 38, 35, 31],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        C6: {
+          notes: [64, 60, 57, 55, 52, 48, 45, 43],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        B11: {
+          notes: [64, 61, 57, 54, 51, 49, 45, 42],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "C(Byrd)": {
+          notes: [64, 60, 59, 57, 55, 53, 52, 50],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "C6(Hi5)": {
+          notes: [67, 64, 60, 57, 55, 52, 48, 45],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "C6(Day)": {
+          notes: [67, 64, 60, 57, 55, 52, 48, 45],
+          p1: [0, 0, 0, 2, 0, 0, 0, 2],
+          p2: [1, 0, 0, 0, -1, 0, 0, 0],
+          p3: [0, 1, 0, 0, 0, -1, 0, 0],
+          p4: [0, 0, 2, 2, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 1, 0],
+          p6: [0, 0, -1, 0, 0, 0, 0, 0],
+        },
+        "C6(Emm)": {
+          notes: [62, 64, 60, 57, 55, 52, 48, 45],
+          p1: [0, 0, 0, 2, 0, 0, 0, 2],
+          p2: [0, 0, 0, 0, -1, 0, 0, 0],
+          p3: [0, 1, 0, 0, 0, -1, 0, 0],
+          p4: [0, 0, 2, 2, 0, 0, 0, 0],
+          p5: [1, 0, 0, 0, 0, 0, 1, 0],
+          p6: [0, 0, 0, -1, 0, 0, 0, 0],
+        },
+        A6: {
+          notes: [64, 61, 57, 54, 52, 49, 45, 42],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "C6/A7": {
+          notes: [64, 60, 57, 55, 52, 49, 48, 45],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "A6/F#7": {
+          notes: [64, 61, 57, 54, 52, 49, 46, 56],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        "C13(AhS)": {
+          notes: [64, 61, 57, 55, 52, 48, 46, 36],
+          p1: [0, 0, 0, 0, 0, 0, 0, 0],
+          p2: [0, 0, 0, 0, 0, 0, 0, 0],
+          p3: [0, 0, 0, 0, 0, 0, 0, 0],
+          p4: [0, 0, 0, 0, 0, 0, 0, 0],
+          p5: [0, 0, 0, 0, 0, 0, 0, 0],
+          p6: [0, 0, 0, 0, 0, 0, 0, 0],
+        },
+      };
+
+      function setActiveTuning(idx) {
+        idx = parseInt(idx, 10);
+        if (isNaN(idx)) return;
+        window.lastActiveTuning = idx;
+        const container =
+          document.getElementById("gridInner") ||
+          document.getElementById("gridWrapper");
+        container.querySelectorAll(".tuning-row").forEach((row, i) => {
+          const isAct = i === idx;
+          row.classList.toggle("active", isAct);
+          const header = row.querySelector(".name-header");
+          if (header) {
+            let tag = header.querySelector(".active-tag");
+            if (isAct) {
+              if (!tag) {
+                tag = document.createElement("span");
+                tag.className = "active-tag";
+                tag.textContent = "Active";
+                header.appendChild(tag);
+              }
+            } else {
+              if (tag) tag.remove();
+            }
+          }
+        });
+      }
+
+      async function selectTuning(idx) {
+        try {
+          setActiveTuning(idx);
+          await sendLine(`tuning ${idx + 1}`);
+        } catch (e) {
+          appendLog("Select tuning failed: " + e.message, "log-err");
+        }
+      }
+
+      function renderGrid(tunings, activeTuning) {
+        const container =
+          document.getElementById("gridInner") ||
+          document.getElementById("gridWrapper");
+        // Remove existing rows
+        container.querySelectorAll(".tuning-row").forEach((r) => r.remove());
+
+        if (activeTuning !== undefined && activeTuning !== null) {
+          window.lastActiveTuning = parseInt(activeTuning, 10);
+        }
+        const activeIdx =
+          window.lastActiveTuning !== undefined &&
+          window.lastActiveTuning !== null &&
+          !isNaN(window.lastActiveTuning)
+            ? parseInt(window.lastActiveTuning, 10)
+            : 0;
+
+        tunings.forEach((t, idx) => {
+          const isAct = idx === activeIdx;
+          const row = document.createElement("div");
+          row.className = "tuning-row" + (isAct ? " active" : "");
+          row.dataset.idx = idx;
+
+          // Name column with index and active status at top
+          const nameWrap = document.createElement("div");
+          nameWrap.className = "name-wrap";
+
+          const nameHeader = document.createElement("div");
+          nameHeader.className = "name-header";
+          nameHeader.title = "Click to set active tuning on controller";
+          nameHeader.innerHTML = `
+            <div class="row-idx">
+              <span class="active-badge"></span>
+              <span>#${idx + 1}</span>
+            </div>
+            ${isAct ? '<span class="active-tag">Active</span>' : ""}
+          `;
+          nameHeader.addEventListener("click", () => selectTuning(idx));
+          nameWrap.appendChild(nameHeader);
+
+          const nameInput = document.createElement("input");
+          nameInput.type = "text";
+          nameInput.className = "name-input";
+          nameInput.value = t.name;
+          nameInput.maxLength = 8;
+          nameInput.title = "Tuning name (max 8 chars)";
+          nameWrap.appendChild(nameInput);
+
+          const presetSelect = document.createElement("select");
+          presetSelect.className = "preset-select";
+          presetSelect.title = "Apply Preset";
+          presetSelect.innerHTML =
+            `<option value="">Presets</option>` +
+            Object.keys(presets)
+              .sort()
+              .map((k) => `<option value="${k}">${k}</option>`)
+              .join("");
+          nameWrap.appendChild(presetSelect);
+
+          // Save button directly under Presets dropdown
+          const saveBtn = document.createElement("button");
+          saveBtn.className = "save-btn";
+          saveBtn.textContent = "Save";
+          saveBtn.addEventListener("click", () =>
+            saveRow(
+              idx,
+              nameInput,
+              noteInputs,
+              p1Inputs,
+              p2Inputs,
+              p3Inputs,
+              p4Inputs,
+              p5Inputs,
+              p6Inputs,
+              saveBtn,
+            ),
+          );
+          nameWrap.appendChild(saveBtn);
+          row.appendChild(nameWrap);
+
+          // Note inputs
+          const noteInputs = [];
+          const p1Inputs = [];
+          const p2Inputs = [];
+          const p3Inputs = [];
+          const p4Inputs = [];
+          const p5Inputs = [];
+          const p6Inputs = [];
+          for (let s = 0; s < 8; s++) {
+            const cell = document.createElement("div");
+            cell.className = "note-cell" + (s >= 6 ? " string-7-8" : "");
+            const wrap = document.createElement("div");
+            wrap.className = "note-wrap";
+            const inp = document.createElement("input");
+            inp.type = "text";
+            inp.className = "note-input";
+            inp.value = midiToName(t.notes[s]);
+            inp.title = `String ${s + 1} — MIDI ${t.notes[s]} (Click to select note)`;
+            inp.style.textAlign = "center";
+            inp.readOnly = true;
+
+            const lbl = document.createElement("div");
+            lbl.className = "note-label";
+            lbl.textContent = t.notes[s];
+            lbl.title = "Click to select note";
+
+            const handlePick = () => {
+              const currentMidi = nameToMidi(inp.value) || t.notes[s];
+              openNotePicker(s + 1, currentMidi, (newMidi, newName) => {
+                if (inp.value !== newName) {
+                  inp.value = newName;
+                  lbl.textContent = newMidi;
+                  inp.classList.remove("error");
+                  markFieldDirty(row, inp);
+                }
+              });
+            };
+
+            inp.addEventListener("click", handlePick);
+            lbl.addEventListener("click", handlePick);
+            inp.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handlePick();
+              }
+            });
+
+            const benderGrid = document.createElement("div");
+            benderGrid.className = "bender-grid";
+
+            const createBender = (label, value, className) => {
+              const wrap = document.createElement("div");
+              wrap.className = "bender-wrap";
+              const lbl = document.createElement("span");
+              lbl.textContent = label;
+              const inp = document.createElement("input");
+              inp.type = "number";
+              inp.setAttribute("inputmode", "numeric");
+              inp.setAttribute("pattern", "-?[0-9]*");
+              inp.className = `bend-input ${className}`;
+              inp.step = "1";
+              inp.value = value || 0;
+              sanitizeNumberInput(inp, true);
+              inp.addEventListener("input", () => markFieldDirty(row, inp));
+              wrap.appendChild(inp);
+              wrap.appendChild(lbl);
+              return { wrap, inp };
+            };
+
+            const p1 = createBender("P1", t.p1 ? t.p1[s] : 0, "p1-bend");
+            const p2 = createBender("P2", t.p2 ? t.p2[s] : 0, "p2-bend");
+            const p3 = createBender("P3", t.p3 ? t.p3[s] : 0, "p3-bend");
+            const p4 = createBender("P4", t.p4 ? t.p4[s] : 0, "p4-bend");
+            const p5 = createBender("P5", t.p5 ? t.p5[s] : 0, "p5-bend");
+            const p6 = createBender("P6", t.p6 ? t.p6[s] : 0, "p6-bend");
+
+            benderGrid.appendChild(p1.wrap);
+            benderGrid.appendChild(p2.wrap);
+            benderGrid.appendChild(p3.wrap);
+            benderGrid.appendChild(p4.wrap);
+            benderGrid.appendChild(p5.wrap);
+            benderGrid.appendChild(p6.wrap);
+
+            p1Inputs.push(p1.inp);
+            p2Inputs.push(p2.inp);
+            p3Inputs.push(p3.inp);
+            p4Inputs.push(p4.inp);
+            p5Inputs.push(p5.inp);
+            p6Inputs.push(p6.inp);
+
+            noteInputs.push(inp);
+
+            wrap.appendChild(inp);
+            wrap.appendChild(lbl);
+            wrap.appendChild(benderGrid);
+            cell.appendChild(wrap);
+            row.appendChild(cell);
+          }
+
+          presetSelect.addEventListener("change", (e) => {
+            const key = e.target.value;
+            if (presets[key]) {
+              const p = presets[key];
+              const changedFields = [];
+
+              const newName = key.slice(0, 8);
+              if (nameInput.value !== newName) {
+                nameInput.value = newName;
+                changedFields.push(nameInput);
+              }
+
+              for (let i = 0; i < 8; i++) {
+                if (noteInputs[i]) {
+                  const newNote =
+                    p.notes[i] === 0 ? "0" : midiToName(p.notes[i]);
+                  if (noteInputs[i].value !== newNote) {
+                    noteInputs[i].value = newNote;
+                    changedFields.push(noteInputs[i]);
+                    const cell = noteInputs[i].closest(".note-cell");
+                    const lbl = cell ? cell.querySelector(".note-label") : null;
+                    if (lbl) lbl.textContent = p.notes[i];
+                  }
+                }
+                const checkBend = (inpList, arr) => {
+                  if (inpList[i]) {
+                    const newVal = arr[i] || 0;
+                    if (parseInt(inpList[i].value, 10) !== newVal) {
+                      inpList[i].value = newVal;
+                      changedFields.push(inpList[i]);
+                    }
+                  }
+                };
+                checkBend(p1Inputs, p.p1);
+                checkBend(p2Inputs, p.p2);
+                checkBend(p3Inputs, p.p3);
+                checkBend(p4Inputs, p.p4);
+                checkBend(p5Inputs, p.p5);
+                checkBend(p6Inputs, p.p6);
+              }
+              if (changedFields.length > 0) {
+                markFieldsDirty(row, changedFields);
+              }
+            }
+            e.target.value = ""; // Reset dropdown
+          });
+
+          nameInput.addEventListener("input", () =>
+            markFieldDirty(row, nameInput),
+          );
+
+          if (window.activeStrings === 6 && idx >= 6) {
+            row.style.display = "none";
+          }
+
+          container.appendChild(row);
+        });
+      }
+
+      function markFieldDirty(row, el) {
+        if (el && !el.classList.contains("error")) {
+          el.classList.add("dirty");
+        }
+        const saveBtn = row.querySelector(".save-btn");
+        if (saveBtn) {
+          saveBtn.classList.add("dirty");
+          saveBtn.textContent = "Save *";
+        }
+      }
+
+      function markFieldsDirty(row, elements) {
+        elements.forEach((el) => {
+          if (el && !el.classList.contains("error")) {
+            el.classList.add("dirty");
+          }
+        });
+        const saveBtn = row.querySelector(".save-btn");
+        if (saveBtn) {
+          saveBtn.classList.add("dirty");
+          saveBtn.textContent = "Save *";
+        }
+      }
+
+      async function saveRow(
+        idx,
+        nameInput,
+        noteInputs,
+        p1Inputs,
+        p2Inputs,
+        p3Inputs,
+        p4Inputs,
+        p5Inputs,
+        p6Inputs,
+        btn,
+      ) {
+        const T = idx + 1;
+
+        // Validate all notes
+        const midiNotes = noteInputs.map((inp) => nameToMidi(inp.value));
+        if (midiNotes.some((n) => n === null)) {
+          appendLog(`ERR: invalid note name in tuning ${T}`, "log-err");
+          return;
+        }
+
+        const p1Vals = p1Inputs.map((inp) => parseInt(inp.value, 10) || 0);
+        const p2Vals = p2Inputs.map((inp) => parseInt(inp.value, 10) || 0);
+        const p3Vals = p3Inputs.map((inp) => parseInt(inp.value, 10) || 0);
+        const p4Vals = p4Inputs.map((inp) => parseInt(inp.value, 10) || 0);
+        const p5Vals = p5Inputs.map((inp) => parseInt(inp.value, 10) || 0);
+        const p6Vals = p6Inputs.map((inp) => parseInt(inp.value, 10) || 0);
+
+        btn.disabled = true;
+        btn.textContent = "…";
+
+        const allInputs = [
+          nameInput,
+          ...noteInputs,
+          ...p1Inputs,
+          ...p2Inputs,
+          ...p3Inputs,
+          ...p4Inputs,
+          ...p5Inputs,
+          ...p6Inputs,
+        ];
+
+        try {
+          // Send single batch update command
+          const newName =
+            nameInput.value.trim().replace(/\s+/g, "_").slice(0, 8) ||
+            "Untitled";
+          const cmd = `uptuning ${T} ${newName} ${midiNotes.join(" ")} ${p1Vals.join(" ")} ${p2Vals.join(" ")} ${p3Vals.join(" ")} ${p4Vals.join(" ")} ${p5Vals.join(" ")} ${p6Vals.join(" ")}`;
+          await sendLine(cmd);
+          await waitForResponse(`uptuning ${T}`);
+
+          // Flash saved on dirty inputs only
+          const dirtyInputs = allInputs.filter((n) =>
+            n.classList.contains("dirty"),
+          );
+          dirtyInputs.forEach((n) => {
+            n.classList.remove("dirty");
+            n.classList.add("saved");
+          });
+          btn.classList.remove("dirty");
+          btn.textContent = "Save";
+          setTimeout(() => {
+            dirtyInputs.forEach((n) => n.classList.remove("saved"));
+          }, 1500);
+        } catch (e) {
+          appendLog("Save failed, please try again: " + e.message, "log-err");
+        }
+
+        btn.disabled = false;
+        if (!allInputs.some((n) => n.classList.contains("dirty"))) {
+          btn.classList.remove("dirty");
+          btn.textContent = "Save";
+        } else {
+          btn.classList.add("dirty");
+          btn.textContent = "Save *";
+        }
+      }
+
+      // Auto-select text on focus so typing immediately replaces previous value
+      document.addEventListener("focusin", (e) => {
+        const t = e.target;
+        if (
+          t &&
+          t.tagName === "INPUT" &&
+          !t.readOnly &&
+          (t.type === "text" || t.type === "number")
+        ) {
+          setTimeout(() => {
+            try {
+              t.select();
+            } catch (_) {}
+          }, 50);
+        }
+      });
+
+      // Initialize UI, curve, and note picker
+      setupNotePicker();
+      drawCurve();
+      switchTab("tabSettings");
+
+      // ── Check Browser API support ─────────────────────────────────────────
+      if (!("requestMIDIAccess" in navigator) && !("serial" in navigator)) {
+        const note = document.getElementById("browserNote");
+        if (note) {
+          note.style.display = "block";
+          note.innerHTML = `
+            <strong>⚠ WebMIDI is not supported in standard Mobile Safari</strong><br/>
+            <div style="margin-top:3px;line-height:1.35">
+              • <strong>iOS / iPadOS:</strong> Open this page in the free <strong>WebMIDI Browser</strong> app from the App Store.<br/>
+              • <strong>Desktop & Android:</strong> Open this page in <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong>, or <strong>Firefox</strong>.
+            </div>
+          `;
+        }
+      }
+    </script>
+  </body>
+</html>

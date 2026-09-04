@@ -4,6 +4,7 @@ node_modules/
 www/
 *.apk
 *.ipa
+builds/
 .derivedData/
 __pycache__/
 *.pyc

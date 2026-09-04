@@ -23,8 +23,9 @@ try {
     throw new Error(`Could not find built APK at ${apkSrc}`);
   }
 
-  fs.copyFileSync(apkSrc, 'app-debug.apk');
-  console.log('\n✓ APK successfully built: ./app-debug.apk');
+  if (!fs.existsSync('builds')) fs.mkdirSync('builds', { recursive: true });
+  fs.copyFileSync(apkSrc, 'builds/app-debug.apk');
+  console.log('\n✓ APK successfully built: ./builds/app-debug.apk');
 } catch (err) {
   console.error('\n✗ Failed to build APK:', err.message);
   process.exit(1);

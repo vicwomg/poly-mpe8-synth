@@ -101,7 +101,13 @@ class SynthUI {
     const btnMidiScan = document.getElementById('btn-midi-scan');
 
     // Settings Modal controls
-    if (btnSettings) btnSettings.addEventListener('click', () => settingsModal.style.display = 'flex');
+    // Settings Modal controls
+    if (btnSettings) {
+      btnSettings.addEventListener('click', () => {
+        settingsModal.style.display = 'flex';
+        syncMidiSteelUI();
+      });
+    }
     if (btnCloseSettings) btnCloseSettings.addEventListener('click', () => settingsModal.style.display = 'none');
     if (settingsModal) {
       settingsModal.addEventListener('click', (e) => {
@@ -129,47 +135,49 @@ class SynthUI {
     if (btnBannerClose) btnBannerClose.addEventListener('click', () => alertBanner.style.display = 'none');
     if (btnBannerAction) btnBannerAction.addEventListener('click', () => settingsModal.style.display = 'flex');
 
-    const midiDiagContent = document.getElementById('midi-diag-content');
-    const btnRefreshDiag = document.getElementById('btn-refresh-diag');
+    // MIDISteel Modal controls
+    const btnMidiSteel = document.getElementById('btn-midisteel');
+    const midisteelSettingsRow = document.getElementById('midisteel-settings-row');
+    const btnOpenMidiSteelSettings = document.getElementById('btn-open-midisteel-settings');
+    const midisteelModal = document.getElementById('midisteel-modal');
+    const btnMidiSteelClose = document.getElementById('btn-midisteel-close');
+    const midisteelIframe = document.getElementById('midisteel-iframe');
 
-    const updateDiagnostics = async () => {
-      if (!midiDiagContent) return;
-      midiDiagContent.textContent = 'Probing MIDI subsystems...';
-      const diag = await this.midi.getDiagnostics();
-      
-      const native = diag.nativeDiagnostics;
-      const lines = [
-        `Platform: ${diag.isIOS ? 'iOS Native (Capacitor)' : (diag.isAndroid ? 'Android' : 'Web Browser')}`,
-        `Selected Port: ${diag.selectedInputId}`,
-        `Detected Inputs (${diag.cachedInputs.length}): ${diag.cachedInputs.map(i => i.name).join(', ') || 'None'}`
-      ];
-
-      if (native) {
-        if (native.error) {
-          lines.push(`CoreMIDI Error: ${native.error}`);
-        } else {
-          lines.push(`CoreMIDI Setup: ${native.isMidiSetup ? 'OK' : 'FAILED'}`);
-          lines.push(`CoreMIDI Client: ${native.hasClient ? 'Active' : 'Missing'}`);
-          lines.push(`CoreMIDI Port: ${native.hasInputPort ? 'Active' : 'Missing'}`);
-          lines.push(`iOS Hardware Sources: ${native.sourceCount}`);
-          if (native.sources && native.sources.length > 0) {
-            lines.push(`iOS Devices: ${native.sources.map(s => s.name).join(', ')}`);
-          }
-          lines.push(`Hardware Packets RX: ${native.rxPacketCount}`);
-          lines.push(`Last Raw Bytes: ${native.lastRxBytes || 'none'}`);
-        }
-      } else if (diag.isIOS) {
-        lines.push('CoreMIDI Plugin: NOT DETECTED (Check Capacitor native bridge)');
-      }
-
-      midiDiagContent.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+    const syncMidiSteelUI = () => {
+      const hasMidiSteel = this.midi.isMidiSteelConnected();
+      if (btnMidiSteel) btnMidiSteel.style.display = hasMidiSteel ? 'inline-flex' : 'none';
+      if (midisteelSettingsRow) midisteelSettingsRow.style.display = hasMidiSteel ? 'flex' : 'none';
     };
 
-    btnSettings?.addEventListener('click', () => {
-      updateDiagnostics();
-    });
-    btnRefreshDiag?.addEventListener('click', () => {
-      updateDiagnostics();
+    const openMidiSteelModal = () => {
+      if (settingsModal) settingsModal.style.display = 'none';
+      if (midisteelModal) {
+        midisteelModal.style.display = 'flex';
+        if (midisteelIframe && (!midisteelIframe.src || midisteelIframe.src === 'about:blank' || midisteelIframe.src.endsWith('about:blank'))) {
+          midisteelIframe.src = 'midisteel_settings.html';
+        }
+      }
+    };
+
+    const closeMidiSteelModal = () => {
+      if (midisteelModal) midisteelModal.style.display = 'none';
+    };
+
+    if (btnMidiSteel) btnMidiSteel.addEventListener('click', openMidiSteelModal);
+    if (btnOpenMidiSteelSettings) btnOpenMidiSteelSettings.addEventListener('click', openMidiSteelModal);
+    if (btnMidiSteelClose) btnMidiSteelClose.addEventListener('click', closeMidiSteelModal);
+    if (midisteelModal) {
+      midisteelModal.addEventListener('click', (e) => {
+        if (e.target === midisteelModal) closeMidiSteelModal();
+      });
+    }
+    // Ensure WebAudio is resumed on any touch gesture on iOS
+    ['touchstart', 'touchend', 'pointerdown', 'click'].forEach(evtType => {
+      document.addEventListener(evtType, () => {
+        if (this.synth.ctx && this.synth.ctx.state === 'suspended') {
+          this.synth.ctx.resume().catch(() => {});
+        }
+      }, { passive: true });
     });
 
     // Scan button inside Settings modal
@@ -177,7 +185,7 @@ class SynthUI {
       btnMidiScan.addEventListener('click', async () => {
         btnMidiScan.textContent = 'SCANNING...';
         await this.midi.requestAccess();
-        await updateDiagnostics();
+        syncMidiSteelUI();
         setTimeout(() => {
           btnMidiScan.textContent = 'SCAN';
         }, 600);
@@ -193,6 +201,8 @@ class SynthUI {
         midiSelect.appendChild(opt);
       });
       midiSelect.value = selectedInputId;
+
+      syncMidiSteelUI();
     };
 
     this.midi.onStatusChange = (status) => {
@@ -223,6 +233,7 @@ class SynthUI {
 
     midiSelect.addEventListener('change', (e) => {
       this.midi.selectInput(e.target.value);
+      syncMidiSteelUI();
     });
 
     const activityLed = document.getElementById('voice-status-dot') || document.getElementById('midi-activity-led');
@@ -265,6 +276,7 @@ class SynthUI {
 
     // Initial silent check / request
     await this.midi.requestAccess();
+    syncMidiSteelUI();
 
     // 3. Panic Button
     const btnPanic = document.getElementById('btn-panic');
