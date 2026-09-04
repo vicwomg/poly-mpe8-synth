@@ -28,6 +28,10 @@
 	<string>POLY-MPE8 uses Bluetooth to connect to wireless MIDI and MPE controllers.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>POLY-MPE8 uses Bluetooth to connect to wireless MIDI and MPE controllers.</string>
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

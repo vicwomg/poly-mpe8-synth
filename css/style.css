@@ -44,6 +44,39 @@ body {
   overflow-x: hidden;
 }
 
+/* Fullscreen Immersive Edge-to-Edge Layout for Native Mobile App & Small Screens */
+body.capacitor-native {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  margin: 0;
+  width: 100vw;
+  min-height: 100vh;
+}
+
+body.capacitor-native .synth-rack {
+  border-radius: 0;
+  border: none;
+  padding: 8px 6px 12px 6px;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  .synth-rack {
+    border-radius: 0;
+    border: none;
+    padding: 8px 6px 12px 6px;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    box-shadow: none;
+  }
+}
+
 /* Synthesizer Main Container */
 .synth-rack {
   max-width: 1240px;

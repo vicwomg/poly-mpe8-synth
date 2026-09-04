@@ -48,6 +48,7 @@ class SynthUI {
     // In native iOS and Android WebViews, mediaPlaybackRequiresUserGesture is disabled.
     // Automatically start audio and connect MIDI on app launch.
     if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform()) {
+      document.body.classList.add('capacitor-native');
       setTimeout(() => {
         startAudioEngine().catch(err => console.warn('Native auto-audio start:', err));
       }, 50);
