@@ -18,22 +18,22 @@
       </div>
 
       <div class="header-actions">
-        <!-- Audio Power Button -->
-        <button id="btn-audio-power" class="btn btn-power">
+        <!-- Audio Start Button (Hidden once audio is started) -->
+        <button id="btn-audio-power" class="btn btn-power audio-stopped-only" title="Start Web Audio Engine">
           <span class="power-indicator"></span>
-          <span class="power-label">OFF</span>
+          <span class="power-label">TURN ON AUDIO</span>
         </button>
 
-        <!-- Active Voice Count Indicator with Status Dot -->
-        <div class="voice-count-badge" id="voice-count-badge" title="Active Polyphonic Voices & MIDI Status">
+        <!-- Active Voice Count Indicator with Status Dot (Hidden until audio is started) -->
+        <div class="voice-count-badge audio-running-only" id="voice-count-badge" title="Active Polyphonic Voices & MIDI Status">
           <span class="status-dot voice-count-dot" id="voice-status-dot"></span>
           <span class="voice-count-label">POLY</span>
           <span id="active-voice-count" class="voice-count-num">0</span>
           <span class="voice-count-total" id="voice-count-max">/8</span>
         </div>
 
-        <!-- Preset Selector & Actions -->
-        <div class="preset-group">
+        <!-- Preset Selector & Actions (Hidden until audio is started) -->
+        <div class="preset-group audio-running-only" id="preset-group">
           <label for="preset-select">PRESET:</label>
           <div class="select-wrapper">
             <select id="preset-select"></select>
@@ -46,8 +46,8 @@
           </button>
         </div>
 
-        <!-- Panic / All Notes Off -->
-        <button id="btn-panic" class="btn btn-panic" title="Silence All Stuck Notes">PANIC</button>
+        <!-- Panic / All Notes Off (Hidden until audio is started) -->
+        <button id="btn-panic" class="btn btn-panic audio-running-only" title="Silence All Stuck Notes">PANIC</button>
 
         <!-- Audio Buffer, Polyphony & MIDI Settings Modal Button -->
         <button id="btn-settings-modal" class="btn btn-icon" title="Audio Buffer, Polyphony & MIDI Settings">

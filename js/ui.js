@@ -20,10 +20,9 @@ class SynthUI {
   async init() {
     // 1. Audio Start / Resume
     const btnPower = document.getElementById('btn-audio-power');
-    btnPower.addEventListener('click', async () => {
+    btnPower?.addEventListener('click', async () => {
       await this.synth.initAudio();
-      btnPower.classList.add('active');
-      btnPower.querySelector('.power-label').textContent = 'ON';
+      document.body.classList.add('audio-started');
 
       if (!this.visualizer) {
         this.visualizer = new Visualizer(this.synth, 'oscilloscope-canvas', 'filter-canvas');
