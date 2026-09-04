@@ -2,5 +2,8 @@
 *.log
 node_modules/
 www/
+*.apk
+*.ipa
+.derivedData/
 __pycache__/
 *.pyc

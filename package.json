@@ -8,7 +8,9 @@
     "build": "node scripts/build.js",
     "cap:sync": "npm run build && npx cap sync",
     "cap:ios": "npm run build && npx cap open ios",
-    "cap:android": "npm run build && npx cap open android"
+    "cap:android": "npm run build && npx cap open android",
+    "build:apk": "npm run cap:sync && node scripts/build-apk.js",
+    "build:ipa": "npm run cap:sync && node scripts/build-ipa.js"
   },
   "keywords": [
     "mpe",
