@@ -1,0 +1,13 @@
+{
+  "appId": "com.vicwomg.polympe8synth",
+  "appName": "POLY-MPE8 Synth",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "allowsInlineMediaPlayback": true
+  },
+  "plugins": {}
+}

@@ -38,6 +38,35 @@ A browser-based, 8-voice polyphonic synthesizer built with the Web Audio API and
   - **Auto-Persistence Across Sessions**: The current active patch and any in-progress tweaks are preserved and seamlessly restored on refresh or mobile app relaunch.
   - **Custom User Presets**: Save, edit/overwrite, and delete custom patches with dedicated Save (floppy disk) and Delete (trash can) buttons.
   - **Cross-Platform Storage**: Capacitor-ready storage architecture compatible with Web, Android WebView, and iOS WKWebView.
+- **Native iOS & Android Apps (Capacitor)**:
+  - **Native CoreMIDI on iOS**: Overcomes Apple's lack of Web MIDI in WKWebView with a custom Swift `CoreMIDI` bridge that auto-detects USB & Bluetooth LE MIDI controllers.
+  - **Zero-Click Instant Audio Startup**: Audio initializes immediately on native app launch without requiring a manual tap.
+  - **Native Screen Keep-Awake**: Uses native OS window flags (`isIdleTimerDisabled` and `FLAG_KEEP_SCREEN_ON`) while cleanly hiding web wake-lock settings.
+
+---
+
+## Native Mobile Apps (iOS & Android)
+
+The synthesizer is packaged for iOS (iPhone & iPad) and Android using **Capacitor**.
+
+### Build & Sync Native Projects
+Whenever you make changes to web assets (`index.html`, `js/`, `css/`, `assets/`):
+```bash
+npm run cap:sync
+```
+
+### Launch in Xcode (iOS)
+```bash
+npm run cap:ios
+```
+- Select your target device or simulator in Xcode and press **Run (Cmd + R)**.
+- Full hardware and Bluetooth LE MIDI controllers are supported natively via Apple's `CoreMIDI` framework.
+
+### Launch in Android Studio (Android)
+```bash
+npm run cap:android
+```
+- Connect your Android device (or launch an emulator) and press **Run**.
 
 ---
 

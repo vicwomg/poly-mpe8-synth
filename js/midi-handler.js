@@ -20,21 +20,72 @@ export class MidiHandler {
    * Checks browser support and secure context status.
    */
   checkEnvironment() {
+    const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform();
+    const hasCoreMidiPlugin = isCapacitor && !!window.Capacitor?.Plugins?.CoreMidiPlugin;
     const isSecure = typeof window !== 'undefined' ? window.isSecureContext : false;
     const hasMidiApi = typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess;
     return {
-      isSecureContext: isSecure,
-      hasMidiApi: hasMidiApi,
-      isAndroid: /Android/i.test(navigator.userAgent || '')
+      isSecureContext: isSecure || isCapacitor,
+      hasMidiApi: hasMidiApi || hasCoreMidiPlugin,
+      hasCoreMidiPlugin,
+      isCapacitor,
+      isAndroid: typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '')
     };
   }
 
   /**
-   * Initializes or requests Web MIDI access.
+   * Initializes or requests Web MIDI or native CoreMIDI access.
    * Can be called on page load or upon user interaction (tap/click).
    */
   async requestAccess() {
     const env = this.checkEnvironment();
+
+    // 1. Native iOS CoreMIDI Bridge
+    if (env.hasCoreMidiPlugin) {
+      try {
+        const CoreMidi = window.Capacitor.Plugins.CoreMidiPlugin;
+        const res = await CoreMidi.listInputs();
+        this.inputs = (res.inputs || []).map(d => ({
+          id: d.id,
+          name: d.name,
+          manufacturer: 'Apple CoreMIDI',
+          state: 'connected'
+        }));
+
+        CoreMidi.removeAllListeners?.('midiMessage');
+        CoreMidi.addListener('midiMessage', (event) => {
+          if (event && event.data) {
+            const fakeEvent = {
+              data: new Uint8Array(event.data),
+              timeStamp: event.timestamp || performance.now()
+            };
+            this.handleMidiMessage(fakeEvent, 'CoreMIDI');
+          }
+        });
+
+        CoreMidi.removeAllListeners?.('devicesChanged');
+        CoreMidi.addListener('devicesChanged', (event) => {
+          this.inputs = (event.inputs || []).map(d => ({
+            id: d.id,
+            name: d.name,
+            manufacturer: 'Apple CoreMIDI',
+            state: 'connected'
+          }));
+          if (this.onDeviceListChange) {
+            this.onDeviceListChange(this.inputs);
+          }
+        });
+
+        this.midiAccess = { isCoreMidi: true };
+        this.reportStatus('ready', `${this.inputs.length} CoreMIDI device(s) connected`);
+        if (this.onDeviceListChange) {
+          this.onDeviceListChange(this.inputs);
+        }
+        return { supported: true, isSecureContext: true, inputs: this.inputs };
+      } catch (err) {
+        console.warn('CoreMIDI plugin initialization failed:', err);
+      }
+    }
 
     if (!env.isSecureContext) {
       const msg = 'Web MIDI is disabled because this page is not served over HTTPS or localhost.';
@@ -141,7 +192,7 @@ export class MidiHandler {
   }
 
   bindInputs() {
-    if (!this.midiAccess) return;
+    if (!this.midiAccess || this.midiAccess.isCoreMidi) return;
 
     for (const input of this.midiAccess.inputs.values()) {
       // Detach previous handler

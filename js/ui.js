@@ -20,7 +20,8 @@ class SynthUI {
   async init() {
     // 1. Audio Start / Resume
     const btnPower = document.getElementById('btn-audio-power');
-    btnPower?.addEventListener('click', async () => {
+    const startAudioEngine = async () => {
+      if (this.synth.isAudioStarted) return;
       await this.synth.initAudio();
       document.body.classList.add('audio-started');
 
@@ -30,16 +31,27 @@ class SynthUI {
         this.setupVisualizerControls();
       }
 
-      // User gesture: request MIDI access if not yet granted
+      // Request MIDI access if not yet granted
       if (!this.midi.midiAccess) {
         await this.midi.requestAccess();
       }
 
-      // Keep screen awake while audio is running on mobile/desktop
-      if (this.keepScreenAwake) {
+      // Keep screen awake while audio is running on mobile/desktop (web mode only)
+      if (this.keepScreenAwake && (!window.Capacitor || !window.Capacitor.isNativePlatform())) {
         await this.requestWakeLock();
       }
-    });
+    };
+
+    btnPower?.addEventListener('click', startAudioEngine);
+
+    // Native Capacitor App Auto-Startup:
+    // In native iOS and Android WebViews, mediaPlaybackRequiresUserGesture is disabled.
+    // Automatically start audio and connect MIDI on app launch.
+    if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform()) {
+      setTimeout(() => {
+        startAudioEngine().catch(err => console.warn('Native auto-audio start:', err));
+      }, 50);
+    }
 
     // 1b. Buffer Size & Polyphony Controls
     const bufferSelect = document.getElementById('buffer-select');
@@ -240,6 +252,14 @@ class SynthUI {
   // --- Screen Wake Lock Management (Mobile Screen Stay-Awake) ---
 
   initWakeLock() {
+    // If running in native Capacitor (iOS/Android), OS flags handle screen keep-awake natively
+    const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform();
+    if (isNative) {
+      const wakeLockSection = document.getElementById('settings-wake-lock-section');
+      if (wakeLockSection) wakeLockSection.style.display = 'none';
+      return;
+    }
+
     this.wakeLock = null;
     this.keepScreenAwake = localStorage.getItem('synth_keep_screen_awake') !== 'false';
     this.fallbackVideo = null;
