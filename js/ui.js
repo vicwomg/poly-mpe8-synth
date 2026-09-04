@@ -140,7 +140,7 @@ class SynthUI {
       });
     }
 
-    this.midi.onDeviceListChange = (inputs) => {
+    this.midi.onDeviceListChange = (inputs, selectedInputId = 'all') => {
       midiSelect.innerHTML = '<option value="all">All MIDI Inputs</option>';
       inputs.forEach(input => {
         const opt = document.createElement('option');
@@ -148,6 +148,7 @@ class SynthUI {
         opt.textContent = `${input.name} (${input.manufacturer})`;
         midiSelect.appendChild(opt);
       });
+      midiSelect.value = selectedInputId;
     };
 
     this.midi.onStatusChange = (status) => {

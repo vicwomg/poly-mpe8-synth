@@ -226,10 +226,18 @@ export class MidiHandler {
       });
     }
 
+    // If only 1 device is detected, auto-select it directly instead of processing 'all' inputs
+    if (this.inputs.length === 1) {
+      this.selectedInputId = this.inputs[0].id;
+    } else if (this.selectedInputId !== 'all' && !this.inputs.some(d => d.id === this.selectedInputId)) {
+      // Revert if previously selected device is no longer present
+      this.selectedInputId = this.inputs.length > 0 ? this.inputs[0].id : 'all';
+    }
+
     this.bindInputs();
 
     if (typeof this.onDeviceListChange === 'function') {
-      this.onDeviceListChange(this.inputs);
+      this.onDeviceListChange(this.inputs, this.selectedInputId);
     }
   }
 
