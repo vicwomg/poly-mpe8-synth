@@ -19,11 +19,11 @@
     <div class="synth-rack">
       <!-- Top Header & Global Controls -->
       <header class="synth-header">
-        <div class="brand">
-          <h1>POLY-MPE<span>8</span></h1>
-        </div>
+        <div class="header-left">
+          <div class="brand">
+            <h1>POLY-MPE<span>8</span></h1>
+          </div>
 
-        <div class="header-actions">
           <!-- Audio Start Button (Hidden once audio is started) -->
           <button
             id="btn-audio-power"
@@ -36,9 +36,12 @@
 
           <!-- Preset Selector & Actions (Hidden until audio is started) -->
           <div class="preset-group audio-running-only" id="preset-group">
-            <label for="preset-select">PRESET:</label>
-            <div class="select-wrapper">
-              <select id="preset-select"></select>
+            <label for="preset-select" class="preset-label">PRESET:</label>
+            <div class="preset-select-wrapper" id="preset-select-wrapper">
+              <div class="preset-display" id="preset-display">
+                <span class="preset-name-text" id="preset-display-text">Init Patch</span>
+              </div>
+              <select id="preset-select" aria-label="Select Preset"></select>
             </div>
             <button
               id="btn-save-preset"
@@ -68,7 +71,9 @@
               />
             </button>
           </div>
+        </div>
 
+        <div class="header-actions">
           <!-- Active Voice Count Indicator with Status Dot (Hidden until audio is started) -->
           <div
             class="voice-count-badge audio-running-only"

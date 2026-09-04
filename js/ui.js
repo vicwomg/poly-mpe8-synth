@@ -252,23 +252,27 @@ class SynthUI {
         this.addMidiLog(logEvent);
       }
 
-      // Sync UI sliders if CC came in (live updates in Filter & Amp cards)
+      // Sync UI sliders if CC came in (live updates in Filter & Amp cards) without dirtying preset dropdown
       if (logEvent.ccNumber === 73 || logEvent.type.startsWith('CC73')) {
         const minLog = Math.log(20);
         const maxLog = Math.log(20000);
         const hz = Math.round(Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog)));
-        this.synth.updateParam('filterCutoff', hz);
+        this.synth.params.filterCutoff = hz;
         this.updateSliderUI('filterCutoff', hz, `${hz} Hz`);
         const readout = document.getElementById('filter-cutoff-readout');
         if (readout) readout.textContent = `${hz} Hz`;
         this.visualizer?.markFilterDirty();
       } else if (logEvent.ccNumber === 11 || logEvent.type.startsWith('CC11')) {
         const vol = +(logEvent.value / 127).toFixed(2);
-        this.synth.updateParam('masterVolume', vol);
+        this.synth.params.masterVolume = vol;
+        if (this.synth.masterGain) {
+          const scaled = vol * (this.synth.masterHeadroomGain || 0.82);
+          this.synth.masterGain.gain.setTargetAtTime(scaled, this.synth.ctx.currentTime, 0.01);
+        }
         this.updateSliderUI('masterVolume', vol, `${Math.round(vol * 100)}%`);
       } else if (logEvent.ccNumber === 1 || logEvent.type.startsWith('CC1 ') || logEvent.type.includes('(Resonance)')) {
         const q = +(0.1 + (logEvent.value / 127) * 19.9).toFixed(1);
-        this.synth.updateParam('filterResonance', q);
+        this.synth.params.filterResonance = q;
         this.updateSliderUI('filterResonance', q, q.toFixed(1));
         this.visualizer?.markFilterDirty();
       }
@@ -647,18 +651,45 @@ class SynthUI {
     if (targetId) {
       select.value = targetId;
     }
+    const currentPreset = this.presetManager.getPresetById(targetId);
+    if (currentPreset) {
+      this.updatePresetDisplayName(currentPreset.name, isModified);
+    }
     this.updatePresetButtonsState();
+  }
+
+  updatePresetDisplayName(name, isModified = false) {
+    const textEl = document.getElementById('preset-display-text');
+    if (!textEl) return;
+    const cleanName = isModified ? `${name} *` : name;
+    if (textEl.textContent !== cleanName) {
+      textEl.textContent = cleanName;
+    }
+    // Crop/marquee behavior: if longer than 29 characters, enable marquee animation
+    if (cleanName.length > 29) {
+      textEl.classList.add('marquee');
+      textEl.title = cleanName;
+    } else {
+      textEl.classList.remove('marquee');
+      textEl.title = cleanName;
+    }
   }
 
   updatePresetModifiedIndicator() {
     const isDirty = this.presetManager.checkModified(this.synth.params);
     const select = document.getElementById('preset-select');
-    if (!select) return;
-
-    const opt = select.querySelector(`option[value="${this.currentPresetId}"]`);
     const preset = this.presetManager.getPresetById(this.currentPresetId);
-    if (opt && preset) {
-      opt.textContent = isDirty ? `${preset.name} *` : preset.name;
+    if (preset) {
+      this.updatePresetDisplayName(preset.name, isDirty);
+      if (select) {
+        const opt = select.querySelector(`option[value="${this.currentPresetId}"]`);
+        if (opt) {
+          const newText = isDirty ? `${preset.name} *` : preset.name;
+          if (opt.textContent !== newText) {
+            opt.textContent = newText;
+          }
+        }
+      }
     }
 
     this.saveActiveSession();

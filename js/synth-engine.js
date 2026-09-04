@@ -114,34 +114,41 @@ export class SynthEngine {
       await this.ctx.resume();
     }
 
-    // 1. Voices Summing Bus
+    this.masterHeadroomGain = 0.82; // -1.7 dBFS headroom prevents digital clipping at max volume
+
+    // 1. Voices Summing Bus (0.75 scaling prevents multi-voice clipping)
     this.voicesBus = this.ctx.createGain();
-    this.voicesBus.gain.setValueAtTime(1.0, this.ctx.currentTime);
+    this.voicesBus.gain.setValueAtTime(0.75, this.ctx.currentTime);
 
     // 2. Effects Processing Chain (Distortion -> Stereo Delay -> Reverb)
     this.setupDistortionEffect();
     this.setupDelayEffect();
     this.setupReverbEffect();
 
-    // 3. Master Limiter / Fast Soft-Clipper
+    // 3. Master Limiter / Fast Compressor
     this.masterLimiter = this.ctx.createDynamicsCompressor();
-    this.masterLimiter.threshold.setValueAtTime(-1.0, this.ctx.currentTime);
-    this.masterLimiter.knee.setValueAtTime(0.0, this.ctx.currentTime);
-    this.masterLimiter.ratio.setValueAtTime(20.0, this.ctx.currentTime);
+    this.masterLimiter.threshold.setValueAtTime(-2.5, this.ctx.currentTime);
+    this.masterLimiter.knee.setValueAtTime(6.0, this.ctx.currentTime);
+    this.masterLimiter.ratio.setValueAtTime(16.0, this.ctx.currentTime);
     this.masterLimiter.attack.setValueAtTime(0.001, this.ctx.currentTime);
-    this.masterLimiter.release.setValueAtTime(0.03, this.ctx.currentTime);
+    this.masterLimiter.release.setValueAtTime(0.04, this.ctx.currentTime);
 
-    // 4. Master Volume Gain
+    // 4. Master Volume Gain (scaled with safe headroom)
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(this.params.masterVolume, this.ctx.currentTime);
+    this.masterGain.gain.setValueAtTime(this.params.masterVolume * this.masterHeadroomGain, this.ctx.currentTime);
 
-    // 5. Analyser Node for Visualizer
+    // 5. Soft-Clipper Stage (musical saturation safety ceiling before DAC)
+    this.masterClipper = this.ctx.createWaveShaper();
+    this.masterClipper.curve = this.createSoftClipCurve(512);
+    this.masterClipper.oversample = '2x';
+
+    // 6. Analyser Node for Visualizer
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.8;
 
     // Connect audio signal chain:
-    // voicesBus -> dry/wet delay network -> masterLimiter -> masterGain -> destination (parallel analyser)
+    // voicesBus -> dry/wet delay network -> masterLimiter -> masterGain -> masterClipper -> destination (parallel analyser)
     this.connectAudioGraph();
 
     // 6. Pre-allocate Polyphonic Voices (4 or 8)
@@ -377,8 +384,19 @@ export class SynthEngine {
     }
   }
 
+  createSoftClipCurve(samples = 512) {
+    const curve = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / (samples - 1) - 1; // -1 to +1
+      // Smooth hyperbolic tangent transfer curve: perfectly linear up to ~0.7,
+      // then progressively saturates to prevent harsh digital DAC clipping
+      curve[i] = Math.tanh(x * 1.1) / Math.tanh(1.1);
+    }
+    return curve;
+  }
+
   connectAudioGraph() {
-    // Signal chain: voicesBus -> Distortion -> Stereo Delay -> Reverb -> Limiter -> Master Gain -> Destination
+    // Signal chain: voicesBus -> Distortion -> Stereo Delay -> Reverb -> Limiter -> Master Gain -> Clipper -> Destination
     this.voicesBus.connect(this.distDry);
     this.voicesBus.connect(this.distIn);
 
@@ -390,9 +408,10 @@ export class SynthEngine {
 
     this.reverbOut.connect(this.masterLimiter);
     this.masterLimiter.connect(this.masterGain);
-    this.masterGain.connect(this.ctx.destination);
+    this.masterGain.connect(this.masterClipper);
+    this.masterClipper.connect(this.ctx.destination);
     // Parallel tap to visualizer analyser
-    this.masterGain.connect(this.analyser);
+    this.masterClipper.connect(this.analyser);
   }
 
   setupLFO() {
@@ -648,7 +667,8 @@ export class SynthEngine {
     this.params[key] = value;
 
     if (key === 'masterVolume' && this.masterGain) {
-      this.masterGain.gain.setTargetAtTime(value, this.ctx.currentTime, 0.01);
+      const scaledVol = value * (this.masterHeadroomGain || 0.82);
+      this.masterGain.gain.setTargetAtTime(scaledVol, this.ctx.currentTime, 0.01);
     } else if (key === 'distortionEnabled' || key === 'distortionMix') {
       this.updateDistortionMix();
     } else if (key === 'distortionDrive' && this.distWaveShaper) {
@@ -692,7 +712,8 @@ export class SynthEngine {
     this.checkLFORunning();
 
     if (this.masterGain) {
-      this.masterGain.gain.setTargetAtTime(this.params.masterVolume, this.ctx.currentTime, 0.02);
+      const scaledVol = (this.params.masterVolume ?? 0.75) * (this.masterHeadroomGain || 0.82);
+      this.masterGain.gain.setTargetAtTime(scaledVol, this.ctx.currentTime, 0.02);
     }
 
     this.updateDistortionMix();
