@@ -167,6 +167,10 @@ class SynthUI {
         alertBanner.style.display = 'flex';
         alertText.textContent = 'Web MIDI is not supported in this browser. Use Chrome, Edge, or Opera.';
         btnBannerAction.style.display = 'none';
+      } else if (status.state === 'error') {
+        alertBanner.style.display = 'flex';
+        alertText.textContent = `MIDI error: ${status.message}.`;
+        btnBannerAction.textContent = 'RETRY';
       } else if (status.state === 'ready' || status.state === 'no_devices') {
         alertBanner.style.display = 'none';
       }

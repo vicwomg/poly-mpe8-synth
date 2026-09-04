@@ -4,14 +4,7 @@ import Capacitor
 import CoreMIDI
 
 @objc(CoreMidiPlugin)
-public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "CoreMidiPlugin"
-    public let jsName = "CoreMidiPlugin"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "listInputs", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "scanInputs", returnType: CAPPluginReturnPromise)
-    ]
-
+public class CoreMidiPlugin: CAPPlugin {
     public static weak var shared: CoreMidiPlugin?
 
     private var midiClient = MIDIClientRef()

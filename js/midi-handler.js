@@ -63,8 +63,15 @@ export class MidiHandler {
     const env = this.checkEnvironment();
 
     // 1. Native iOS CoreMIDI Bridge
-    const coreMidi = this.getCoreMidiPlugin();
-    if (coreMidi) {
+    if (env.isIOS || env.hasCoreMidiPlugin) {
+      const coreMidi = this.getCoreMidiPlugin();
+      if (!coreMidi) {
+        const msg = 'CoreMIDI plugin is not available on this iOS build.';
+        this.lastError = msg;
+        this.reportStatus('unsupported', msg);
+        return { supported: false, isSecureContext: true, error: msg };
+      }
+
       try {
         if (typeof coreMidi.scanInputs === 'function') {
           await coreMidi.scanInputs().catch(() => {});
@@ -120,6 +127,10 @@ export class MidiHandler {
         return { supported: true, isSecureContext: true, inputs: this.inputs };
       } catch (err) {
         console.warn('CoreMIDI plugin initialization failed:', err);
+        const userMsg = err.message || 'Failed to initialize CoreMIDI.';
+        this.lastError = userMsg;
+        this.reportStatus('error', userMsg);
+        return { supported: false, isSecureContext: true, error: userMsg };
       }
     }
 
@@ -130,7 +141,7 @@ export class MidiHandler {
       return { supported: false, isSecureContext: false, error: msg };
     }
 
-    if (!env.hasMidiApi) {
+    if (!env.hasMidiApi || typeof navigator?.requestMIDIAccess !== 'function') {
       const msg = 'Web MIDI API is not supported in this browser.';
       this.lastError = msg;
       this.reportStatus('unsupported', msg);
