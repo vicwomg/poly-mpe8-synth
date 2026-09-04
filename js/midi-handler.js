@@ -14,6 +14,25 @@ export class MidiHandler {
     this.sustainPedal = false;
     this.sustainedNotes = new Set();
     this.lastError = null;
+    this.recentMessages = new Map(); // For deduplicating simultaneous packets across ports
+  }
+
+  /**
+   * Retrieves or dynamically registers the Capacitor CoreMidiPlugin for iOS.
+   */
+  getCoreMidiPlugin() {
+    if (typeof window === 'undefined' || !window.Capacitor) return null;
+    if (window.Capacitor.Plugins?.CoreMidiPlugin) {
+      return window.Capacitor.Plugins.CoreMidiPlugin;
+    }
+    if (typeof window.Capacitor.registerPlugin === 'function') {
+      try {
+        return window.Capacitor.registerPlugin('CoreMidiPlugin');
+      } catch (err) {
+        console.warn('Failed to register CoreMidiPlugin:', err);
+      }
+    }
+    return null;
   }
 
   /**
@@ -21,14 +40,17 @@ export class MidiHandler {
    */
   checkEnvironment() {
     const isCapacitor = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform();
-    const hasCoreMidiPlugin = isCapacitor && !!window.Capacitor?.Plugins?.CoreMidiPlugin;
+    const isIOS = isCapacitor && window.Capacitor?.getPlatform?.() === 'ios';
+    const coreMidi = isCapacitor ? this.getCoreMidiPlugin() : null;
+    const hasCoreMidiPlugin = !!coreMidi;
     const isSecure = typeof window !== 'undefined' ? window.isSecureContext : false;
     const hasMidiApi = typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess;
     return {
       isSecureContext: isSecure || isCapacitor,
-      hasMidiApi: hasMidiApi || hasCoreMidiPlugin,
+      hasMidiApi: hasMidiApi || hasCoreMidiPlugin || isIOS,
       hasCoreMidiPlugin,
       isCapacitor,
+      isIOS,
       isAndroid: typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '')
     };
   }
@@ -41,10 +63,13 @@ export class MidiHandler {
     const env = this.checkEnvironment();
 
     // 1. Native iOS CoreMIDI Bridge
-    if (env.hasCoreMidiPlugin) {
+    const coreMidi = this.getCoreMidiPlugin();
+    if (coreMidi) {
       try {
-        const CoreMidi = window.Capacitor.Plugins.CoreMidiPlugin;
-        const res = await CoreMidi.listInputs();
+        if (typeof coreMidi.scanInputs === 'function') {
+          await coreMidi.scanInputs().catch(() => {});
+        }
+        const res = await coreMidi.listInputs();
         this.inputs = (res.inputs || []).map(d => ({
           id: d.id,
           name: d.name,
@@ -52,8 +77,8 @@ export class MidiHandler {
           state: 'connected'
         }));
 
-        CoreMidi.removeAllListeners?.('midiMessage');
-        CoreMidi.addListener('midiMessage', (event) => {
+        coreMidi.removeAllListeners?.('midiMessage');
+        coreMidi.addListener('midiMessage', (event) => {
           if (event && event.data) {
             const fakeEvent = {
               data: new Uint8Array(event.data),
@@ -63,8 +88,8 @@ export class MidiHandler {
           }
         });
 
-        CoreMidi.removeAllListeners?.('devicesChanged');
-        CoreMidi.addListener('devicesChanged', (event) => {
+        coreMidi.removeAllListeners?.('devicesChanged');
+        coreMidi.addListener('devicesChanged', (event) => {
           this.inputs = (event.inputs || []).map(d => ({
             id: d.id,
             name: d.name,
@@ -74,10 +99,21 @@ export class MidiHandler {
           if (this.onDeviceListChange) {
             this.onDeviceListChange(this.inputs);
           }
+          const count = this.inputs.length;
+          if (count > 0) {
+            this.reportStatus('ready', `${count} CoreMIDI device(s) connected`);
+          } else {
+            this.reportStatus('no_devices', 'CoreMIDI ready. Connect a MIDI controller.');
+          }
         });
 
         this.midiAccess = { isCoreMidi: true };
-        this.reportStatus('ready', `${this.inputs.length} CoreMIDI device(s) connected`);
+        const deviceCount = this.inputs.length;
+        if (deviceCount > 0) {
+          this.reportStatus('ready', `${deviceCount} CoreMIDI device(s) connected`);
+        } else {
+          this.reportStatus('no_devices', 'CoreMIDI ready. Connect a MIDI controller.');
+        }
         if (this.onDeviceListChange) {
           this.onDeviceListChange(this.inputs);
         }
@@ -205,9 +241,65 @@ export class MidiHandler {
   }
 
   handleMidiMessage(message, sourceName = '') {
-    const [status, data1, data2] = message.data;
-    const command = status >> 4;
-    const channel = (status & 0x0F) + 1; // 1-indexed (1..16)
+    if (!message || !message.data || message.data.length === 0) return;
+
+    let offset = 0;
+    while (offset < message.data.length) {
+      const status = message.data[offset];
+      if (status < 0x80) {
+        // Skip stray non-status bytes
+        offset++;
+        continue;
+      }
+
+      const command = status >> 4;
+      const channel = (status & 0x0F) + 1; // 1-indexed (1..16)
+
+      let msgLength = 1;
+      if (command === 0xC || command === 0xD) {
+        // Program Change, Channel Pressure (1 data byte)
+        msgLength = 2;
+      } else if ((command >= 0x8 && command <= 0xB) || command === 0xE) {
+        // Note Off, Note On, Poly Pressure, CC, Pitch Bend (2 data bytes)
+        msgLength = 3;
+      } else if (status === 0xF0) {
+        // SysEx: advance until 0xF7 or end
+        let end = offset + 1;
+        while (end < message.data.length && message.data[end] !== 0xF7) {
+          end++;
+        }
+        if (end < message.data.length && message.data[end] === 0xF7) {
+          end++;
+        }
+        offset = end;
+        continue;
+      }
+
+      const data1 = offset + 1 < message.data.length ? message.data[offset + 1] : 0;
+      const data2 = offset + 2 < message.data.length ? message.data[offset + 2] : 0;
+
+      this.processSingleMidiMessage(command, channel, data1, data2, sourceName);
+      offset += msgLength;
+    }
+  }
+
+  processSingleMidiMessage(command, channel, data1, data2, sourceName) {
+    // Deduplicate identical MIDI packets arriving simultaneously across endpoints (common on Android USB MIDI)
+    const now = performance.now();
+    const dedupeKey = `${command}:${channel}:${data1}:${(command === 0x9 || command === 0x8) ? '' : data2}`;
+    const lastTime = this.recentMessages.get(dedupeKey);
+    if (lastTime && (now - lastTime) < 20) {
+      // Discard duplicate packet arriving within 20ms
+      return;
+    }
+    this.recentMessages.set(dedupeKey, now);
+
+    // Housekeep dedupe map
+    if (this.recentMessages.size > 50) {
+      for (const [k, ts] of this.recentMessages) {
+        if (now - ts > 250) this.recentMessages.delete(k);
+      }
+    }
 
     let logEvent = null;
 

@@ -467,14 +467,22 @@ export class SynthEngine {
    * 3. Oldest active voice (Voice Stealing / LRU)
    */
   allocateVoice(note, channel) {
-    // 1. Prioritize completely idle voices so repeated note strikes don't choke previous tails
+    // 1. If a voice is already actively held playing this note on this channel (not in release),
+    // re-trigger that same voice instead of consuming another polyphony slot.
+    for (const voice of this.voices) {
+      if (voice.isActive && !voice.isReleasing && voice.note === note && voice.channel === channel) {
+        return voice;
+      }
+    }
+
+    // 2. Prioritize completely idle voices so repeated note strikes don't choke previous tails
     for (const voice of this.voices) {
       if (!voice.isActive) {
         return voice;
       }
     }
 
-    // 2. Prioritize oldest voice in release phase
+    // 3. Prioritize oldest voice in release phase
     let oldestReleaseTime = Infinity;
     let oldestReleaseVoice = null;
     for (const voice of this.voices) {
@@ -484,13 +492,6 @@ export class SynthEngine {
       }
     }
     if (oldestReleaseVoice) return oldestReleaseVoice;
-
-    // 3. If all voices are busy, re-trigger the voice playing this note on this channel
-    for (const voice of this.voices) {
-      if (voice.isActive && voice.note === note && voice.channel === channel) {
-        return voice;
-      }
-    }
 
     // 4. Steal oldest active voice (LRU)
     let oldestNoteTime = Infinity;

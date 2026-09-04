@@ -160,10 +160,14 @@ class SynthUI {
         alertText.textContent = `MIDI permission denied: ${status.message}.`;
         btnBannerAction.textContent = 'HELP';
       } else if (status.state === 'unsupported') {
+        if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
+          alertBanner.style.display = 'none';
+          return;
+        }
         alertBanner.style.display = 'flex';
         alertText.textContent = 'Web MIDI is not supported in this browser. Use Chrome, Edge, or Opera.';
         btnBannerAction.style.display = 'none';
-      } else if (status.state === 'ready') {
+      } else if (status.state === 'ready' || status.state === 'no_devices') {
         alertBanner.style.display = 'none';
       }
     };
