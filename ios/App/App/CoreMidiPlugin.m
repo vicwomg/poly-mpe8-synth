@@ -4,4 +4,5 @@
 CAP_PLUGIN(CoreMidiPlugin, "CoreMidiPlugin",
     CAP_PLUGIN_METHOD(listInputs, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(scanInputs, CAPPluginReturnPromise);
+    CAP_PLUGIN_METHOD(getDiagnostics, CAPPluginReturnPromise);
 )

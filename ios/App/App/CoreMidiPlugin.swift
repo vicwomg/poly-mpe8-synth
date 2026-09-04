@@ -10,6 +10,9 @@ public class CoreMidiPlugin: CAPPlugin {
     private var midiClient = MIDIClientRef()
     private var inputPort = MIDIPortRef()
     private var isMidiSetup = false
+    private var rxPacketCount: Int = 0
+    private var lastRxBytesHex: String = "none"
+    private var lastError: String?
 
     override public func load() {
         super.load()
@@ -124,6 +127,10 @@ public class CoreMidiPlugin: CAPPlugin {
     }
 
     public func notifyMidiBytes(_ bytes: [UInt8]) {
+        rxPacketCount += 1
+        lastRxBytesHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+        print("[CoreMidiPlugin] RX MIDI [\(rxPacketCount)]: \(lastRxBytesHex)")
+
         // Slice stream into individual MIDI 1.0 messages
         var index = 0
         while index < bytes.count {
@@ -170,6 +177,7 @@ public class CoreMidiPlugin: CAPPlugin {
 
     @objc func listInputs(_ call: CAPPluginCall) {
         setupMidi()
+        connectAllSources()
         call.resolve(["inputs": getInputList()])
     }
 
@@ -177,5 +185,22 @@ public class CoreMidiPlugin: CAPPlugin {
         setupMidi()
         connectAllSources()
         call.resolve(["inputs": getInputList()])
+    }
+
+    @objc func getDiagnostics(_ call: CAPPluginCall) {
+        setupMidi()
+        connectAllSources()
+        let count = MIDIGetNumberOfSources()
+        let sources = getInputList()
+        call.resolve([
+            "isMidiSetup": isMidiSetup,
+            "hasClient": midiClient != 0,
+            "hasInputPort": inputPort != 0,
+            "sourceCount": count,
+            "sources": sources,
+            "rxPacketCount": rxPacketCount,
+            "lastRxBytes": lastRxBytesHex,
+            "lastError": lastError ?? "none"
+        ])
     }
 }

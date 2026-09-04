@@ -129,11 +129,55 @@ class SynthUI {
     if (btnBannerClose) btnBannerClose.addEventListener('click', () => alertBanner.style.display = 'none');
     if (btnBannerAction) btnBannerAction.addEventListener('click', () => settingsModal.style.display = 'flex');
 
+    const midiDiagContent = document.getElementById('midi-diag-content');
+    const btnRefreshDiag = document.getElementById('btn-refresh-diag');
+
+    const updateDiagnostics = async () => {
+      if (!midiDiagContent) return;
+      midiDiagContent.textContent = 'Probing MIDI subsystems...';
+      const diag = await this.midi.getDiagnostics();
+      
+      const native = diag.nativeDiagnostics;
+      const lines = [
+        `Platform: ${diag.isIOS ? 'iOS Native (Capacitor)' : (diag.isAndroid ? 'Android' : 'Web Browser')}`,
+        `Selected Port: ${diag.selectedInputId}`,
+        `Detected Inputs (${diag.cachedInputs.length}): ${diag.cachedInputs.map(i => i.name).join(', ') || 'None'}`
+      ];
+
+      if (native) {
+        if (native.error) {
+          lines.push(`CoreMIDI Error: ${native.error}`);
+        } else {
+          lines.push(`CoreMIDI Setup: ${native.isMidiSetup ? 'OK' : 'FAILED'}`);
+          lines.push(`CoreMIDI Client: ${native.hasClient ? 'Active' : 'Missing'}`);
+          lines.push(`CoreMIDI Port: ${native.hasInputPort ? 'Active' : 'Missing'}`);
+          lines.push(`iOS Hardware Sources: ${native.sourceCount}`);
+          if (native.sources && native.sources.length > 0) {
+            lines.push(`iOS Devices: ${native.sources.map(s => s.name).join(', ')}`);
+          }
+          lines.push(`Hardware Packets RX: ${native.rxPacketCount}`);
+          lines.push(`Last Raw Bytes: ${native.lastRxBytes || 'none'}`);
+        }
+      } else if (diag.isIOS) {
+        lines.push('CoreMIDI Plugin: NOT DETECTED (Check Capacitor native bridge)');
+      }
+
+      midiDiagContent.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+    };
+
+    btnSettings?.addEventListener('click', () => {
+      updateDiagnostics();
+    });
+    btnRefreshDiag?.addEventListener('click', () => {
+      updateDiagnostics();
+    });
+
     // Scan button inside Settings modal
     if (btnMidiScan) {
       btnMidiScan.addEventListener('click', async () => {
         btnMidiScan.textContent = 'SCANNING...';
         await this.midi.requestAccess();
+        await updateDiagnostics();
         setTimeout(() => {
           btnMidiScan.textContent = 'SCAN';
         }, 600);

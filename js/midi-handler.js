@@ -414,4 +414,29 @@ export class MidiHandler {
       this.synth.noteOff(note, channel);
     }
   }
+
+  async getDiagnostics() {
+    const env = this.checkEnvironment();
+    const result = {
+      isCapacitor: env.isCapacitor,
+      isIOS: env.isIOS,
+      isAndroid: env.isAndroid,
+      isSecureContext: env.isSecureContext,
+      hasMidiApi: env.hasMidiApi,
+      selectedInputId: this.selectedInputId,
+      cachedInputs: this.inputs,
+      nativeDiagnostics: null
+    };
+
+    const coreMidi = this.getCoreMidiPlugin();
+    if (coreMidi && typeof coreMidi.getDiagnostics === 'function') {
+      try {
+        result.nativeDiagnostics = await coreMidi.getDiagnostics();
+      } catch (err) {
+        result.nativeDiagnostics = { error: err.message || String(err) };
+      }
+    }
+
+    return result;
+  }
 }
