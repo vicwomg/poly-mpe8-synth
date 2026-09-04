@@ -18,6 +18,20 @@ class SynthUI {
   }
 
   async init() {
+    // Dynamic Notch / Safe Area Orientation Tracking
+    const updateNotchOrientation = () => {
+      let isSecondary = false;
+      if (window.screen?.orientation) {
+        isSecondary = window.screen.orientation.type === 'landscape-secondary';
+      } else if (typeof window.orientation !== 'undefined') {
+        isSecondary = window.orientation === -90;
+      }
+      document.documentElement.dataset.notchSide = isSecondary ? 'right' : 'left';
+    };
+    updateNotchOrientation();
+    window.addEventListener('orientationchange', updateNotchOrientation);
+    window.screen?.orientation?.addEventListener?.('change', updateNotchOrientation);
+
     // 1. Audio Start / Resume
     const btnPower = document.getElementById('btn-audio-power');
     const startAudioEngine = async () => {
@@ -76,6 +90,51 @@ class SynthUI {
         const count = parseInt(e.target.value, 10);
         await this.synth.reconfigureAudio(null, count);
         if (maxVoiceEl) maxVoiceEl.textContent = `/${count}`;
+      });
+    }
+
+    const mpeBendSelect = document.getElementById('mpe-bend-select');
+    if (mpeBendSelect) {
+      mpeBendSelect.value = (this.synth.params.mpePitchBendRange || 48).toString();
+      mpeBendSelect.addEventListener('change', (e) => {
+        const range = parseInt(e.target.value, 10);
+        this.synth.updateParam('mpePitchBendRange', range);
+      });
+    }
+
+    const cc1TargetSelect = document.getElementById('cc1-target-select');
+    if (cc1TargetSelect) {
+      cc1TargetSelect.value = this.synth.params.cc1Target || 'resonance';
+      cc1TargetSelect.addEventListener('change', (e) => {
+        const target = e.target.value;
+        this.synth.updateParam('cc1Target', target);
+        if (target === 'lforate') {
+          for (const voice of this.synth.voices) {
+            voice.cc1Resonance = 0;
+            voice.updateFilter();
+          }
+        } else {
+          const baseRate = this.synth.params.lfoRate || 3.5;
+          this.updateSliderUI('lfoRate', baseRate, `${baseRate} Hz`);
+        }
+        this.visualizer?.markFilterDirty();
+      });
+    }
+
+    const volumeCcSelect = document.getElementById('volume-cc-select');
+    if (volumeCcSelect) {
+      volumeCcSelect.value = String(this.synth.params.volumeCC || 11);
+      volumeCcSelect.addEventListener('change', (e) => {
+        const val = parseInt(e.target.value, 10);
+        this.synth.updateParam('volumeCC', val);
+      });
+    }
+
+    const pressureTargetSelect = document.getElementById('pressure-target-select');
+    if (pressureTargetSelect) {
+      pressureTargetSelect.value = this.synth.params.mpePressureTarget || 'both';
+      pressureTargetSelect.addEventListener('change', (e) => {
+        this.synth.updateParam('mpePressureTarget', e.target.value);
       });
     }
 
@@ -253,16 +312,16 @@ class SynthUI {
       }
 
       // Sync UI sliders if CC came in (live updates in Filter & Amp cards) without dirtying preset dropdown
-      if (logEvent.ccNumber === 73 || logEvent.type.startsWith('CC73')) {
+      if (logEvent.ccNumber === 73 || logEvent.ccNumber === 74 || logEvent.type.startsWith('CC73') || logEvent.type.startsWith('CC74')) {
         const minLog = Math.log(20);
         const maxLog = Math.log(20000);
-        const hz = Math.round(Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog)));
-        this.synth.params.filterCutoff = hz;
-        this.updateSliderUI('filterCutoff', hz, `${hz} Hz`);
-        const readout = document.getElementById('filter-cutoff-readout');
-        if (readout) readout.textContent = `${hz} Hz`;
-        this.visualizer?.markFilterDirty();
-      } else if (logEvent.ccNumber === 11 || logEvent.type.startsWith('CC11')) {
+        const targetHz = Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog));
+        this.animateCutoffTo(targetHz);
+      } else if (
+        logEvent.ccNumber === (Number(this.synth.params.volumeCC) || 11) ||
+        (logEvent.type && logEvent.type.includes('Volume')) ||
+        (this.synth.params.volumeCC === 7 ? (logEvent.ccNumber === 7 || logEvent.type.startsWith('CC7 ')) : (logEvent.ccNumber === 11 || logEvent.type.startsWith('CC11')))
+      ) {
         const vol = +(logEvent.value / 127).toFixed(2);
         this.synth.params.masterVolume = vol;
         if (this.synth.masterGain) {
@@ -270,11 +329,16 @@ class SynthUI {
           this.synth.masterGain.gain.setTargetAtTime(scaled, this.synth.ctx.currentTime, 0.01);
         }
         this.updateSliderUI('masterVolume', vol, `${Math.round(vol * 100)}%`);
-      } else if (logEvent.ccNumber === 1 || logEvent.type.startsWith('CC1 ') || logEvent.type.includes('(Resonance)')) {
-        const q = +(0.1 + (logEvent.value / 127) * 19.9).toFixed(1);
-        this.synth.params.filterResonance = q;
-        this.updateSliderUI('filterResonance', q, q.toFixed(1));
-        this.visualizer?.markFilterDirty();
+      } else if (logEvent.ccNumber === 1 || logEvent.type.startsWith('CC1 ') || logEvent.type.includes('(Resonance)') || logEvent.type.includes('(LFO Rate)')) {
+        if (this.synth.params.cc1Target === 'lforate') {
+          const minLog = Math.log(0.1);
+          const maxLog = Math.log(20.0);
+          const targetRate = Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog));
+          this.animateLfoRateTo(targetRate);
+        } else {
+          const targetQ = 0.1 + (logEvent.value / 127) * 19.9;
+          this.animateResonanceTo(targetQ);
+        }
       }
     };
 
@@ -570,6 +634,31 @@ class SynthUI {
 
     const btnSave = document.getElementById('btn-save-preset');
     const btnDelete = document.getElementById('btn-delete-preset');
+    const btnPrev = document.getElementById('btn-prev-preset');
+    const btnNext = document.getElementById('btn-next-preset');
+
+    const handleNav = (dir, e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      this.navigatePreset(dir);
+    };
+
+    let lastNavTime = 0;
+    const safeNav = (dir, e) => {
+      const now = Date.now();
+      if (now - lastNavTime < 180) return;
+      lastNavTime = now;
+      handleNav(dir, e);
+    };
+
+    btnPrev?.addEventListener('click', (e) => safeNav(-1, e));
+    btnPrev?.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') safeNav(-1, e);
+    });
+    btnNext?.addEventListener('click', (e) => safeNav(1, e));
+    btnNext?.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') safeNav(1, e);
+    });
 
     btnSave?.addEventListener('click', () => {
       this.openSavePresetModal();
@@ -756,15 +845,44 @@ class SynthUI {
     const preset = this.presetManager.getPresetById(id);
     if (!preset) return;
 
+    // Preserve user routing / controller preferences across patch loads
+    const savedCc1Target = this.synth.params.cc1Target;
+    const savedVolumeCC = this.synth.params.volumeCC;
+    const savedMpePitchBendRange = this.synth.params.mpePitchBendRange;
+    const savedPressureTarget = this.synth.params.mpePressureTarget;
+
     this.currentPresetId = preset.id;
     this.presetManager.setBaselinePreset(preset);
 
     this.synth.applyPreset(preset);
+    if (savedCc1Target) this.synth.params.cc1Target = savedCc1Target;
+    if (savedVolumeCC) this.synth.params.volumeCC = savedVolumeCC;
+    if (savedMpePitchBendRange) this.synth.params.mpePitchBendRange = savedMpePitchBendRange;
+    if (savedPressureTarget) this.synth.params.mpePressureTarget = savedPressureTarget;
+
     this.syncUIFromParams(this.synth.params);
     this.visualizer?.markFilterDirty();
 
     this.renderPresetDropdown(preset.id);
     this.saveActiveSession();
+  }
+
+  navigatePreset(direction) {
+    const allPresets = this.presetManager.getAllPresets();
+    if (!allPresets || allPresets.length === 0) return;
+
+    const select = document.getElementById('preset-select');
+    const targetId = this.currentPresetId || select?.value;
+    let currentIndex = allPresets.findIndex(p => p.id === targetId);
+    if (currentIndex === -1) currentIndex = 0;
+
+    let nextIndex = (currentIndex + direction) % allPresets.length;
+    if (nextIndex < 0) nextIndex += allPresets.length;
+
+    const nextPreset = allPresets[nextIndex];
+    if (nextPreset) {
+      this.loadPreset(nextPreset.id);
+    }
   }
 
   // --- Save / Edit Preset Modal ---
@@ -969,6 +1087,46 @@ class SynthUI {
     const revDamp = params.reverbDamp ?? 3500;
     this.updateSliderUI('reverbDamp', revDamp, revDamp >= 1000 ? `${(revDamp / 1000).toFixed(1)} kHz` : `${revDamp} Hz`);
     this.updateSliderUI('reverbMix', params.reverbMix ?? 0.3, `${Math.round((params.reverbMix ?? 0.3) * 100)}%`);
+
+    // MPE Pitch Bend Range Dropdown
+    const mpeBendSelect = document.getElementById('mpe-bend-select');
+    if (mpeBendSelect && params.mpePitchBendRange !== undefined) {
+      mpeBendSelect.value = params.mpePitchBendRange.toString();
+    }
+
+    // CC1 Mod Wheel Destination Dropdown
+    const cc1TargetSelect = document.getElementById('cc1-target-select');
+    if (cc1TargetSelect && params.cc1Target !== undefined) {
+      cc1TargetSelect.value = params.cc1Target;
+    }
+
+    // Volume CC Destination Dropdown
+    const volumeCcSelect = document.getElementById('volume-cc-select');
+    if (volumeCcSelect && params.volumeCC !== undefined) {
+      volumeCcSelect.value = String(params.volumeCC);
+    }
+
+    // MPE Pressure Destination Dropdown
+    const pressureTargetSelect = document.getElementById('pressure-target-select');
+    if (pressureTargetSelect && params.mpePressureTarget !== undefined) {
+      pressureTargetSelect.value = params.mpePressureTarget;
+    }
+
+    this.currentDisplayCutoff = params.filterCutoff;
+    if (this.cutoffAnimFrame) {
+      cancelAnimationFrame(this.cutoffAnimFrame);
+      this.cutoffAnimFrame = null;
+    }
+    this.currentDisplayResonance = params.filterResonance;
+    if (this.resoAnimFrame) {
+      cancelAnimationFrame(this.resoAnimFrame);
+      this.resoAnimFrame = null;
+    }
+    this.currentDisplayLfoRate = params.lfoRate;
+    if (this.lfoRateAnimFrame) {
+      cancelAnimationFrame(this.lfoRateAnimFrame);
+      this.lfoRateAnimFrame = null;
+    }
   }
 
   setButtonGroup(param, value) {
@@ -983,9 +1141,151 @@ class SynthUI {
     });
   }
 
+  /**
+   * Smooth continuous analog slew interpolation for incoming MIDI CC73/CC74.
+   * Glides the UI slider, readout, and engine cutoff smoothly at 60fps
+   * eliminating 60Hz discrete stepping and providing an authentic analog dial feel.
+   */
+  animateCutoffTo(targetHz) {
+    this.targetCutoffHz = targetHz;
+    if (this.cutoffAnimFrame) return;
+
+    const step = () => {
+      const current = this.currentDisplayCutoff !== undefined
+        ? this.currentDisplayCutoff
+        : (this.synth.params.filterCutoff || 2500);
+
+      const diff = this.targetCutoffHz - current;
+      if (Math.abs(diff) < 1.0) {
+        this.currentDisplayCutoff = this.targetCutoffHz;
+        this.synth.params.filterCutoff = this.targetCutoffHz;
+        const displayHz = Math.round(this.targetCutoffHz);
+        this.updateSliderUI('filterCutoff', displayHz, `${displayHz} Hz`);
+        const readout = document.getElementById('filter-cutoff-readout');
+        if (readout) readout.textContent = `${displayHz} Hz`;
+        this.visualizer?.markFilterDirty();
+        this.cutoffAnimFrame = null;
+        return;
+      }
+
+      // Analog ballistic exponential tracking towards incoming MIDI CC frequency
+      const next = current + diff * 0.28;
+      this.currentDisplayCutoff = next;
+      this.synth.params.filterCutoff = next;
+      const displayHz = Math.round(next);
+      this.updateSliderUI('filterCutoff', displayHz, `${displayHz} Hz`);
+      const readout = document.getElementById('filter-cutoff-readout');
+      if (readout) readout.textContent = `${displayHz} Hz`;
+      this.visualizer?.markFilterDirty();
+
+      this.cutoffAnimFrame = requestAnimationFrame(step);
+    };
+
+    this.cutoffAnimFrame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Smooth continuous analog slew interpolation for incoming MIDI CC1 (Filter Resonance).
+   * Glides the resonance slider and numeric readout at 60fps for a tactile analog dial feel.
+   */
+  animateResonanceTo(targetQ) {
+    this.targetResonanceQ = targetQ;
+    if (this.resoAnimFrame) return;
+
+    const step = () => {
+      const current = this.currentDisplayResonance !== undefined
+        ? this.currentDisplayResonance
+        : (this.synth.params.filterResonance ?? 1.0);
+
+      const diff = this.targetResonanceQ - current;
+      if (Math.abs(diff) < 0.04) {
+        this.currentDisplayResonance = this.targetResonanceQ;
+        this.synth.params.filterResonance = this.targetResonanceQ;
+        this.updateSliderUI('filterResonance', this.targetResonanceQ, this.targetResonanceQ.toFixed(1));
+        this.visualizer?.markFilterDirty();
+        this.resoAnimFrame = null;
+        return;
+      }
+
+      // Smooth ballistic tracking
+      const next = current + diff * 0.28;
+      this.currentDisplayResonance = next;
+      this.synth.params.filterResonance = next;
+      this.updateSliderUI('filterResonance', next, next.toFixed(1));
+      this.visualizer?.markFilterDirty();
+
+      this.resoAnimFrame = requestAnimationFrame(step);
+    };
+
+    this.resoAnimFrame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Smooth continuous analog slew interpolation for incoming MIDI CC1 (LFO Rate).
+   * Glides the LFO rate slider and numeric readout smoothly across all frequencies.
+   */
+  animateLfoRateTo(targetRate) {
+    this.targetLfoRateVal = targetRate;
+    if (this.lfoRateAnimFrame) return;
+
+    const step = () => {
+      const current = this.currentDisplayLfoRate !== undefined
+        ? this.currentDisplayLfoRate
+        : (this.synth.params.lfoRate ?? 3.5);
+
+      const diff = this.targetLfoRateVal - current;
+      if (Math.abs(diff) < 0.04) {
+        this.currentDisplayLfoRate = this.targetLfoRateVal;
+        this.synth.params.lfoRate = this.targetLfoRateVal;
+        this.updateSliderUI('lfoRate', this.targetLfoRateVal, `${this.targetLfoRateVal.toFixed(1)} Hz`);
+        this.lfoRateAnimFrame = null;
+        return;
+      }
+
+      // Smooth ballistic tracking
+      const next = current + diff * 0.28;
+      this.currentDisplayLfoRate = next;
+      this.synth.params.lfoRate = next;
+      this.updateSliderUI('lfoRate', next, `${next.toFixed(1)} Hz`);
+
+      this.lfoRateAnimFrame = requestAnimationFrame(step);
+    };
+
+    this.lfoRateAnimFrame = requestAnimationFrame(step);
+  }
+
+  cutoffToSlider(hz) {
+    const minLog = Math.log(20);
+    const maxLog = Math.log(20000);
+    const clamped = Math.max(20, Math.min(20000, hz || 2000));
+    const norm = (Math.log(clamped) - minLog) / (maxLog - minLog);
+    return Math.round(norm * 1000);
+  }
+
+  sliderToCutoff(sliderVal) {
+    const minLog = Math.log(20);
+    const maxLog = Math.log(20000);
+    const norm = Math.max(0, Math.min(1000, parseFloat(sliderVal) || 0)) / 1000;
+    const rawHz = Math.exp(minLog + norm * (maxLog - minLog));
+    if (rawHz < 100) {
+      return Math.round(rawHz / 2) * 2;
+    } else if (rawHz < 300) {
+      return Math.round(rawHz / 10) * 10;
+    } else {
+      // 20 Hz resolution throughout middle and upper range
+      return Math.round(rawHz / 20) * 20;
+    }
+  }
+
   updateSliderUI(sliderId, value, displayStr) {
     const el = document.getElementById(sliderId);
-    if (el) el.value = value;
+    if (el) {
+      if (sliderId === 'filterCutoff') {
+        el.value = this.cutoffToSlider(value);
+      } else {
+        el.value = value;
+      }
+    }
     const disp = document.getElementById(`${sliderId}-val`);
     if (disp) disp.textContent = displayStr;
   }
@@ -997,6 +1297,16 @@ class SynthUI {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener('input', (e) => {
+        if (paramKey === 'filterResonance' && this.resoAnimFrame) {
+          cancelAnimationFrame(this.resoAnimFrame);
+          this.resoAnimFrame = null;
+          this.currentDisplayResonance = undefined;
+        }
+        if (paramKey === 'lfoRate' && this.lfoRateAnimFrame) {
+          cancelAnimationFrame(this.lfoRateAnimFrame);
+          this.lfoRateAnimFrame = null;
+          this.currentDisplayLfoRate = undefined;
+        }
         const val = parseFloat(e.target.value);
         this.synth.updateParam(paramKey, val);
         const disp = document.getElementById(`${id}-val`);
@@ -1036,8 +1346,25 @@ class SynthUI {
     bindSlider('osc2Fine', 'osc2Fine', v => (v > 0 ? '+' : '') + v);
     bindSlider('osc2Mix', 'osc2Mix', v => `${Math.round(v * 100)}%`);
 
-    // Filter
-    bindSlider('filterCutoff', 'filterCutoff', v => `${Math.round(v)} Hz`);
+    // Filter - Cutoff with 20Hz resolution and smooth logarithmic response
+    const filterCutoffEl = document.getElementById('filterCutoff');
+    if (filterCutoffEl) {
+      filterCutoffEl.addEventListener('input', (e) => {
+        if (this.cutoffAnimFrame) {
+          cancelAnimationFrame(this.cutoffAnimFrame);
+          this.cutoffAnimFrame = null;
+        }
+        const sliderVal = parseFloat(e.target.value);
+        const hz = this.sliderToCutoff(sliderVal);
+        this.currentDisplayCutoff = hz;
+        this.synth.updateParam('filterCutoff', hz);
+        const disp = document.getElementById('filterCutoff-val');
+        if (disp) disp.textContent = `${hz} Hz`;
+        const readout = document.getElementById('filter-cutoff-readout');
+        if (readout) readout.textContent = `${hz} Hz`;
+        this.visualizer?.markFilterDirty();
+      });
+    }
     bindSlider('filterResonance', 'filterResonance', v => v.toFixed(1));
     bindSlider('filterEnvAmount', 'filterEnvAmount', v => `${Math.round(v * 100)}%`);
     bindSlider('filterKeyTracking', 'filterKeyTracking', v => `${Math.round(v * 100)}%`);
@@ -1199,9 +1526,19 @@ class SynthUI {
       this.synth.setCC(mpeChannel, 73, cc73Val);
 
       // Live update filterCutoff UI slider and visualizer
+      if (this.cutoffAnimFrame) {
+        cancelAnimationFrame(this.cutoffAnimFrame);
+        this.cutoffAnimFrame = null;
+      }
       const minLog = Math.log(20);
       const maxLog = Math.log(20000);
-      const hz = Math.round(Math.exp(minLog + normY * (maxLog - minLog)));
+      const rawHz = Math.exp(minLog + normY * (maxLog - minLog));
+      const hz = rawHz < 100
+        ? Math.round(rawHz / 2) * 2
+        : rawHz < 300
+          ? Math.round(rawHz / 10) * 10
+          : Math.round(rawHz / 20) * 20;
+      this.currentDisplayCutoff = hz;
       this.updateSliderUI('filterCutoff', hz, `${hz} Hz`);
       const readout = document.getElementById('filter-cutoff-readout');
       if (readout) readout.textContent = `${hz} Hz`;
@@ -1470,5 +1807,6 @@ class SynthUI {
 // Instantiate and start UI when DOM is ready
 window.addEventListener('DOMContentLoaded', () => {
   const ui = new SynthUI();
+  window.synthUI = ui;
   ui.init();
 });

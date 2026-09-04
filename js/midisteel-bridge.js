@@ -122,6 +122,8 @@
         -webkit-overflow-scrolling: touch !important;
       }
       body {
+        max-width: 1440px !important;
+        margin: 0 auto !important;
         padding: 16px 20px 100px 20px !important;
       }
       header, .toolbar, .nav-tabs, #settingsBlocks, .tab-panel {

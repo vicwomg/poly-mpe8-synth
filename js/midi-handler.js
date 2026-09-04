@@ -21,6 +21,7 @@ export class MidiHandler {
     this.externalMidiListeners = new Set();
 
     if (typeof window !== 'undefined') {
+      window.midiHandler = this;
       window.midisteelParentBridge = {
         isDeviceConnected: () => this.isMidiSteelConnected(),
         getDeviceName: () => this.getMidiSteelDeviceName(),
@@ -28,7 +29,8 @@ export class MidiHandler {
         subscribeMidi: (cb) => this.subscribeMidi(cb),
         unsubscribeMidi: (cb) => this.unsubscribeMidi(cb),
         getInputs: () => [...this.inputs],
-        getNativeMidiAccess: () => this.midiAccess
+        getNativeMidiAccess: () => this.midiAccess,
+        getDiagnostics: () => this.getDiagnostics()
       };
     }
   }
@@ -48,9 +50,12 @@ export class MidiHandler {
       this.synth.ctx.resume().catch(() => {});
     }
 
-    // Filter by selectedInputId if a specific port is selected
-    if (this.selectedInputId !== 'all' && sourceId && this.selectedInputId !== sourceId) {
-      return;
+    // Filter by selectedInputId only for non-SysEx messages when multiple distinct input ports are connected
+    const isSysEx = detail.data && (detail.data[0] === 0xF0 || (detail.data.length > 0 && detail.data[0] < 0x80));
+    if (!isSysEx && this.selectedInputId !== 'all' && sourceId && this.selectedInputId !== sourceId) {
+      if (this.inputs && this.inputs.length > 1) {
+        return;
+      }
     }
 
     const fakeEvent = {
@@ -405,12 +410,21 @@ export class MidiHandler {
   }
 
   processSingleMidiMessage(command, channel, data1, data2, sourceName) {
-    // Deduplicate identical MIDI packets arriving simultaneously across endpoints (common on Android USB MIDI)
+    // Differentiate Note On vs Note Off so Note-Off (cmd 0x9 with vel 0 or cmd 0x8) is never deduped against Note-On!
+    const isNoteOn = (command === 0x9 && data2 > 0);
+    const isNoteOff = (command === 0x8 || (command === 0x9 && data2 === 0));
+    const eventType = isNoteOn ? 'noteOn' : isNoteOff ? 'noteOff' : command.toString(16);
+
+    // Deduplicate identical MIDI packets arriving simultaneously across duplicate bridge listeners
+    // (e.g. WebKit custom event + Capacitor listener on iOS, or duplicate endpoints on Android USB)
     const now = performance.now();
-    const dedupeKey = `${command}:${channel}:${data1}:${(command === 0x9 || command === 0x8) ? '' : data2}`;
+    const dedupeKey = `${eventType}:${channel}:${data1}:${(isNoteOn || isNoteOff) ? '' : data2}`;
     const lastTime = this.recentMessages.get(dedupeKey);
-    if (lastTime && (now - lastTime) < 20) {
-      // Discard duplicate packet arriving within 20ms
+    // Bridge dual-dispatch occurs in sub-millisecond to <2ms.
+    // Use a strict 4ms window for notes so musical fast stabs and releases are never dropped.
+    const dedupeWindow = (isNoteOn || isNoteOff) ? 4 : 10;
+    if (lastTime && (now - lastTime) < dedupeWindow) {
+      // Discard duplicate packet arriving simultaneously across duplicate bridge channels
       return;
     }
     this.recentMessages.set(dedupeKey, now);
@@ -471,8 +485,16 @@ export class MidiHandler {
           // Standard / MPE CC
           let desc = `CC ${ccNumber}`;
           if (ccNumber === 73) desc = 'CC73 (Cutoff)';
-          if (ccNumber === 1) desc = 'CC1 (Resonance)';
-          if (ccNumber === 11) desc = 'CC11 (Volume)';
+          if (ccNumber === 74) desc = 'CC74 (Cutoff / MPE Timbre)';
+          if (ccNumber === 1) desc = this.synth.params.cc1Target === 'lforate' ? 'CC1 (LFO Rate)' : 'CC1 (Resonance)';
+          const activeVolCC = Number(this.synth?.params?.volumeCC) || 11;
+          if (ccNumber === activeVolCC) {
+            desc = ccNumber === 7 ? 'CC7 (Volume)' : 'CC11 (Volume)';
+          } else if (ccNumber === 7) {
+            desc = 'CC7 (Volume)';
+          } else if (ccNumber === 11) {
+            desc = 'CC11 (Expression)';
+          }
 
           this.synth.setCC(channel, ccNumber, ccValue);
           logEvent = { type: desc, ccNumber, channel, note: '-', value: ccValue, detail: `Val: ${ccValue}` };
@@ -495,6 +517,16 @@ export class MidiHandler {
         const pressure = data1;
         this.synth.setPressure(channel, pressure);
         logEvent = { type: 'Pressure', channel, note: '-', value: pressure, detail: `Val: ${pressure}` };
+        break;
+      }
+
+      case 0xA: { // Polyphonic Aftertouch (Key Pressure)
+        const note = data1;
+        const pressure = data2;
+        if (typeof this.synth.setPolyPressure === 'function') {
+          this.synth.setPolyPressure(channel, note, pressure);
+        }
+        logEvent = { type: 'Poly Pressure', channel, note, value: pressure, detail: `Val: ${pressure}` };
         break;
       }
 

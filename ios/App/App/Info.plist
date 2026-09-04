@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>POLY-MPE8 Synth</string>
+        <string>Poly-MPE8</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -28,6 +28,10 @@
 	<string>POLY-MPE8 uses Bluetooth to connect to wireless MIDI and MPE controllers.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>POLY-MPE8 uses Bluetooth to connect to wireless MIDI and MPE controllers.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UIStatusBarHidden</key>
 	<true/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>

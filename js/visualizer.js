@@ -181,14 +181,14 @@ export class Visualizer {
       this.mockFilter.type = 'lowpass';
     }
 
-    // Effective cutoff considering global base + CC73
+    // Effective cutoff considering global base
     const baseCutoff = this.synth.params.filterCutoff || 2000;
-    const cc73Octaves = ((this.synth.globalCC73 - 64) / 64) * 3.5;
-    const effectiveCutoff = Math.max(20, Math.min(20000, baseCutoff * Math.pow(2, cc73Octaves)));
+    const effectiveCutoff = Math.max(20, Math.min(20000, baseCutoff));
 
-    // Resonance Q considering base + CC1 (Mod Wheel)
+    // Resonance Q considering base + CC1 (when cc1Target is resonance)
     const baseQ = this.synth.params.filterResonance !== undefined ? this.synth.params.filterResonance : 1.0;
-    const modWheelQ = (this.synth.globalCC1 / 127) * 18;
+    const isResoTarget = this.synth.params.cc1Target !== 'lforate';
+    const modWheelQ = isResoTarget ? (this.synth.globalCC1 / 127) * 18 : 0;
     const effectiveQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ));
 
     this.mockFilter.frequency.setValueAtTime(effectiveCutoff, this.synth.ctx.currentTime);

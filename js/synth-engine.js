@@ -71,19 +71,65 @@ export class SynthEngine {
       // Master
       masterVolume: 0.75,
       mpePitchBendRange: 48, // Default 48 semitones for MPE
-      mpeMasterChannel: 1
+      mpeMasterChannel: 1,
+      cc1Target: 'resonance', // 'resonance' (Filter Q) or 'lforate' (LFO Rate)
+      volumeCC: 11, // 11 (Expression - Default) or 7 (Channel Volume)
+      mpePressureTarget: 'both' // 'both' (Dynamics & Filter), 'dynamics', 'filter', 'off'
     };
 
     // Controller states
     this.globalCC73 = 64;
+    this.globalCC74 = 64;
     this.globalCC1 = 0;
     this.globalCC11 = 127;
+    this.globalCC7 = 127;
+    this.silentAudioElement = null;
+  }
+
+  /**
+   * Configures iOS AudioSession and media playback mode to bypass the hardware silent switch.
+   */
+  configureIosAudioSession() {
+    // 1. Modern iOS WebKit standard (iOS 17+)
+    if (typeof navigator !== 'undefined' && navigator.audioSession) {
+      try {
+        navigator.audioSession.type = 'playback';
+      } catch (err) {
+        console.warn('Failed to set navigator.audioSession.type:', err);
+      }
+    }
+
+    // 2. Trigger native iOS CoreMidiPlugin audio session configuration
+    if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.CoreMidiPlugin?.configureAudioSession) {
+      window.Capacitor.Plugins.CoreMidiPlugin.configureAudioSession().catch(() => {});
+    }
+
+    // 3. Universal WebKit silent audio loop (forces iOS WebAudio into media playback category)
+    if (!this.silentAudioElement && typeof document !== 'undefined') {
+      try {
+        const audio = document.createElement('audio');
+        audio.setAttribute('x-webkit-airplay', 'deny');
+        audio.setAttribute('playsinline', 'true');
+        audio.loop = true;
+        audio.volume = 0.001;
+        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        const playPromise = audio.play();
+        if (playPromise) playPromise.catch(() => {});
+        this.silentAudioElement = audio;
+      } catch (e) {
+        console.warn('Could not start silent audio element:', e);
+      }
+    } else if (this.silentAudioElement && this.silentAudioElement.paused) {
+      this.silentAudioElement.play().catch(() => {});
+    }
   }
 
   /**
    * Initializes the Web Audio context and audio graph.
    */
   async initAudio() {
+    this.configureIosAudioSession();
+
     if (this.isAudioStarted && this.ctx) {
       if (this.ctx.state === 'suspended') {
         await this.ctx.resume();
@@ -494,14 +540,22 @@ export class SynthEngine {
       }
     }
 
-    // 2. Prioritize completely idle voices so repeated note strikes don't choke previous tails
+    // 2. If a voice playing this note on this channel is currently in release, reuse it
+    // rather than consuming a new polyphony slot on rapid repetitive key strikes.
+    for (const voice of this.voices) {
+      if (voice.isActive && voice.isReleasing && voice.note === note && voice.channel === channel) {
+        return voice;
+      }
+    }
+
+    // 3. Prioritize completely idle voices so distinct notes have full release tails
     for (const voice of this.voices) {
       if (!voice.isActive) {
         return voice;
       }
     }
 
-    // 3. Prioritize oldest voice in release phase
+    // 4. Prioritize oldest voice in release phase
     let oldestReleaseTime = Infinity;
     let oldestReleaseVoice = null;
     for (const voice of this.voices) {
@@ -512,7 +566,7 @@ export class SynthEngine {
     }
     if (oldestReleaseVoice) return oldestReleaseVoice;
 
-    // 4. Steal oldest active voice (LRU)
+    // 5. Steal oldest active voice (LRU)
     let oldestNoteTime = Infinity;
     let oldestVoice = this.voices[0];
     for (const voice of this.voices) {
@@ -532,9 +586,12 @@ export class SynthEngine {
 
     const voice = this.allocateVoice(note, channel);
     // Inherit current CC state for this voice
+    const activeVolumeCC = Number(this.params.volumeCC) || 11;
+    const initialVolume = activeVolumeCC === 7 ? (this.globalCC7 ?? 127) : (this.globalCC11 ?? 127);
     voice.cc73Cutoff = this.globalCC73;
+    voice.cc74Timbre = this.globalCC74;
     voice.cc1Resonance = this.globalCC1;
-    voice.cc11Expression = this.globalCC11;
+    voice.cc11Expression = initialVolume;
 
     voice.noteOn(note, velocity, channel, this.params);
     this.notifyVoiceState();
@@ -568,6 +625,19 @@ export class SynthEngine {
   }
 
   /**
+   * Emergency panic: immediately silences and releases all voices.
+   */
+  panic() {
+    for (const voice of this.voices) {
+      if (voice.isActive) {
+        voice.stopImmediate();
+      }
+    }
+
+    this.notifyVoiceState();
+  }
+
+  /**
    * Handles 14-bit pitch bend for a specific channel.
    * In MPE:
    * - Master Channel (usually 1): affects all voices
@@ -591,35 +661,57 @@ export class SynthEngine {
 
   /**
    * Handles Control Change (CC) messages.
-   * CC73: Filter Cutoff
+   * CC73 / CC74: Filter Cutoff / MPE Timbre
    * CC1: Mod Wheel -> Resonance
    * CC11: Expression -> Volume
    */
   setCC(channel, ccNumber, value) {
     const isMaster = channel === this.params.mpeMasterChannel;
 
-    if (ccNumber === 73) {
-      // CC73: Cutoff
+    if (ccNumber === 73 || ccNumber === 74) {
+      // CC73 & CC74: Filter Cutoff / MPE Timbre
       this.globalCC73 = value;
+      this.globalCC74 = value;
+      if (isMaster) {
+        const minLog = Math.log(20);
+        const maxLog = Math.log(20000);
+        this.params.filterCutoff = Math.exp(minLog + (value / 127) * (maxLog - minLog));
+      }
       for (const voice of this.voices) {
         if (isMaster || voice.channel === channel) {
-          voice.setCC(73, value);
+          voice.setCC(ccNumber, value);
         }
       }
     } else if (ccNumber === 1) {
-      // CC1: Mod Wheel -> Resonance
+      // CC1: Mod Wheel -> Filter Resonance OR LFO Rate based on cc1Target setting
       this.globalCC1 = value;
-      for (const voice of this.voices) {
-        if (isMaster || voice.channel === channel) {
-          voice.setCC(1, value);
+      if (this.params.cc1Target === 'lforate') {
+        const minLog = Math.log(0.1);
+        const maxLog = Math.log(20.0);
+        const rate = +(Math.exp(minLog + (value / 127) * (maxLog - minLog))).toFixed(1);
+        this.params.lfoRate = rate;
+        if (this.lfoOsc) {
+          this.lfoOsc.frequency.setTargetAtTime(rate, this.ctx.currentTime, 0.02);
+        }
+      } else {
+        for (const voice of this.voices) {
+          if (isMaster || voice.channel === channel) {
+            voice.setCC(1, value);
+          }
         }
       }
-    } else if (ccNumber === 11) {
-      // CC11: Expression -> Volume
-      this.globalCC11 = value;
-      for (const voice of this.voices) {
-        if (isMaster || voice.channel === channel) {
-          voice.setCC(11, value);
+    } else if (ccNumber === 11 || ccNumber === 7) {
+      // Volume control (assigned to CC11 Expression or CC7 Channel Volume)
+      const activeVolumeCC = Number(this.params.volumeCC) || 11;
+      if (ccNumber === 7) this.globalCC7 = value;
+      if (ccNumber === 11) this.globalCC11 = value;
+
+      // If incoming CC matches the configured volume CC (or if either was sent), route to voices
+      if (ccNumber === activeVolumeCC) {
+        for (const voice of this.voices) {
+          if (isMaster || voice.channel === channel) {
+            voice.setCC(activeVolumeCC, value);
+          }
         }
       }
     }
@@ -632,6 +724,17 @@ export class SynthEngine {
     const isMaster = channel === this.params.mpeMasterChannel;
     for (const voice of this.voices) {
       if (voice.isActive && (isMaster || voice.channel === channel)) {
+        voice.setPressure(value);
+      }
+    }
+  }
+
+  /**
+   * Handles Polyphonic Key Pressure (Poly Aftertouch).
+   */
+  setPolyPressure(channel, note, value) {
+    for (const voice of this.voices) {
+      if (voice.isActive && voice.note === note && (voice.channel === channel || channel === 1 || voice.channel === 1)) {
         voice.setPressure(value);
       }
     }

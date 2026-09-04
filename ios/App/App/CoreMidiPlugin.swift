@@ -1,7 +1,7 @@
-// ios/App/App/CoreMidiPlugin.swift
 import Foundation
 import Capacitor
 import CoreMIDI
+import AVFoundation
 
 @objc(CoreMidiPlugin)
 public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -12,7 +12,8 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "scanInputs", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listOutputs", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "sendMidi", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getDiagnostics", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getDiagnostics", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "configureAudioSession", returnType: CAPPluginReturnPromise)
     ]
 
     public static weak var shared: CoreMidiPlugin?
@@ -24,6 +25,7 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
     private var rxPacketCount: Int = 0
     private var lastRxBytesHex: String = "none"
     private var lastError: String?
+    private var sysexBuffers = [String: [UInt8]]()
 
     override public func load() {
         super.load()
@@ -74,15 +76,11 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
             for _ in 0..<numPackets {
                 let length = Int(packetPtr.pointee.length)
                 if length > 0 {
-                    var bytes = [UInt8](repeating: 0, count: length)
-                    withUnsafeBytes(of: packetPtr.pointee.data) { rawBuffer in
-                        for i in 0..<min(length, rawBuffer.count) {
-                            bytes[i] = rawBuffer[i]
-                        }
-                    }
+                    let dataStart = UnsafeRawPointer(packetPtr).advanced(by: 10).assumingMemoryBound(to: UInt8.self)
+                    let bytes = Array(UnsafeBufferPointer(start: dataStart, count: length))
                     if !bytes.isEmpty {
                         DispatchQueue.main.async {
-                            self?.notifyMidiBytes(bytes, sourceId: sourceId, sourceName: sourceName)
+                            self?.handleIncomingMidiBytes(bytes, sourceId: sourceId, sourceName: sourceName)
                         }
                     }
                 }
@@ -147,7 +145,7 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
             let name = getEndpointName(src)
             let isNetwork = name.localizedCaseInsensitiveContains("network session") || name.localizedCaseInsensitiveContains("rtp")
             list.append([
-                "id": "\(uniqueID != 0 ? uniqueID : Int32(i))",
+                "id": "\(uniqueID != 0 ? uniqueID : Int32(src))",
                 "name": name,
                 "isNetwork": isNetwork
             ])
@@ -162,9 +160,91 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
         return list
     }
 
+    private func handleIncomingMidiBytes(_ bytes: [UInt8], sourceId: String, sourceName: String) {
+        guard !bytes.isEmpty else { return }
+
+        // If we are currently accumulating a fragmented SysEx message for this source:
+        if var currentSysex = sysexBuffers[sourceId] {
+            var i = 0
+            while i < bytes.count {
+                let b = bytes[i]
+
+                // Real-time messages (0xF8 - 0xFF) can be interleaved in SysEx streams without interrupting
+                if b >= 0xF8 {
+                    notifyMidiBytes([b], sourceId: sourceId, sourceName: sourceName)
+                    i += 1
+                    continue
+                }
+
+                if b == 0xF7 {
+                    // SysEx complete!
+                    currentSysex.append(b)
+                    sysexBuffers.removeValue(forKey: sourceId)
+                    notifyMidiBytes(currentSysex, sourceId: sourceId, sourceName: sourceName)
+
+                    if i + 1 < bytes.count {
+                        let remaining = Array(bytes[(i + 1)...])
+                        handleIncomingMidiBytes(remaining, sourceId: sourceId, sourceName: sourceName)
+                    }
+                    return
+                } else if b == 0xF0 {
+                    // New SysEx start resets buffer
+                    currentSysex = [b]
+                    i += 1
+                } else {
+                    currentSysex.append(b)
+                    i += 1
+                }
+            }
+
+            if currentSysex.count > 131072 {
+                // Safeguard against unbounded memory growth
+                sysexBuffers.removeValue(forKey: sourceId)
+                notifyMidiBytes(currentSysex, sourceId: sourceId, sourceName: sourceName)
+            } else {
+                sysexBuffers[sourceId] = currentSysex
+            }
+            return
+        }
+
+        // Not currently in a SysEx message. Check if this packet begins or contains SysEx:
+        if let sysexStartIndex = bytes.firstIndex(of: 0xF0) {
+            // Dispatch any normal MIDI messages preceding 0xF0
+            if sysexStartIndex > 0 {
+                let leading = Array(bytes[0..<sysexStartIndex])
+                notifyMidiBytes(leading, sourceId: sourceId, sourceName: sourceName)
+            }
+
+            let sysexBytes = Array(bytes[sysexStartIndex...])
+            if let sysexEndIndex = sysexBytes.firstIndex(of: 0xF7) {
+                // Complete SysEx in this single packet
+                let completeSysex = Array(sysexBytes[0...sysexEndIndex])
+                notifyMidiBytes(completeSysex, sourceId: sourceId, sourceName: sourceName)
+
+                if sysexEndIndex + 1 < sysexBytes.count {
+                    let trailing = Array(sysexBytes[(sysexEndIndex + 1)...])
+                    handleIncomingMidiBytes(trailing, sourceId: sourceId, sourceName: sourceName)
+                }
+            } else {
+                // Fragmented SysEx start: buffer and wait for continuation / 0xF7
+                sysexBuffers[sourceId] = sysexBytes
+            }
+            return
+        }
+
+        // Regular MIDI packet with no SysEx
+        notifyMidiBytes(bytes, sourceId: sourceId, sourceName: sourceName)
+    }
+
     public func notifyMidiBytes(_ bytes: [UInt8], sourceId: String = "", sourceName: String = "") {
         rxPacketCount += 1
-        lastRxBytesHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+        if bytes.count > 64 {
+            let prefix = bytes.prefix(24).map { String(format: "%02X", $0) }.joined(separator: " ")
+            let suffix = bytes.suffix(8).map { String(format: "%02X", $0) }.joined(separator: " ")
+            lastRxBytesHex = "\(prefix) ... (\(bytes.count) bytes) ... \(suffix)"
+        } else {
+            lastRxBytesHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+        }
         print("[CoreMidiPlugin] RX MIDI [\(rxPacketCount)] from \(sourceName) (\(sourceId)): \(lastRxBytesHex)")
 
         // 1. Direct WKWebView Event Dispatch (Fastest, zero-serialization, 100% reliable)
@@ -349,5 +429,16 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
             "listenerCount": listeners,
             "hasWebView": self.webView != nil
         ])
+    }
+
+    @objc public func configureAudioSession(_ call: CAPPluginCall) {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+            call.resolve(["status": "active", "category": "playback"])
+        } catch {
+            call.reject("Failed to set AVAudioSession: \(error.localizedDescription)")
+        }
     }
 }

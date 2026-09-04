@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AVFoundation
 
 class SynthBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
@@ -12,6 +13,15 @@ class SynthBridgeViewController: CAPBridgeViewController {
 
     override open func viewDidLoad() {
         super.viewDidLoad()
+
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            print("[SynthBridgeViewController] Failed to configure AVAudioSession: \(error)")
+        }
+
         if bridge?.plugin(withName: "CoreMidiPlugin") == nil {
             bridge?.registerPluginInstance(CoreMidiPlugin())
             print("[SynthBridgeViewController] Registered CoreMidiPlugin instance in viewDidLoad")
