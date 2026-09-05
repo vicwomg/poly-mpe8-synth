@@ -1,6 +1,6 @@
 {
   "appId": "com.vicwomg.polympe8synth",
-  "appName": "Poly-MPE8",
+  "appName": "PolyMPE-8",
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {

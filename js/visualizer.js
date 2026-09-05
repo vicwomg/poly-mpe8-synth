@@ -34,6 +34,9 @@ export class Visualizer {
       this.freqs[i] = minFreq * Math.pow(maxFreq / minFreq, i / (this.numFilterPoints - 1));
     }
 
+    // Pre-allocated typed array for oscilloscope to eliminate 60fps GC churn on mobile/Android
+    this.oscDataArray = new Uint8Array(512);
+
     this.mockFilter = null;
     this.lastFrameTime = 0;
     this.targetFps = this.isMobile ? 30 : 60;
@@ -121,8 +124,8 @@ export class Visualizer {
     }
 
     const bufferLength = Math.min(512, this.synth.analyser.frequencyBinCount); // 512 points is plenty and 4x faster
-    const dataArray = new Uint8Array(bufferLength);
-    this.synth.analyser.getByteTimeDomainData(dataArray);
+    this.synth.analyser.getByteTimeDomainData(this.oscDataArray);
+    const dataArray = this.oscDataArray;
 
     // Fast glow without expensive shadowBlur (which forces CPU rasterization on mobile)
     ctx.lineWidth = 2;
@@ -181,12 +184,16 @@ export class Visualizer {
       this.mockFilter.type = 'lowpass';
     }
 
-    // Effective cutoff considering global base
-    const baseCutoff = this.synth.params.filterCutoff || 2000;
+    // Effective cutoff considering global base and live UI interpolation
+    const baseCutoff = (this.synth.ui && this.synth.ui.currentDisplayCutoff !== undefined)
+      ? this.synth.ui.currentDisplayCutoff
+      : (this.synth.params.filterCutoff || 2000);
     const effectiveCutoff = Math.max(20, Math.min(20000, baseCutoff));
 
     // Resonance Q considering base + CC1 (when cc1Target is resonance)
-    const baseQ = this.synth.params.filterResonance !== undefined ? this.synth.params.filterResonance : 1.0;
+    const baseQ = (this.synth.ui && this.synth.ui.currentDisplayResonance !== undefined)
+      ? this.synth.ui.currentDisplayResonance
+      : (this.synth.params.filterResonance !== undefined ? this.synth.params.filterResonance : 1.0);
     const isResoTarget = this.synth.params.cc1Target !== 'lforate';
     const modWheelQ = isResoTarget ? (this.synth.globalCC1 / 127) * 18 : 0;
     const effectiveQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ));

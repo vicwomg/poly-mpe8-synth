@@ -6,7 +6,9 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <title>Poly-MPE8</title>
+    <title>PolyMPE-8</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="assets/icon-pm8.png" />
     <link rel="stylesheet" href="css/style.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,7 +23,7 @@
       <header class="synth-header">
         <div class="header-left">
           <div class="brand">
-            <h1>POLY-MPE<span>8</span></h1>
+            <h1>POLYMPE<span>-8</span></h1>
           </div>
 
           <!-- Audio Start Button (Hidden once audio is started) -->
@@ -119,13 +121,15 @@
           <!-- Panic / All Notes Off (Hidden until audio is started) -->
           <button
             id="btn-panic"
-            class="btn btn-panic audio-running-only"
+            class="btn btn-icon btn-panic audio-running-only"
             title="Silence All Stuck Notes (Panic)"
           >
             <img
               src="assets/icon-panic.png"
               alt="Panic"
               class="panic-icon-img"
+              width="13"
+              height="13"
             />
           </button>
 
@@ -201,7 +205,7 @@
                       Low Latency (10ms) [Default]
                     </option>
                     <option value="balanced">
-                      Balanced (25ms) [Safe for Android]
+                      Balanced (25ms) [Medium Latency]
                     </option>
                     <option value="safe">Safe Headroom (50ms)</option>
                   </select>
@@ -220,8 +224,8 @@
               <div class="settings-title">Polyphony Mode</div>
               <p class="settings-desc">
                 8-voice polyphony provides full chordal richness. 4-voice Eco
-                mode halves CPU and oscillator/filter calculations for budget
-                mobile phones.
+                mode halves CPU and oscillator/filter calculations for power-saving
+                or legacy devices.
               </p>
               <div class="settings-row">
                 <label for="poly-select">Voice Allocation:</label>
@@ -262,7 +266,7 @@
               >
                 Dual-tier keep-awake: Combines the W3C WakeLock API with an
                 HTML5 media keep-alive fallback for non-HTTPS connections and
-                Android Motorola devices.
+                devices without native WakeLock support.
               </p>
             </div>
 
@@ -389,7 +393,7 @@
                   >
                     SHOW
                   </button>
-                  <button id="btn-clear-log" class="btn btn-xs">CLEAR</button>
+                  <button id="btn-clear-log" class="btn btn-xs" style="display: none;">CLEAR</button>
                 </div>
               </div>
               <p class="settings-desc">
@@ -420,7 +424,7 @@
                   </tbody>
                 </table>
               </div>
-              <div id="midi-log-placeholder" class="midi-log-placeholder">
+              <div id="midi-log-placeholder" class="midi-log-placeholder" style="display: none;">
                 <span
                   >Monitor paused for max performance. Tap
                   <strong>SHOW</strong> to view live MIDI events.</span
@@ -438,7 +442,7 @@
                   </p>
                 </div>
                 <button id="btn-open-about" class="btn btn-sm" type="button">
-                  About POLY-MPE ↗
+                  About PolyMPE-8 ↗
                 </button>
               </div>
             </div>
@@ -466,18 +470,17 @@
       <div id="synth-info-modal" class="modal-overlay" style="display: none">
         <div class="modal-card">
           <div class="modal-header">
-            <h3>🎹 POLY-MPE // About & Features</h3>
+            <h3>🎹 PolyMPE-8 // About & Features</h3>
             <button id="btn-close-info" class="btn btn-xs">✕</button>
           </div>
           <div class="modal-body">
             <div class="help-section">
-              <h4>About POLY-MPE</h4>
+              <h4>About PolyMPE-8</h4>
               <p>
-                <strong>POLY-MPE</strong> is an expressive 8-voice polyphonic
-                synthesizer engine engineered entirely with the native Web Audio
-                and Web MIDI APIs. It bridges classic analog subtractive
-                synthesis with modern multidimensional MIDI Polyphonic
-                Expression (MPE).
+                <strong>PolyMPE-8</strong> is a streamlined, expressive 8-voice
+                polyphonic synthesizer designed for immediate hands-on playing and sound creation.
+                Built around classic analog subtractive synthesis with modern MIDI Polyphonic
+                Expression (MPE), it offers rich warmth, effortless control, and zero friction.
               </p>
             </div>
 
@@ -485,34 +488,33 @@
               <h4>Key Features</h4>
               <ul>
                 <li>
-                  <strong>8 Polyphonic Voices:</strong> Pre-allocated
-                  zero-garbage-collection audio graph with round-robin
-                  allocation and 2.5ms anti-pop micro-fades.
+                  <strong>8-Voice Polyphony:</strong> Lush, full chords and multi-layered
+                  voicings with seamless note allocation.
                 </li>
                 <li>
                   <strong>Dual Multi-Wave Oscillators:</strong> Sawtooth,
                   Square, Triangle, and Sine waveforms with octave shifting (-2
-                  to +2), semitone transpose, and fine cents detuning.
+                  to +2), semitone transpose, and fine cents detuning for thick analog leads and pads.
                 </li>
                 <li>
-                  <strong>Resonant Low-Pass Filter:</strong> 20Hz - 20kHz cutoff
-                  with resonance Q, ADSR envelope generator, key tracking, and
-                  CC73 cutoff control.
+                  <strong>Resonant Low-Pass Filter:</strong> Warm 20Hz - 20kHz cutoff
+                  with resonance Q, dedicated ADSR envelope, key tracking, and
+                  hardware MIDI cutoff mapping.
                 </li>
                 <li>
-                  <strong>MPE Expressive Controls:</strong> Continuous per-note
-                  pitch bend (±48 semitones), CC11 expression/volume, CC1 mod
-                  wheel resonance, and channel aftertouch.
+                  <strong>Expressive MPE & MIDI:</strong> Continuous per-note
+                  pitch bend (±48 semitones), polyphonic pressure/aftertouch, CC11 expression/volume,
+                  and mod wheel routing.
                 </li>
                 <li>
-                  <strong>Stereo Delay & Studio Limiter:</strong> Dual-channel
-                  ping-pong stereo delay with feedback and studio soft-clip
-                  dynamics compressor.
+                  <strong>Stereo Delay & Dynamics:</strong> Dual-channel
+                  ping-pong stereo delay with feedback and soft-clip dynamics
+                  for expansive stereo depth.
                 </li>
                 <li>
                   <strong>Performance Tools:</strong> 2D MPE Touchpad for XY
                   expression testing and on-screen keyboard mapped directly to
-                  your computer keyboard.
+                  your computer keyboard or touchscreen.
                 </li>
               </ul>
             </div>

@@ -27,10 +27,15 @@ public class MainActivity extends BridgeActivity {
         // Hide OS status bar and navigation menus for maximum screen real estate
         enableImmersiveMode();
 
-        // Allow instant audio playback without requiring a manual user gesture
+        // Configure WebView performance flags for real-time audio synthesis
         if (this.bridge != null && this.bridge.getWebView() != null) {
-            WebSettings settings = this.bridge.getWebView().getSettings();
+            android.webkit.WebView webView = this.bridge.getWebView();
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            WebSettings settings = webView.getSettings();
             settings.setMediaPlaybackRequiresUserGesture(false);
+            settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+            settings.setDomStorageEnabled(true);
+            settings.setDatabaseEnabled(true);
         }
     }
 

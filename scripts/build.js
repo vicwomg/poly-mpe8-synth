@@ -32,7 +32,7 @@ if (fs.existsSync(outDir)) {
 fs.mkdirSync(outDir, { recursive: true });
 
 // Copy essential directories and files
-const itemsToCopy = ['index.html', 'midisteel_settings.html', 'css', 'js', 'assets'];
+const itemsToCopy = ['index.html', 'midisteel_settings.html', 'favicon.png', 'css', 'js', 'assets'];
 
 for (const item of itemsToCopy) {
   const srcPath = path.join(rootDir, item);

@@ -217,6 +217,10 @@ export class SynthVoice {
     }
   }
 
+  stopImmediate() {
+    this.kill();
+  }
+
   stopOscillators() {
     if (this.osc1) {
       try { this.osc1.stop(); } catch (e) {}

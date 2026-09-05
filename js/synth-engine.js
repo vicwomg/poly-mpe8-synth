@@ -7,10 +7,24 @@ import { SynthVoice } from './synth-voice.js';
 export class SynthEngine {
   constructor() {
     this.ctx = null;
-    this.isAudioStarted = false;
-    this.bufferMode = localStorage.getItem('synth_buffer_mode') || 'ultralow';
-    this.voiceCount = parseInt(localStorage.getItem('synth_voice_count') || '8', 10);
+    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+    const savedBuffer = typeof localStorage !== 'undefined' ? localStorage.getItem('synth_buffer_mode') : null;
+    // On Android, default to 'interactive' (10ms buffer) for crisp response
+    if (isAndroid) {
+      if (!savedBuffer || savedBuffer === 'ultralow' || savedBuffer === 'balanced') {
+        this.bufferMode = 'interactive';
+        try { localStorage.setItem('synth_buffer_mode', 'interactive'); } catch (_) {}
+      } else {
+        this.bufferMode = savedBuffer;
+      }
+    } else {
+      this.bufferMode = savedBuffer || 'ultralow';
+    }
+
+    this.voiceCount = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('synth_voice_count')) || '8', 10);
     this.voices = [];
+    this.hasSmoothCutoff = false; // Set to true by UI when ballistic animation handles cutoff
+    this.ui = null;
     this.onVoiceStateChange = null; // Callback for UI voice meters
     this.onBufferStatChange = null; // Callback for UI buffer stats
 
@@ -140,8 +154,8 @@ export class SynthEngine {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 
     // Configurable buffer latency:
-    // 'balanced' (default 25ms): rock solid on Android / Moto G 5G, zero crackles
-    // 'interactive' (10ms): low latency for iOS / Pixel / PC
+    // 'interactive' (10ms): low latency default
+    // 'balanced' (25ms): medium latency buffer
     // 'ultralow' (0): raw hardware minimum (<5ms)
     // 'safe' (50ms): maximum safety buffer for heavy load
     let latencyOption = 0.025;
@@ -675,7 +689,12 @@ export class SynthEngine {
       if (isMaster) {
         const minLog = Math.log(20);
         const maxLog = Math.log(20000);
-        this.params.filterCutoff = Math.exp(minLog + (value / 127) * (maxLog - minLog));
+        const targetCutoff = Math.exp(minLog + (value / 127) * (maxLog - minLog));
+        // If UI ballistic slew is active, let UI smoothly interpolate params.filterCutoff
+        // to avoid race-condition jitter between raw MIDI stepping and visualizer
+        if (!this.hasSmoothCutoff) {
+          this.params.filterCutoff = targetCutoff;
+        }
       }
       for (const voice of this.voices) {
         if (isMaster || voice.channel === channel) {
@@ -740,15 +759,6 @@ export class SynthEngine {
     }
   }
 
-  /**
-   * Emergency Panic: Kills all active voices immediately.
-   */
-  panic() {
-    for (const voice of this.voices) {
-      voice.kill();
-    }
-    this.notifyVoiceState();
-  }
 
   notifyVoiceState() {
     if (typeof this.onVoiceStateChange === 'function') {

@@ -15,6 +15,9 @@ class SynthUI {
     this.presetManager = new PresetManager();
     this.currentPresetId = null;
     this.isMidiMonitorEnabled = false; // Disabled by default for maximum performance
+
+    this.synth.ui = this;
+    this.synth.hasSmoothCutoff = true;
   }
 
   async init() {
@@ -373,7 +376,7 @@ class SynthUI {
     // 8. Setup MPE Performance Controls & 2D Touchpad
     this.initPerformanceSection();
 
-    // 9. Setup Visualizer controls (hides oscilloscope by default on mobile)
+    // 9. Setup Visualizer controls (oscilloscope ON by default)
     this.setupVisualizerControls();
 
     // 10. Screen Wake Lock (prevents mobile/tablet sleep during playback)
@@ -565,8 +568,11 @@ class SynthUI {
     const oscBadge = document.getElementById('osc-badge');
     if (!btnToggleOsc || !oscCard) return;
 
-    // Oscilloscope is enabled by default across all devices
+    // Oscilloscope ON by default across all platforms
     let isEnabled = true;
+    if (this.visualizer) {
+      this.visualizer.setOscilloscopeEnabled(isEnabled);
+    }
 
     const updateOscUI = (enabled) => {
       if (enabled) {
@@ -577,7 +583,7 @@ class SynthUI {
       } else {
         oscCard.classList.add('collapsed');
         btnToggleOsc.textContent = 'SHOW';
-        oscBadge.textContent = 'PAUSED (SAVES CPU)';
+        oscBadge.textContent = 'PAUSED';
         oscBadge.classList.add('badge-muted');
       }
     };
@@ -1463,6 +1469,11 @@ class SynthUI {
     const midiBadge = document.getElementById('midi-mon-badge');
     const tableWrap = document.getElementById('midi-log-table-wrap');
     const placeholder = document.getElementById('midi-log-placeholder');
+    const btnClear = document.getElementById('btn-clear-log');
+
+    if (btnClear) {
+      btnClear.style.display = 'none'; // Hidden when monitor is paused
+    }
 
     if (btnToggleMidi) {
       btnToggleMidi.addEventListener('click', () => {
@@ -1470,6 +1481,7 @@ class SynthUI {
         if (this.isMidiMonitorEnabled) {
           if (tableWrap) tableWrap.style.display = 'block';
           if (placeholder) placeholder.style.display = 'none';
+          if (btnClear) btnClear.style.display = 'inline-flex';
           btnToggleMidi.textContent = 'HIDE';
           if (midiBadge) {
             midiBadge.textContent = 'LIVE';
@@ -1477,7 +1489,8 @@ class SynthUI {
           }
         } else {
           if (tableWrap) tableWrap.style.display = 'none';
-          if (placeholder) placeholder.style.display = 'flex';
+          if (placeholder) placeholder.style.display = 'none'; // Hide log area to save vertical space
+          if (btnClear) btnClear.style.display = 'none';
           btnToggleMidi.textContent = 'SHOW';
           if (midiBadge) {
             midiBadge.textContent = 'PAUSED';
@@ -1488,7 +1501,6 @@ class SynthUI {
     }
 
     // Clear MIDI Log button
-    const btnClear = document.getElementById('btn-clear-log');
     if (btnClear) {
       btnClear.addEventListener('click', () => {
         this.midiLogEntries = [];
