@@ -554,22 +554,14 @@ export class SynthEngine {
       }
     }
 
-    // 2. If a voice playing this note on this channel is currently in release, reuse it
-    // rather than consuming a new polyphony slot on rapid repetitive key strikes.
-    for (const voice of this.voices) {
-      if (voice.isActive && voice.isReleasing && voice.note === note && voice.channel === channel) {
-        return voice;
-      }
-    }
-
-    // 3. Prioritize completely idle voices so distinct notes have full release tails
+    // 2. Prioritize completely idle voices so repeated note strikes don't choke previous tails
     for (const voice of this.voices) {
       if (!voice.isActive) {
         return voice;
       }
     }
 
-    // 4. Prioritize oldest voice in release phase
+    // 3. Prioritize oldest voice in release phase
     let oldestReleaseTime = Infinity;
     let oldestReleaseVoice = null;
     for (const voice of this.voices) {
@@ -580,7 +572,7 @@ export class SynthEngine {
     }
     if (oldestReleaseVoice) return oldestReleaseVoice;
 
-    // 5. Steal oldest active voice (LRU)
+    // 4. Steal oldest active voice (LRU)
     let oldestNoteTime = Infinity;
     let oldestVoice = this.voices[0];
     for (const voice of this.voices) {
