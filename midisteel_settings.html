@@ -25,6 +25,11 @@
         --radius: 10px;
       }
 
+      html, body {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+
       * {
         box-sizing: border-box;
         margin: 0;
@@ -36,19 +41,41 @@
         background: var(--bg);
         color: var(--text);
         min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
         padding: 10px;
+      }
+
+      body.tab-log-active {
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+      }
+
+      body.tab-log-active .nav-tabs {
+        margin-bottom: 8px;
       }
 
       header {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 14px;
-        margin-bottom: 28px;
+        margin-bottom: 0px;
+        flex-wrap: nowrap;
       }
-
+      .header-title {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        white-space: nowrap;
+        min-width: 0;
+      }
       header h1 {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
         font-weight: 600;
+        white-space: nowrap;
       }
       header p {
         font-size: 0.8rem;
@@ -59,9 +86,11 @@
       .toolbar {
         display: flex;
         gap: 10px;
-        margin-bottom: 24px;
-        flex-wrap: wrap;
         align-items: center;
+        margin-left: auto;
+        justify-content: flex-end;
+        flex-shrink: 0;
+        flex-wrap: nowrap;
       }
 
       button {
@@ -134,13 +163,75 @@
       }
 
       /* Tuning grid */
+      .grid-scroll-wrap {
+        position: relative;
+        margin-bottom: 24px;
+      }
+
       .grid-wrapper {
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        margin-bottom: 24px;
+        margin-bottom: 0;
+      }
+
+      .table-scroll-overlay {
+        position: fixed;
+        top: 50%;
+        transform: translateY(-50%);
+        height: 40px;
+        width: 40px;
+        border-radius: 50%;
+        background: rgba(24, 27, 35, 0.88);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(167, 139, 250, 0.35);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px rgba(99, 102, 241, 0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 95;
+        pointer-events: none;
+        cursor: pointer;
+        padding: 0;
+        color: var(--accent2);
+        transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        opacity: 0;
+        visibility: hidden;
+      }
+      .table-scroll-overlay.visible {
+        opacity: 0.92;
+        visibility: visible;
+        pointer-events: auto;
+      }
+      .table-scroll-overlay:hover {
+        opacity: 1;
+        background: rgba(34, 38, 58, 0.95);
+        border-color: var(--accent2);
+        transform: translateY(-50%) scale(1.1);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 14px rgba(167, 139, 250, 0.4);
+      }
+      .table-scroll-overlay:active {
+        transform: translateY(-50%) scale(0.95);
+      }
+      .table-scroll-overlay.scroll-left {
+        left: 14px;
+      }
+      .table-scroll-overlay.scroll-right {
+        right: 14px;
+      }
+      .table-scroll-overlay svg {
+        color: var(--accent2);
+        filter: drop-shadow(0 0 2px rgba(167, 139, 250, 0.6));
+        transition: transform 0.15s ease;
+      }
+      .table-scroll-overlay.scroll-left:hover svg {
+        transform: translateX(-1.5px);
+      }
+      .table-scroll-overlay.scroll-right:hover svg {
+        transform: translateX(1.5px);
       }
 
       .grid-inner {
@@ -201,7 +292,7 @@
       }
       .tuning-row.active {
         background: rgba(108, 99, 255, 0.15) !important;
-        box-shadow: inset 4px 0 0 var(--accent);
+        box-shadow: inset 2px 0 0 var(--accent);
       }
       .tuning-row.active .name-header .row-idx {
         color: var(--accent2);
@@ -422,7 +513,7 @@
         border-radius: 5px;
         color: var(--text);
         font-family: inherit;
-        font-size: 0.75rem !important;
+        font-size: 16px !important;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
         padding: 2px 2px;
@@ -454,6 +545,15 @@
       .bend-input:hover,
       .bender-wrap:hover .bend-input {
         border-color: var(--accent);
+      }
+      .bend-input.pos {
+        color: var(--success);
+      }
+      .bend-input.neg {
+        color: var(--error);
+      }
+      .bend-input.zero {
+        color: var(--text);
       }
       .p1-bend {
         border-bottom: 2px solid #3b82f6; /* Blue indicator for P1 */
@@ -488,13 +588,23 @@
       }
 
       /* Log */
+      #tabLog {
+        flex: 1 1 0;
+        min-height: 0;
+        display: none;
+        flex-direction: column;
+      }
+
       .log-section {
-        margin-top: 8px;
+        margin-top: 4px;
+        margin-bottom: 6px;
+        display: flex;
+        flex-shrink: 0;
       }
       .log-section h3 {
         font-size: 0.8rem;
         color: var(--muted);
-        margin-bottom: 8px;
+        margin-bottom: 0;
         font-weight: 500;
       }
 
@@ -502,14 +612,21 @@
         background: #0a0c12;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        font-family: "SF Mono", "Fira Code", monospace;
-        font-size: 0.73rem;
+        font-family: "SF Mono", Menlo, Consolas, Monaco, "Fira Code", monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
         color: #9ca3af;
-        height: 400px;
+        flex: 1 1 0;
+        min-height: 0;
+        height: 100%;
         overflow-y: auto;
-        padding: 10px 12px;
+        padding: 8px 10px;
         white-space: pre-wrap;
         word-break: break-all;
+        margin-bottom: 2px;
+        box-sizing: border-box;
       }
       .log-ok {
         color: var(--success);
@@ -780,30 +897,26 @@
         margin-bottom: 10px;
       }
 
+      .tuning-hint {
+        font-size: 0.85rem;
+        line-height: 1.45;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+
       @media (max-width: 768px) {
         body {
           padding: 8px;
         }
-        header {
-          margin-bottom: 14px;
-        }
         header h1 {
           font-size: 1.2rem;
         }
-        .toolbar {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 14px;
+        .status-dot {
+          display: none;
         }
-        .toolbar #btnConnect,
-        .toolbar #btnLoad {
-          flex: 1 1 calc(50% - 6px);
-          min-width: 130px;
-          justify-content: center;
-          padding: 9px 6px;
+        .tuning-hint {
           font-size: 0.78rem;
-          min-height: 40px;
+          line-height: 1.4;
         }
         .settings-actions {
           justify-content: stretch;
@@ -813,9 +926,6 @@
           width: 100%;
           justify-content: center;
           min-height: 42px;
-        }
-        .status-dot {
-          display: none;
         }
         .ctrl-panel {
           display: grid;
@@ -877,7 +987,6 @@
           font-size: 16px !important;
         }
         .bend-input {
-          font-size: 0.75rem !important;
           width: 38px;
           max-width: 42px;
           padding: 2px 2px;
@@ -903,14 +1012,87 @@
         }
       }
 
+      @media (max-width: 600px) and (orientation: portrait) {
+        header {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+        }
+        .toolbar {
+          width: 100%;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 0;
+        }
+        .toolbar #btnConnect,
+        .toolbar #btnLoad {
+          flex: 1 1 calc(50% - 6px);
+          min-width: 120px;
+          justify-content: center;
+          padding: 8px 6px;
+          font-size: 0.78rem;
+          min-height: 36px;
+        }
+        body.tab-log-active .nav-tabs {
+          margin-bottom: 6px;
+        }
+        body.tab-log-active .log-section {
+          margin-top: 2px;
+          margin-bottom: 4px;
+        }
+      }
+
+      @media (orientation: landscape) and (max-width: 950px) {
+        body.tab-log-active {
+          padding: 6px 10px;
+        }
+        body.tab-log-active .nav-tabs {
+          margin-bottom: 4px;
+        }
+        body.tab-log-active .nav-tab-btn {
+          padding: 6px 14px;
+          font-size: 0.8rem;
+        }
+        body.tab-log-active .log-section {
+          margin-top: 2px;
+          margin-bottom: 4px;
+        }
+        header {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: nowrap;
+          gap: 10px;
+        }
+        .header-title h1 {
+          font-size: 1.15rem;
+          white-space: nowrap;
+        }
+        .toolbar {
+          margin-left: auto;
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          justify-content: flex-end;
+          flex-wrap: nowrap;
+          margin-bottom: 0;
+        }
+        .toolbar #btnConnect,
+        .toolbar #btnLoad {
+          flex: 0 0 auto;
+          min-width: auto;
+          padding: 6px 12px;
+          font-size: 0.78rem;
+          min-height: 32px;
+        }
+      }
+
       @media (pointer: coarse) {
         input[type="text"]:not(.bend-input):not(.semitone-val-input),
         input[type="number"]:not(.semitone-val-input),
         select {
           font-size: 16px !important;
-        }
-        .bend-input {
-          font-size: 0.75rem !important;
         }
       }
 
@@ -1421,22 +1603,18 @@
         margin-bottom: 24px;
       }
     </style>
-    <script src="js/midisteel-bridge.js"></script>
   </head>
   <body>
     <header>
-      <div>
-        <h1>MIDISTEEL – Settings</h1>
+      <div class="header-title">
+        <h1>MIDISteel settings</h1>
+      </div>
+      <div class="toolbar">
+        <div class="status-dot" id="statusDot"></div>
+        <button id="btnConnect">🔌 Connect</button>
+        <button id="btnLoad" disabled style="display: none">↓ Refresh</button>
       </div>
     </header>
-
-    <div class="toolbar">
-      <div class="status-dot" id="statusDot"></div>
-      <button id="btnConnect">🔌 Connect</button>
-      <button id="btnLoad" disabled style="display: none">
-        ↓ Refresh settings
-      </button>
-    </div>
 
     <nav class="nav-tabs" id="navTabs">
       <button class="nav-tab-btn active" data-tab="tabSettings">
@@ -1522,7 +1700,7 @@
               <button id="strMode8" title="8 String Mode">8 Strings</button>
             </div>
             <div class="hint" id="strModeHint">
-              Device string triggers (6 or 8 strings)
+              Available string triggers on this device (6 or 8 strings)
             </div>
           </div>
 
@@ -1598,7 +1776,7 @@
             </div>
             <div class="hint">
               Preset bank limit (1–128). Set this if you want hotkey patch
-              navigtion to wrap when they reach the end of the limit otherwise
+              navigtion to wrap when they reach the end of the limit. Otherwise
               leave at 128. Hotkey: Mode + 2&3 (Bank Up), Mode + 4&5 (Bank
               Down).
             </div>
@@ -1619,7 +1797,8 @@
               />
             </div>
             <div class="hint">
-              0 = infinite sustain. Hotkey: Hold Mode + turn CC Pot 1 (0–20s).
+              0 = infinite sustain. (Hotkey: Hold Mode + turn CC Pot 1, this
+              adjusts from 0–20 seconds).
             </div>
           </div>
 
@@ -1638,8 +1817,8 @@
               />
             </div>
             <div class="hint">
-              Pedal bend transition time. Hotkey: Hold Mode + turn CC Pot 2
-              (0–2000ms).
+              Pedal bend transition time. (Hotkey: Hold Mode + turn CC Pot 2,
+              this adjusts from 0–2000ms).
             </div>
           </div>
         </div>
@@ -1800,30 +1979,71 @@
 
       <!-- Tab 2: Tunings -->
       <div id="tabTunings" class="tab-panel" style="display: none">
-        <div class="hint" style="margin-bottom: 8px; color: var(--muted)">
+        <div class="tuning-hint">
           Hotkey to switch active tuning:
           <strong>Mode + Strings 1 to 8</strong>. Pedal bends are specified by
-          semitones. Ex: 2 for bending up a whole-step, -1 for bending down a
-          half-step
+          semitones.
         </div>
-        <div class="grid-wrapper" id="gridWrapper">
-          <div class="grid-inner" id="gridInner">
-            <div class="grid-header">
-              <span>Tuning</span>
-              <span
-                >Str 1<br /><small style="font-weight: 400">treble</small></span
-              >
-              <span>Str 2</span>
-              <span>Str 3</span>
-              <span>Str 4</span>
-              <span>Str 5</span>
-              <span>Str 6</span>
-              <span class="string-7-8">Str 7</span>
-              <span class="string-7-8"
-                >Str 8<br /><small style="font-weight: 400">bass</small></span
-              >
+        <div class="grid-scroll-wrap" id="gridScrollWrap">
+          <button
+            type="button"
+            class="table-scroll-overlay scroll-left"
+            id="tableScrollLeft"
+            aria-label="Scroll table left"
+            title="Scroll left"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              stroke="currentColor"
+              stroke-width="2.5"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="table-scroll-overlay scroll-right"
+            id="tableScrollRight"
+            aria-label="Scroll table right"
+            title="Scroll right"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              stroke="currentColor"
+              stroke-width="2.5"
+              fill="none"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+          <div class="grid-wrapper" id="gridWrapper">
+            <div class="grid-inner" id="gridInner">
+              <div class="grid-header">
+                <span>Tuning</span>
+                <span
+                  >Str 1<br /><small style="font-weight: 400">treble</small></span
+                >
+                <span>Str 2</span>
+                <span>Str 3</span>
+                <span>Str 4</span>
+                <span>Str 5</span>
+                <span>Str 6</span>
+                <span class="string-7-8">Str 7</span>
+                <span class="string-7-8"
+                  >Str 8<br /><small style="font-weight: 400">bass</small></span
+                >
+              </div>
+              <!-- rows injected by JS -->
             </div>
-            <!-- rows injected by JS -->
           </div>
         </div>
       </div>
@@ -1833,28 +2053,34 @@
     <!-- Tab 3: Serial log -->
     <div id="tabLog" class="tab-panel" style="display: none">
       <div class="log-section">
-        <h3>Serial log</h3>
-        <label
-          style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            color: var(--muted);
-            cursor: pointer;
-            margin-bottom: 8px;
-          "
-        >
-          <input
-            type="checkbox"
-            id="chkDebug"
-            style="width: 14px; height: 14px; cursor: pointer"
-            disabled
-          />
-          Enable serial debug
-        </label>
-        <div id="log"></div>
+        <div style="display: flex; justify-content: space-between; width: 100%">
+          <div>
+            <h3>Serial log</h3>
+          </div>
+          <div>
+            <label
+              style="
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.75rem;
+                color: var(--muted);
+                cursor: pointer;
+                margin-bottom: 8px;
+              "
+            >
+              <input
+                type="checkbox"
+                id="chkDebug"
+                style="width: 14px; height: 14px; cursor: pointer"
+                disabled
+              />
+              Debug-level output
+            </label>
+          </div>
+        </div>
       </div>
+      <div id="log"></div>
     </div>
 
     <!-- Note Picker Modal -->
@@ -1999,6 +2225,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h3>CC Reference</h3>
+          <p>Customize the sent MIDI CC value for this control.</p>
           <button id="closeModal">&times;</button>
         </div>
         <ul id="ccList"></ul>
@@ -2316,6 +2543,15 @@
       function formatBend(val) {
         const n = parseInt(val, 10) || 0;
         return n > 0 ? `+${n}` : `${n}`;
+      }
+
+      function updateBendClass(inp, val) {
+        if (!inp) return;
+        const n = parseInt(val !== undefined ? val : inp.value, 10) || 0;
+        inp.classList.remove("pos", "neg", "zero");
+        if (n > 0) inp.classList.add("pos");
+        else if (n < 0) inp.classList.add("neg");
+        else inp.classList.add("zero");
       }
 
       let currentSemitonePickerCallback = null;
@@ -3514,12 +3750,18 @@
         const connected = isConnected();
 
         if (tabId === "tabLog") {
+          document.body.classList.add("tab-log-active");
           if (tabSettings) tabSettings.style.display = "none";
           if (tabTunings) tabTunings.style.display = "none";
-          if (tabLog) tabLog.style.display = "block";
+          if (tabLog) {
+            tabLog.style.display = "flex";
+            const logEl = document.getElementById("log");
+            if (logEl) logEl.scrollTop = logEl.scrollHeight;
+          }
           if (notConnectedNotice) notConnectedNotice.style.display = "none";
           if (settingsBlocks) settingsBlocks.style.display = "none";
         } else {
+          document.body.classList.remove("tab-log-active");
           if (tabLog) tabLog.style.display = "none";
           if (tabSettings)
             tabSettings.style.display =
@@ -3527,7 +3769,6 @@
           if (tabTunings)
             tabTunings.style.display =
               tabId === "tabTunings" ? "block" : "none";
-
           if (connected) {
             if (notConnectedNotice) notConnectedNotice.style.display = "none";
             if (settingsBlocks) settingsBlocks.style.display = "block";
@@ -3538,6 +3779,10 @@
             if (notConnectedNotice) notConnectedNotice.style.display = "block";
             if (settingsBlocks) settingsBlocks.style.display = "none";
           }
+        }
+
+        if (typeof updateTableScrollIndicators === "function") {
+          setTimeout(updateTableScrollIndicators, 20);
         }
       }
 
@@ -3629,9 +3874,18 @@
             }
           }
 
-          // Priority 2: Fallback to the first available input and output port
-          if (!foundInput && inputs.length > 0) foundInput = inputs[0];
-          if (!foundOutput && outputs.length > 0) foundOutput = outputs[0];
+          // Priority 2: Fallback to non-virtual hardware port
+          const isVirtual = (p) => {
+            const n = `${p?.name || ''} ${p?.id || ''}`.toLowerCase();
+            return n.includes('iac') || n.includes('network') || n.includes('session') || n.includes('loop') || n.includes('virtual');
+          };
+
+          if (!foundInput) {
+            foundInput = inputs.find(i => !isVirtual(i)) || inputs[0];
+          }
+          if (!foundOutput) {
+            foundOutput = outputs.find(o => !isVirtual(o)) || outputs[0];
+          }
 
           if (!foundInput || !foundOutput) {
             throw new Error(
@@ -3641,6 +3895,16 @@
 
           midiInput = foundInput;
           midiOutput = foundOutput;
+          if (midiOutput && typeof midiOutput.open === "function") {
+            try {
+              await midiOutput.open();
+            } catch (_) {}
+          }
+          if (midiInput && typeof midiInput.open === "function") {
+            try {
+              await midiInput.open();
+            } catch (_) {}
+          }
           midiInput.onmidimessage = onMIDIMessage;
 
           updateConnectionUI(true);
@@ -3649,8 +3913,6 @@
             "log-info",
           );
           readBuffer = "";
-          sysexBuffer = [];
-          receivingSysex = false;
 
           setTimeout(() => loadFromDevice(), 500);
         } catch (e) {
@@ -3662,10 +3924,6 @@
         }
       }
 
-      let sysexBuffer = [];
-      let receivingSysex = false;
-      let sysexTimeout = null;
-
       function onMIDIMessage(event) {
         const data = event.data;
         if (!data || data.length === 0) return;
@@ -3676,98 +3934,53 @@
           triggerAlertAdvance();
         }
 
-        // Handle SysEx reception with multi-packet / chunked fragmentation support
-        let i = 0;
-        while (i < data.length) {
-          const byte = data[i];
+        if (data.length < 5) return;
 
-          if (byte === 0xf0) {
-            sysexBuffer = [0xf0];
-            receivingSysex = true;
-            if (sysexTimeout) clearTimeout(sysexTimeout);
-            sysexTimeout = setTimeout(flushSysexBuffer, 250);
-            i++;
-            continue;
-          }
-
-          if (receivingSysex) {
-            sysexBuffer.push(byte);
-            if (sysexTimeout) clearTimeout(sysexTimeout);
-            sysexTimeout = setTimeout(flushSysexBuffer, 250);
-
-            if (byte === 0xf7) {
-              if (sysexTimeout) {
-                clearTimeout(sysexTimeout);
-                sysexTimeout = null;
-              }
-              receivingSysex = false;
-              processCompleteSysEx(sysexBuffer);
-              sysexBuffer = [];
-            }
-            i++;
-            continue;
-          }
-
-          // If not currently inside 0xF0..0xF7 but this packet has SysEx data
-          i++;
-        }
-      }
-
-      function flushSysexBuffer() {
-        if (sysexTimeout) {
-          clearTimeout(sysexTimeout);
-          sysexTimeout = null;
-        }
-        if (receivingSysex && sysexBuffer.length >= 5) {
-          processCompleteSysEx(sysexBuffer);
-        }
-        receivingSysex = false;
-        sysexBuffer = [];
-      }
-
-      function processCompleteSysEx(bytes) {
-        if (!bytes || bytes.length === 0) return;
-
-        // 1. Direct standard MIDISteel SysEx header: F0 7D 4D 53 ...
+        // Check for Universal SysEx Identity Reply: F0 7E <devId> 06 02 7D 53 4D
         if (
-          bytes.length >= 5 &&
-          bytes[0] === 0xf0 &&
-          bytes[1] === 0x7d &&
-          bytes[2] === 0x4d &&
-          bytes[3] === 0x53
+          data.length >= 8 &&
+          data[0] === 0xf0 &&
+          data[1] === 0x7e &&
+          data[3] === 0x06 &&
+          data[4] === 0x02 &&
+          data[5] === 0x7d &&
+          ((data[6] === 0x53 && data[7] === 0x4d) || (data[6] === 0x4d && data[7] === 0x53))
         ) {
-          const endIdx =
-            bytes[bytes.length - 1] === 0xf7 ? bytes.length - 1 : bytes.length;
-          const textBytes = new Uint8Array(bytes.slice(4, endIdx));
-          const line = new TextDecoder().decode(textBytes);
-          onLine(line);
+          appendLog("MidiSteel confirmed via SysEx Identity Reply!", "log-info");
+          updateConnectionUI(true);
           return;
         }
 
-        // 2. Fallback search: Locate F0 7D 4D 53 sequence inside byte buffer
-        for (let i = 0; i <= bytes.length - 5; i++) {
+        // Check SysEx header: 7D 4D 53 ('\x7D' 'M' 'S').
+        // Scan up to byte 6 to tolerate redundant 0xF0 framing bytes from Chromium UMP translation.
+        let headerIdx = -1;
+        for (let i = 0; i + 2 < data.length && i < 6; i++) {
           if (
-            bytes[i] === 0xf0 &&
-            bytes[i + 1] === 0x7d &&
-            bytes[i + 2] === 0x4d &&
-            bytes[i + 3] === 0x53
+            data[i] === 0x7d &&
+            data[i + 1] === 0x4d &&
+            data[i + 2] === 0x53
           ) {
-            let endIdx = bytes.indexOf(0xf7, i + 4);
-            if (endIdx === -1) endIdx = bytes.length;
-            const textBytes = new Uint8Array(bytes.slice(i + 4, endIdx));
-            const line = new TextDecoder().decode(textBytes);
-            onLine(line);
-            return;
+            headerIdx = i + 3;
+            break;
           }
         }
 
-        // 3. Fallback: Buffer contains raw JSON text without full header
-        try {
-          const text = new TextDecoder().decode(new Uint8Array(bytes));
-          if (text.includes('{"tunings"') || text.includes("OK") || text.includes("ERR")) {
-            onLine(text);
+        if (headerIdx !== -1) {
+          let endIdx = data.length;
+          while (
+            endIdx > headerIdx &&
+            (data[endIdx - 1] === 0xf7 || data[endIdx - 1] === 0x00)
+          ) {
+            endIdx--;
           }
-        } catch (_) {}
+          const textBytes = data.subarray
+            ? data.subarray(headerIdx, endIdx)
+            : new Uint8Array(
+                Array.prototype.slice.call(data, headerIdx, endIdx),
+              );
+          const line = new TextDecoder().decode(textBytes);
+          onLine(line);
+        }
       }
 
       async function connectSerial() {
@@ -3849,8 +4062,6 @@
 
         updateConnectionUI(false);
         readBuffer = "";
-        sysexBuffer = [];
-        receivingSysex = false;
         appendLog("Disconnected.", "log-info");
       }
 
@@ -4021,18 +4232,10 @@
           // Give the board a moment to finish any boot messages that might corrupt the JSON
           await new Promise((r) => setTimeout(r, 200));
           readBuffer = ""; // Flush the buffer before requesting JSON to avoid prepending stale text
-          sysexBuffer = [];
-          receivingSysex = false;
 
           await sendLine("loadSettings");
           const line = await waitForResponse("loadSettings", 4000);
-          let jsonStr = line.trim();
-          const jsonStart = jsonStr.indexOf("{");
-          const jsonEnd = jsonStr.lastIndexOf("}");
-          if (jsonStart !== -1 && jsonEnd > jsonStart) {
-            jsonStr = jsonStr.slice(jsonStart, jsonEnd + 1);
-          }
-          const data = JSON.parse(jsonStr);
+          const data = JSON.parse(line);
           window.lastTunings = data.tunings;
           window.lastActiveTuning = data.current;
           renderGrid(data.tunings, data.current);
@@ -4284,6 +4487,7 @@
           nameInput.type = "text";
           nameInput.className = "name-input";
           nameInput.value = t.name;
+          nameInput.dataset.default = t.name || "";
           nameInput.maxLength = 8;
           nameInput.title = "Tuning name (max 8 chars)";
           nameWrap.appendChild(nameInput);
@@ -4337,6 +4541,7 @@
             inp.type = "text";
             inp.className = "note-input";
             inp.value = midiToName(t.notes[s]);
+            inp.dataset.default = inp.value;
             inp.title = `String ${s + 1} — MIDI ${t.notes[s]} (Click to select note)`;
             inp.style.textAlign = "center";
             inp.readOnly = true;
@@ -4379,6 +4584,8 @@
               inp.type = "text";
               inp.className = `bend-input ${className}`;
               inp.value = formatBend(value || 0);
+              inp.dataset.default = inp.value;
+              updateBendClass(inp, value || 0);
               inp.readOnly = true;
               inp.title = `Pedal ${pedalNum}, String ${s + 1} (${inp.value} st) — Click to edit`;
               lbl.title = `Pedal ${pedalNum}, String ${s + 1} — Click to edit`;
@@ -4408,6 +4615,7 @@
                   onApply: (newVal) => {
                     if (parseInt(inp.value, 10) !== newVal) {
                       inp.value = formatBend(newVal);
+                      updateBendClass(inp, newVal);
                       inp.title = `Pedal ${pedalNum}, String ${s + 1} (${inp.value} st) — Click to edit`;
                       markFieldDirty(row, inp);
                     }
@@ -4491,6 +4699,7 @@
                     const newVal = arr[i] || 0;
                     if (parseInt(inpList[i].value, 10) !== newVal) {
                       inpList[i].value = formatBend(newVal);
+                      updateBendClass(inpList[i], newVal);
                       inpList[i].title =
                         `${formatBend(newVal)} st — Click to edit`;
                       changedFields.push(inpList[i]);
@@ -4504,9 +4713,17 @@
                 checkBend(p5Inputs, p.p5);
                 checkBend(p6Inputs, p.p6);
               }
-              if (changedFields.length > 0) {
-                markFieldsDirty(row, changedFields);
-              }
+              const allRowInputs = [
+                nameInput,
+                ...noteInputs,
+                ...p1Inputs,
+                ...p2Inputs,
+                ...p3Inputs,
+                ...p4Inputs,
+                ...p5Inputs,
+                ...p6Inputs,
+              ];
+              markFieldsDirty(row, allRowInputs);
             }
             e.target.value = ""; // Reset dropdown
           });
@@ -4521,30 +4738,62 @@
 
           container.appendChild(row);
         });
+
+        if (typeof updateTableScrollIndicators === "function") {
+          updateTableScrollIndicators();
+        }
+      }
+
+      function updateRowDirtyState(row) {
+        if (!row) return;
+        const saveBtn = row.querySelector(".save-btn");
+        if (!saveBtn) return;
+        const anyDirty = !!row.querySelector("input.dirty");
+        if (anyDirty) {
+          saveBtn.classList.add("dirty");
+          saveBtn.textContent = "Save *";
+        } else {
+          saveBtn.classList.remove("dirty");
+          saveBtn.textContent = "Save";
+        }
       }
 
       function markFieldDirty(row, el) {
-        if (el && !el.classList.contains("error")) {
-          el.classList.add("dirty");
+        if (!el) return;
+        if (el.dataset.default !== undefined) {
+          if (el.value !== el.dataset.default) {
+            if (!el.classList.contains("error")) {
+              el.classList.add("dirty");
+            }
+          } else {
+            el.classList.remove("dirty");
+          }
+        } else {
+          if (!el.classList.contains("error")) {
+            el.classList.add("dirty");
+          }
         }
-        const saveBtn = row.querySelector(".save-btn");
-        if (saveBtn) {
-          saveBtn.classList.add("dirty");
-          saveBtn.textContent = "Save *";
-        }
+        updateRowDirtyState(row);
       }
 
       function markFieldsDirty(row, elements) {
         elements.forEach((el) => {
-          if (el && !el.classList.contains("error")) {
-            el.classList.add("dirty");
+          if (!el) return;
+          if (el.dataset.default !== undefined) {
+            if (el.value !== el.dataset.default) {
+              if (!el.classList.contains("error")) {
+                el.classList.add("dirty");
+              }
+            } else {
+              el.classList.remove("dirty");
+            }
+          } else {
+            if (!el.classList.contains("error")) {
+              el.classList.add("dirty");
+            }
           }
         });
-        const saveBtn = row.querySelector(".save-btn");
-        if (saveBtn) {
-          saveBtn.classList.add("dirty");
-          saveBtn.textContent = "Save *";
-        }
+        updateRowDirtyState(row);
       }
 
       async function saveRow(
@@ -4606,6 +4855,9 @@
             n.classList.remove("dirty");
             n.classList.add("saved");
           });
+          allInputs.forEach((n) => {
+            n.dataset.default = n.value;
+          });
           btn.classList.remove("dirty");
           btn.textContent = "Save";
           setTimeout(() => {
@@ -4643,9 +4895,126 @@
         }
       });
 
+      // ── Tuning Table Scroll Indicators ────────────────────────────────────
+      function updateTableScrollIndicators() {
+        const gridWrapper = document.getElementById("gridWrapper");
+        const leftBtn =
+          document.getElementById("tableScrollLeft") ||
+          document.getElementById("headerScrollLeft");
+        const rightBtn =
+          document.getElementById("tableScrollRight") ||
+          document.getElementById("headerScrollRight");
+        if (!gridWrapper || !leftBtn || !rightBtn) return;
+
+        // Hide if not on Tunings tab or not connected
+        const tabTunings = document.getElementById("tabTunings");
+        if (
+          currentTab !== "tabTunings" ||
+          !isConnected() ||
+          !tabTunings ||
+          tabTunings.style.display === "none"
+        ) {
+          leftBtn.classList.remove("visible");
+          rightBtn.classList.remove("visible");
+          return;
+        }
+
+        // Hide if tuning table is scrolled completely out of viewport
+        const rect = gridWrapper.getBoundingClientRect();
+        const isTableInView =
+          rect.bottom > 80 && rect.top < window.innerHeight - 80;
+        if (!isTableInView) {
+          leftBtn.classList.remove("visible");
+          rightBtn.classList.remove("visible");
+          return;
+        }
+
+        const scrollLeft = Math.round(gridWrapper.scrollLeft);
+        const maxScroll = Math.round(
+          gridWrapper.scrollWidth - gridWrapper.clientWidth,
+        );
+
+        if (maxScroll <= 3) {
+          leftBtn.classList.remove("visible");
+          rightBtn.classList.remove("visible");
+          return;
+        }
+
+        const isCroppedLeft = scrollLeft > 3;
+        const isCroppedRight = scrollLeft < maxScroll - 3;
+
+        // Align horizontally with gridWrapper's rendered edges
+        const leftPos = Math.max(8, Math.round(rect.left + 6));
+        const rightPos = Math.max(
+          8,
+          Math.round(window.innerWidth - rect.right + 6),
+        );
+        leftBtn.style.left = leftPos + "px";
+        rightBtn.style.right = rightPos + "px";
+
+        leftBtn.classList.toggle("visible", isCroppedLeft);
+        rightBtn.classList.toggle("visible", isCroppedRight);
+      }
+
+      function setupTableScrollIndicators() {
+        const gridWrapper = document.getElementById("gridWrapper");
+        const leftBtn =
+          document.getElementById("tableScrollLeft") ||
+          document.getElementById("headerScrollLeft");
+        const rightBtn =
+          document.getElementById("tableScrollRight") ||
+          document.getElementById("headerScrollRight");
+        if (!gridWrapper || !leftBtn || !rightBtn) return;
+
+        leftBtn.addEventListener("click", () => {
+          gridWrapper.scrollTo({ left: 0, behavior: "smooth" });
+          setTimeout(updateTableScrollIndicators, 350);
+        });
+
+        rightBtn.addEventListener("click", () => {
+          gridWrapper.scrollTo({
+            left: gridWrapper.scrollWidth,
+            behavior: "smooth",
+          });
+          setTimeout(updateTableScrollIndicators, 350);
+        });
+
+        gridWrapper.addEventListener(
+          "scroll",
+          () => {
+            updateTableScrollIndicators();
+          },
+          { passive: true },
+        );
+
+        window.addEventListener(
+          "scroll",
+          () => {
+            updateTableScrollIndicators();
+          },
+          { passive: true },
+        );
+
+        window.addEventListener("resize", () => {
+          updateTableScrollIndicators();
+        });
+
+        if (window.ResizeObserver) {
+          const ro = new ResizeObserver(() => {
+            updateTableScrollIndicators();
+          });
+          ro.observe(gridWrapper);
+          const gridInner = document.getElementById("gridInner");
+          if (gridInner) ro.observe(gridInner);
+        }
+
+        updateTableScrollIndicators();
+      }
+
       // Initialize UI, curve, and pickers
       setupNotePicker();
       setupSemitonePicker();
+      setupTableScrollIndicators();
       drawCurve();
       switchTab("tabSettings");
 

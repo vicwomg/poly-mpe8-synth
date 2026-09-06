@@ -93,9 +93,7 @@ export class SynthVoice {
     this.osc2.type = params.osc2Waveform || 'square';
 
     // Mix balance
-    const osc2Mix = params.osc2Mix !== undefined ? params.osc2Mix : 0.5;
-    this.osc1Gain.gain.setValueAtTime(1.0 - osc2Mix * 0.5, now);
-    this.osc2Gain.gain.setValueAtTime(osc2Mix, now);
+    this.updateOscMix(now);
 
     // Connect to pre-allocated mixer gains
     this.osc1.connect(this.osc1Gain);
@@ -260,9 +258,11 @@ export class SynthVoice {
   calculateTargetCutoff(envelopeValue = 0) {
     if (!this.params) return 1000;
     const baseCutoff = Math.max(20, Math.min(20000, this.params.filterCutoff || 2000));
-    // In MPE, member channels (2-16) apply per-note CC74/CC73 timbre offset (±3.5 octaves)
+    // In MPE, member channels (2-16) apply per-note CC74/CC73 timbre offset (±3.5 octaves) when target is cutoff
+    const targetMode = this.params.mpeTimbreTarget || 'cutoff';
+    const isCutoffTarget = targetMode === 'cutoff';
     const mpeTimbreVal = this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
-    const mpeTimbreOctaves = this.channel > 1 ? ((mpeTimbreVal - 64) / 64) * 3.5 : 0;
+    const mpeTimbreOctaves = (isCutoffTarget && this.channel > 1) ? ((mpeTimbreVal - 64) / 64) * 3.5 : 0;
     const keyTracking = (this.params.filterKeyTracking !== undefined ? this.params.filterKeyTracking : 0.4);
     const keyOctaves = ((this.note - 60) / 12) * keyTracking;
     const envAmount = this.params.filterEnvAmount !== undefined ? this.params.filterEnvAmount : 0.5;
@@ -276,11 +276,16 @@ export class SynthVoice {
   updateFilter(time = this.ctx.currentTime, isNoteOn = false, wasSounding = false, isContinuousCC = false) {
     if (!this.filter || !this.params) return;
 
-    // Resonance Q: base Q + CC1 (when cc1Target is resonance)
+    // Resonance Q: base Q + CC1 (when cc1Target is resonance) + MPE Y (when mpeTimbreTarget is resonance)
     const baseQ = this.params.filterResonance !== undefined ? this.params.filterResonance : 1.0;
     const isResoTarget = this.params.cc1Target !== 'lforate';
     const modWheelQ = isResoTarget ? (this.cc1Resonance / 127) * 18 : 0;
-    const totalQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ));
+
+    const targetMode = this.params.mpeTimbreTarget || 'cutoff';
+    const mpeTimbreVal = this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
+    const mpeResoQ = (targetMode === 'resonance' && this.channel > 1) ? (mpeTimbreVal / 127) * 18 : 0;
+
+    const totalQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ + mpeResoQ));
     const qTimeConstant = isContinuousCC ? 0.040 : 0.003;
     this.filter.Q.setTargetAtTime(totalQ, time, qTimeConstant);
 
@@ -309,7 +314,12 @@ export class SynthVoice {
       }
     } else if (!this.isReleasing) {
       const sustain = Math.max(0, Math.min(1, this.params.filterSustain !== undefined ? this.params.filterSustain : 0.3));
-      const targetCutoff = this.calculateTargetCutoff(sustain);
+      let targetCutoff = this.calculateTargetCutoff(sustain);
+      const pressureTarget = this.params?.mpePressureTarget || 'both';
+      if (pressureTarget === 'both' || pressureTarget === 'filter') {
+        const pressureNorm = Math.max(0, Math.min(127, this.pressure || 0)) / 127;
+        targetCutoff = Math.min(20000, targetCutoff + pressureNorm * 1800);
+      }
       // Analog RC slew on live CC changes: 40ms eliminates 60Hz stepping zipper noise
       const timeConstant = isContinuousCC ? 0.040 : 0.005;
       this.filter.frequency.setTargetAtTime(targetCutoff, time, timeConstant);
@@ -374,11 +384,28 @@ export class SynthVoice {
     this.updateFrequencies();
   }
 
+  updateOscMix(time = this.ctx.currentTime) {
+    if (!this.osc1Gain || !this.osc2Gain || !this.params) return;
+    let osc2Mix = this.params.osc2Mix !== undefined ? this.params.osc2Mix : 0.5;
+    const targetMode = this.params.mpeTimbreTarget || 'cutoff';
+    if (targetMode === 'osc2mix' && this.channel > 1) {
+      const mpeTimbreVal = this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
+      osc2Mix = Math.max(0, Math.min(1.0, mpeTimbreVal / 127));
+    }
+    this.osc1Gain.gain.setTargetAtTime(1.0 - osc2Mix * 0.5, time, 0.015);
+    this.osc2Gain.gain.setTargetAtTime(osc2Mix, time, 0.015);
+  }
+
   setCC(controller, value) {
     if (controller === 73 || controller === 74) {
       this.cc73Cutoff = value;
       this.cc74Timbre = value;
-      this.updateFilter(this.ctx.currentTime, false, false, true);
+      const targetMode = this.params?.mpeTimbreTarget || 'cutoff';
+      if (targetMode === 'cutoff' || targetMode === 'resonance') {
+        this.updateFilter(this.ctx.currentTime, false, false, true);
+      } else if (targetMode === 'osc2mix') {
+        this.updateOscMix(this.ctx.currentTime);
+      }
     } else if (controller === 1) {
       this.cc1Resonance = value;
       this.updateFilter(this.ctx.currentTime, false, false, true);

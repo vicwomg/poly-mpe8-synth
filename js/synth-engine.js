@@ -88,7 +88,8 @@ export class SynthEngine {
       mpeMasterChannel: 1,
       cc1Target: 'resonance', // 'resonance' (Filter Q) or 'lforate' (LFO Rate)
       volumeCC: 11, // 11 (Expression - Default) or 7 (Channel Volume)
-      mpePressureTarget: 'both' // 'both' (Dynamics & Filter), 'dynamics', 'filter', 'off'
+      mpePressureTarget: 'both', // 'both' (Dynamics & Filter), 'dynamics', 'filter', 'off'
+      mpeTimbreTarget: 'cutoff' // 'cutoff' (Default), 'resonance', 'osc2mix', 'lforate', 'lfodepth', 'off'
     };
 
     // Controller states
@@ -675,10 +676,12 @@ export class SynthEngine {
     const isMaster = channel === this.params.mpeMasterChannel;
 
     if (ccNumber === 73 || ccNumber === 74) {
-      // CC73 & CC74: Filter Cutoff / MPE Timbre
+      // CC73 & CC74: Filter Cutoff / MPE Timbre (Y-Axis)
       this.globalCC73 = value;
       this.globalCC74 = value;
-      if (isMaster) {
+      const targetMode = this.params.mpeTimbreTarget || 'cutoff';
+
+      if (isMaster && targetMode === 'cutoff') {
         const minLog = Math.log(20);
         const maxLog = Math.log(20000);
         const targetCutoff = Math.exp(minLog + (value / 127) * (maxLog - minLog));
@@ -687,7 +690,15 @@ export class SynthEngine {
         if (!this.hasSmoothCutoff) {
           this.params.filterCutoff = targetCutoff;
         }
+      } else if (targetMode === 'lforate') {
+        const minLog = Math.log(0.1);
+        const maxLog = Math.log(20.0);
+        const rate = +(Math.exp(minLog + (value / 127) * (maxLog - minLog))).toFixed(1);
+        this.params.lfoRate = rate;
+      } else if (targetMode === 'lfodepth') {
+        this.params.lfoDepth = +(Math.max(0, Math.min(1.0, value / 127))).toFixed(2);
       }
+
       for (const voice of this.voices) {
         if (isMaster || voice.channel === channel) {
           voice.setCC(ccNumber, value);

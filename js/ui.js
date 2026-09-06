@@ -121,6 +121,7 @@ class SynthUI {
           this.updateSliderUI('lfoRate', baseRate, `${baseRate} Hz`);
         }
         this.visualizer?.markFilterDirty();
+        this.updateSharedModulationBadges();
       });
     }
 
@@ -138,6 +139,22 @@ class SynthUI {
       pressureTargetSelect.value = this.synth.params.mpePressureTarget || 'both';
       pressureTargetSelect.addEventListener('change', (e) => {
         this.synth.updateParam('mpePressureTarget', e.target.value);
+        this.updateSharedModulationBadges();
+        this.saveActiveSession();
+      });
+    }
+
+    const timbreTargetSelect = document.getElementById('mpe-timbre-target-select');
+    if (timbreTargetSelect) {
+      timbreTargetSelect.value = this.synth.params.mpeTimbreTarget || 'cutoff';
+      timbreTargetSelect.addEventListener('change', (e) => {
+        const target = e.target.value;
+        this.synth.updateParam('mpeTimbreTarget', target);
+        if (target === 'resonance') {
+          this.visualizer?.markFilterDirty();
+        }
+        this.updateSharedModulationBadges();
+        this.saveActiveSession();
       });
     }
 
@@ -168,6 +185,7 @@ class SynthUI {
       btnSettings.addEventListener('click', () => {
         settingsModal.style.display = 'flex';
         syncMidiSteelUI();
+        if (typeof syncPreferredMidiUI === 'function') syncPreferredMidiUI();
       });
     }
     if (btnCloseSettings) btnCloseSettings.addEventListener('click', () => settingsModal.style.display = 'none');
@@ -209,6 +227,10 @@ class SynthUI {
       const hasMidiSteel = this.midi.isMidiSteelConnected();
       if (btnMidiSteel) btnMidiSteel.style.display = hasMidiSteel ? 'inline-flex' : 'none';
       if (midisteelSettingsRow) midisteelSettingsRow.style.display = hasMidiSteel ? 'flex' : 'none';
+    };
+
+    this.midi.onMidiSteelDetected = () => {
+      syncMidiSteelUI();
     };
 
     const openMidiSteelModal = () => {
@@ -254,6 +276,85 @@ class SynthUI {
       });
     }
 
+    const prefNameEl = document.getElementById('preferred-midi-name');
+    const prefBadgeEl = document.getElementById('preferred-midi-badge');
+    const btnSetPref = document.getElementById('btn-set-preferred-midi');
+    const btnClearPref = document.getElementById('btn-clear-preferred-midi');
+
+    const syncPreferredMidiUI = () => {
+      const pref = this.midi.getPreferredDevice();
+      if (!prefNameEl) return;
+
+      if (pref) {
+        prefNameEl.textContent = `★ ${pref.name}`;
+        prefNameEl.style.color = 'var(--accent-cyan)';
+        if (btnClearPref) btnClearPref.style.display = 'inline-flex';
+
+        // Check if the preferred device is currently selected and active
+        const currentSelectedId = this.midi.selectedInputId;
+        const isCurrentlySelected = pref.id === 'all'
+          ? currentSelectedId === 'all'
+          : (currentSelectedId === pref.id || this.midi.inputs.some(d => d.id === currentSelectedId && pref.name && d.name && d.name.toLowerCase() === pref.name.toLowerCase()));
+
+        const isConnected = pref.id === 'all' || this.midi.inputs.some(d => d.id === pref.id || (pref.name && d.name && d.name.toLowerCase() === pref.name.toLowerCase()));
+
+        if (prefBadgeEl) {
+          prefBadgeEl.style.display = 'inline-block';
+          if (isCurrentlySelected) {
+            prefBadgeEl.className = 'badge badge-emerald';
+            prefBadgeEl.textContent = 'AUTO-SELECTED';
+          } else if (isConnected) {
+            prefBadgeEl.className = 'badge badge-cyan';
+            prefBadgeEl.textContent = 'CONNECTED';
+          } else {
+            prefBadgeEl.className = 'badge badge-muted';
+            prefBadgeEl.textContent = 'OFFLINE';
+          }
+        }
+
+        if (btnSetPref) {
+          const selectedValue = midiSelect ? midiSelect.value : '';
+          const isSelectedThePref = pref.id === selectedValue || (pref.id !== 'all' && this.midi.inputs.some(d => d.id === selectedValue && pref.name && d.name && d.name.toLowerCase() === pref.name.toLowerCase()));
+          btnSetPref.textContent = isSelectedThePref ? 'PREFERRED' : 'SET PREFERRED';
+        }
+      } else {
+        prefNameEl.textContent = 'None (Auto)';
+        prefNameEl.style.color = 'var(--text-muted)';
+        if (prefBadgeEl) prefBadgeEl.style.display = 'none';
+        if (btnClearPref) btnClearPref.style.display = 'none';
+        if (btnSetPref) btnSetPref.textContent = 'SET PREFERRED';
+      }
+    };
+
+    if (btnSetPref) {
+      btnSetPref.addEventListener('click', () => {
+        const selectedVal = midiSelect.value;
+        if (selectedVal === 'all') {
+          this.midi.setPreferredDevice({ id: 'all', name: 'All MIDI Inputs' });
+        } else {
+          const dev = this.midi.inputs.find(d => d.id === selectedVal);
+          if (dev) {
+            this.midi.setPreferredDevice(dev);
+          } else {
+            this.midi.setPreferredDevice({ id: selectedVal, name: selectedVal });
+          }
+        }
+        btnSetPref.textContent = 'SAVED!';
+        setTimeout(() => syncPreferredMidiUI(), 900);
+        syncPreferredMidiUI();
+      });
+    }
+
+    if (btnClearPref) {
+      btnClearPref.addEventListener('click', () => {
+        this.midi.clearPreferredDevice();
+        syncPreferredMidiUI();
+      });
+    }
+
+    // Initial sync of preferred device UI
+    syncPreferredMidiUI();
+
     this.midi.onDeviceListChange = (inputs, selectedInputId = 'all') => {
       midiSelect.innerHTML = '<option value="all">All MIDI Inputs</option>';
       inputs.forEach(input => {
@@ -265,6 +366,7 @@ class SynthUI {
       midiSelect.value = selectedInputId;
 
       syncMidiSteelUI();
+      syncPreferredMidiUI();
     };
 
     this.midi.onStatusChange = (status) => {
@@ -296,6 +398,7 @@ class SynthUI {
     midiSelect.addEventListener('change', (e) => {
       this.midi.selectInput(e.target.value);
       syncMidiSteelUI();
+      syncPreferredMidiUI();
     });
 
     const activityLed = document.getElementById('voice-status-dot') || document.getElementById('midi-activity-led');
@@ -314,12 +417,29 @@ class SynthUI {
         this.addMidiLog(logEvent);
       }
 
-      // Sync UI sliders if CC came in (live updates in Filter & Amp cards) without dirtying preset dropdown
       if (logEvent.ccNumber === 73 || logEvent.ccNumber === 74 || logEvent.type.startsWith('CC73') || logEvent.type.startsWith('CC74')) {
-        const minLog = Math.log(20);
-        const maxLog = Math.log(20000);
-        const targetHz = Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog));
-        this.animateCutoffTo(targetHz);
+        const isCC74 = logEvent.ccNumber === 74 || logEvent.type.startsWith('CC74');
+        const targetMode = isCC74 ? (this.synth.params.mpeTimbreTarget || 'cutoff') : 'cutoff';
+        if (targetMode === 'cutoff') {
+          const minLog = Math.log(20);
+          const maxLog = Math.log(20000);
+          const targetHz = Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog));
+          this.animateCutoffTo(targetHz);
+        } else if (targetMode === 'resonance') {
+          const targetQ = 0.1 + (logEvent.value / 127) * 19.9;
+          this.animateResonanceTo(targetQ);
+        } else if (targetMode === 'osc2mix') {
+          const mix = +(logEvent.value / 127).toFixed(2);
+          this.updateSliderUI('osc2Mix', mix, `${Math.round(mix * 100)}%`);
+        } else if (targetMode === 'lforate') {
+          const minLog = Math.log(0.1);
+          const maxLog = Math.log(20.0);
+          const targetRate = Math.exp(minLog + (logEvent.value / 127) * (maxLog - minLog));
+          this.animateLfoRateTo(targetRate);
+        } else if (targetMode === 'lfodepth') {
+          const depth = +(logEvent.value / 127).toFixed(2);
+          this.updateSliderUI('lfoDepth', depth, `${Math.round(depth * 100)}%`);
+        }
       } else if (
         logEvent.ccNumber === (Number(this.synth.params.volumeCC) || 11) ||
         (logEvent.type && logEvent.type.includes('Volume')) ||
@@ -856,6 +976,7 @@ class SynthUI {
     const savedVolumeCC = this.synth.params.volumeCC;
     const savedMpePitchBendRange = this.synth.params.mpePitchBendRange;
     const savedPressureTarget = this.synth.params.mpePressureTarget;
+    const savedTimbreTarget = this.synth.params.mpeTimbreTarget;
 
     this.currentPresetId = preset.id;
     this.presetManager.setBaselinePreset(preset);
@@ -865,6 +986,7 @@ class SynthUI {
     if (savedVolumeCC) this.synth.params.volumeCC = savedVolumeCC;
     if (savedMpePitchBendRange) this.synth.params.mpePitchBendRange = savedMpePitchBendRange;
     if (savedPressureTarget) this.synth.params.mpePressureTarget = savedPressureTarget;
+    if (savedTimbreTarget) this.synth.params.mpeTimbreTarget = savedTimbreTarget;
 
     this.syncUIFromParams(this.synth.params);
     this.visualizer?.markFilterDirty();
@@ -1118,6 +1240,12 @@ class SynthUI {
       pressureTargetSelect.value = params.mpePressureTarget;
     }
 
+    // MPE Slide / Timbre Destination Dropdown
+    const timbreTargetSelect = document.getElementById('mpe-timbre-target-select');
+    if (timbreTargetSelect && params.mpeTimbreTarget !== undefined) {
+      timbreTargetSelect.value = params.mpeTimbreTarget;
+    }
+
     this.currentDisplayCutoff = params.filterCutoff;
     if (this.cutoffAnimFrame) {
       cancelAnimationFrame(this.cutoffAnimFrame);
@@ -1132,6 +1260,59 @@ class SynthUI {
     if (this.lfoRateAnimFrame) {
       cancelAnimationFrame(this.lfoRateAnimFrame);
       this.lfoRateAnimFrame = null;
+    }
+
+    this.updateSharedModulationBadges();
+  }
+
+  updateSharedModulationBadges() {
+    const badgeTimbre = document.getElementById('badge-mpe-timbre');
+    const badgePressure = document.getElementById('badge-mpe-pressure');
+    const badgeCc1 = document.getElementById('badge-cc1');
+
+    const timbre = this.synth.params.mpeTimbreTarget || 'cutoff';
+    const pressure = this.synth.params.mpePressureTarget || 'both';
+    const cc1 = this.synth.params.cc1Target || 'resonance';
+
+    // Shared destination detection
+    const cutoffShared = (timbre === 'cutoff') && (pressure === 'both' || pressure === 'filter');
+    const resoShared = (timbre === 'resonance') && (cc1 === 'resonance');
+    const lfoRateShared = (timbre === 'lforate') && (cc1 === 'lforate');
+
+    if (badgeTimbre) {
+      if (cutoffShared || resoShared || lfoRateShared) {
+        badgeTimbre.textContent = 'MPE (Shared)';
+        badgeTimbre.title = 'Shared destination: Modulates additively with other active controls';
+        badgeTimbre.className = 'badge badge-emerald';
+      } else {
+        badgeTimbre.textContent = 'MPE';
+        badgeTimbre.title = '';
+        badgeTimbre.className = 'badge badge-cyan';
+      }
+    }
+
+    if (badgePressure) {
+      if (cutoffShared) {
+        badgePressure.textContent = 'PRESS (Shared)';
+        badgePressure.title = 'Shared destination: Modulates additively with MPE Slide';
+        badgePressure.className = 'badge badge-emerald';
+      } else {
+        badgePressure.textContent = 'PRESS';
+        badgePressure.title = '';
+        badgePressure.className = 'badge badge-cyan';
+      }
+    }
+
+    if (badgeCc1) {
+      if (resoShared || lfoRateShared) {
+        badgeCc1.textContent = 'MOD (Shared)';
+        badgeCc1.title = 'Shared destination: Modulates additively with MPE Slide';
+        badgeCc1.className = 'badge badge-emerald';
+      } else {
+        badgeCc1.textContent = 'MOD';
+        badgeCc1.title = '';
+        badgeCc1.className = 'badge badge-amber';
+      }
     }
   }
 
@@ -1528,14 +1709,14 @@ class SynthUI {
 
       // Normalized coordinates
       const normX = (x / rect.width) * 2 - 1; // -1 to +1 (Bend)
-      const normY = 1 - (y / rect.height); // 0 (bottom) to 1 (top) (CC73)
+      const normY = 1 - (y / rect.height); // 0 (bottom) to 1 (top) (CC74 Timbre)
 
       const bendVal = Math.round(8192 + normX * 8191);
-      const cc73Val = Math.round(normY * 127);
+      const cc74Val = Math.round(normY * 127);
 
-      // Send MPE Bend and CC73 to channel 2
+      // Send MPE Bend and CC74 (Timbre) to member channel
       this.synth.setPitchBend(mpeChannel, bendVal);
-      this.synth.setCC(mpeChannel, 73, cc73Val);
+      this.synth.setCC(mpeChannel, 74, cc74Val);
 
       // Live update filterCutoff UI slider and visualizer
       if (this.cutoffAnimFrame) {
@@ -1556,7 +1737,7 @@ class SynthUI {
       if (readout) readout.textContent = `${hz} Hz`;
       this.visualizer?.markFilterDirty();
 
-      status.textContent = `X: Bend ${bendVal - 8192} | Y: CC73 ${cc73Val} | Gate: ON`;
+      status.textContent = `X: Bend ${bendVal - 8192} | Y: CC74 ${cc74Val} | Gate: ON`;
     };
 
     const startTouch = (e) => {
@@ -1587,7 +1768,7 @@ class SynthUI {
       this.synth.noteOff(padNote, mpeChannel);
       // Reset bend
       this.synth.setPitchBend(mpeChannel, 8192);
-      status.textContent = 'X: Bend 0 | Y: CC73 64 | Gate: OFF';
+      status.textContent = 'X: Bend 0 | Y: CC74 64 | Gate: OFF';
     };
 
     pad.addEventListener('pointerdown', (e) => {
@@ -1636,38 +1817,38 @@ class SynthUI {
     const keyboard = document.getElementById('synth-keyboard');
     keyboard.innerHTML = '';
 
-    const notesCount = 25; // 2 octaves + 1 (C to C)
+    const notesCount = 22; // C to A (13 white keys, 9 black keys)
+    const totalWhiteKeys = 13;
     const startNote = this.baseOctave * 12; // e.g. 48 for C3, 60 for C4
 
     const isBlackKey = [false, true, false, true, false, false, true, false, true, false, true, false];
 
-    // Mapped computer keyboard keys for the 25 virtual keys (C to C, 2 octaves)
+    // Mapped computer keyboard keys for the 22 virtual keys:
+    // White keys: Q W E R T Y U I O P [ ] \
+    // Black keys: 2 3 5 6 7 9 0 = ⌫
     const computerKeyLabels = [
-      'A',  // C
-      'W',  // C#
-      'S',  // D
-      'E',  // D#
-      'D',  // E
-      'F',  // F
-      'T',  // F#
-      'G',  // G
-      'Y',  // G#
-      'H',  // A
-      'U',  // A#
-      'J',  // B
-      'K',  // C (+1 oct)
-      'O',  // C#
-      'L',  // D
-      'P',  // D#
-      ';',  // E
-      "'",  // F
-      ']',  // F#
-      '\\', // G
-      '',   // G#
-      '',   // A
-      '',   // A#
-      '',   // B
-      ''    // C (+2 oct)
+      'Q',  // C
+      '2',  // C#
+      'W',  // D
+      '3',  // D#
+      'E',  // E
+      'R',  // F
+      '5',  // F#
+      'T',  // G
+      '6',  // G#
+      'Y',  // A
+      '7',  // A#
+      'U',  // B
+      'I',  // C (+1 oct)
+      '9',  // C#
+      'O',  // D
+      '0',  // D#
+      'P',  // E
+      '[',  // F
+      '=',  // F#
+      ']',  // G
+      '⌫',  // G#
+      '\\'  // A
     ];
 
     let whiteKeyIndex = 0;
@@ -1688,7 +1869,7 @@ class SynthUI {
       } else {
         key.className = 'key key-black';
         // Center black key over boundary between preceding and next white key
-        key.style.left = `calc(4px + ${(whiteKeyIndex / 15)} * (100% - 8px))`;
+        key.style.left = `calc(4px + ${(whiteKeyIndex / totalWhiteKeys)} * (100% - 8px))`;
         key.innerHTML = `<span class="key-label">${keyChar}</span>`;
       }
 
@@ -1734,35 +1915,61 @@ class SynthUI {
       keyboard.appendChild(key);
     }
 
-    // Octave Shift Buttons
-    document.getElementById('btn-oct-down').addEventListener('click', () => {
-      if (this.baseOctave > 1) {
-        this.baseOctave--;
-        document.getElementById('current-octave-display').textContent = `C${this.baseOctave}`;
-        this.buildKeyboard();
-      }
-    });
+    // Octave Shift Buttons (bind once)
+    if (!this._octaveButtonsBound) {
+      this._octaveButtonsBound = true;
+      document.getElementById('btn-oct-down')?.addEventListener('click', () => {
+        if (this.baseOctave > 1) {
+          this.baseOctave--;
+          document.getElementById('current-octave-display').textContent = `C${this.baseOctave}`;
+          this.buildKeyboard();
+        }
+      });
 
-    document.getElementById('btn-oct-up').addEventListener('click', () => {
-      if (this.baseOctave < 7) {
-        this.baseOctave++;
-        document.getElementById('current-octave-display').textContent = `C${this.baseOctave}`;
-        this.buildKeyboard();
-      }
-    });
+      document.getElementById('btn-oct-up')?.addEventListener('click', () => {
+        if (this.baseOctave < 7) {
+          this.baseOctave++;
+          document.getElementById('current-octave-display').textContent = `C${this.baseOctave}`;
+          this.buildKeyboard();
+        }
+      });
+    }
   }
 
   bindComputerKeys() {
     const keyMap = {
-      'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6, 'g': 7,
-      'y': 8, 'h': 9, 'u': 10, 'j': 11, 'k': 12, 'o': 13, 'l': 14, 'p': 15,
-      ';': 16, "'": 17, ']': 18, '\\': 19
+      // White keys: Q W E R T Y U I O P [ ] \
+      'q': 0,
+      'w': 2,
+      'e': 4,
+      'r': 5,
+      't': 7,
+      'y': 9,
+      'u': 11,
+      'i': 12,
+      'o': 14,
+      'p': 16,
+      '[': 17, '{': 17,
+      ']': 19, '}': 19,
+      '\\': 21, '|': 21,
+      // Black keys: 2 3 5 6 7 9 0 = Backspace/Delete
+      '2': 1, '@': 1,
+      '3': 3, '#': 3,
+      '5': 6, '%': 6,
+      '6': 8, '^': 8,
+      '7': 10, '&': 10,
+      '9': 13, '(': 13,
+      '0': 15, ')': 15,
+      '=': 18, '+': 18,
+      'backspace': 20,
+      'delete': 20
     };
 
     window.addEventListener('keydown', (e) => {
-      if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (e.repeat || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
       const key = e.key.toLowerCase();
       if (key in keyMap) {
+        e.preventDefault();
         if (!this.synth.isAudioStarted) {
           document.getElementById('btn-audio-power').click();
         }
@@ -1771,16 +1978,27 @@ class SynthUI {
         if (!this.activeKeyNotes.has(key)) {
           this.activeKeyNotes.set(key, midiNote);
           this.synth.noteOn(midiNote, 0.85, 1);
+          const keyEl = document.querySelector(`.key[data-note="${midiNote}"]`);
+          if (keyEl) keyEl.classList.add('active');
         }
       }
     });
 
     window.addEventListener('keyup', (e) => {
       const key = e.key.toLowerCase();
-      if (this.activeKeyNotes.has(key)) {
-        const midiNote = this.activeKeyNotes.get(key);
-        this.activeKeyNotes.delete(key);
-        this.synth.noteOff(midiNote, 1);
+      if (key in keyMap) {
+        if (key === 'backspace' || key === 'delete') {
+          e.preventDefault();
+        }
+        const offset = keyMap[key];
+        for (const [activeKey, activeNote] of this.activeKeyNotes.entries()) {
+          if (keyMap[activeKey] === offset) {
+            this.activeKeyNotes.delete(activeKey);
+            this.synth.noteOff(activeNote, 1);
+            const keyEl = document.querySelector(`.key[data-note="${activeNote}"]`);
+            if (keyEl) keyEl.classList.remove('active');
+          }
+        }
       }
     });
   }
@@ -1793,9 +2011,12 @@ class SynthUI {
       }
     });
 
+    this.activeMouseNotes.forEach((_, note) => activeNotes.add(note));
+    this.activeKeyNotes.forEach((note) => activeNotes.add(note));
+
     document.querySelectorAll('.key').forEach(k => {
       const note = parseInt(k.dataset.note, 10);
-      if (activeNotes.has(note) || this.activeMouseNotes.has(note)) {
+      if (activeNotes.has(note)) {
         k.classList.add('active');
       } else {
         k.classList.remove('active');

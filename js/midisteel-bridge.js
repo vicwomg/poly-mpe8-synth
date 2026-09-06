@@ -120,15 +120,93 @@
         overflow-x: hidden !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
       }
       body {
         max-width: 1440px !important;
         margin: 0 auto !important;
-        padding: 16px 20px 100px 20px !important;
+        padding: 10px 14px 40px 14px !important;
       }
-      header, .toolbar, .nav-tabs, #settingsBlocks, .tab-panel {
+      body.tab-log-active {
+        height: 100vh !important;
+        height: 100dvh !important;
+        padding: 6px 12px 10px 12px !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      header {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        flex-wrap: nowrap !important;
         width: 100% !important;
         max-width: 100% !important;
+        gap: 10px !important;
+        margin-bottom: 8px !important;
+        box-sizing: border-box !important;
+      }
+      .header-title {
+        display: flex !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+        min-width: 0 !important;
+      }
+      header h1, .header-title h1 {
+        white-space: nowrap !important;
+        font-size: 1.25rem !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
+      }
+      .toolbar {
+        margin-left: auto !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        flex-wrap: nowrap !important;
+        width: auto !important;
+        flex-shrink: 0 !important;
+        gap: 8px !important;
+        margin-bottom: 0 !important;
+      }
+      .toolbar #btnConnect,
+      .toolbar #btnLoad {
+        flex: 0 0 auto !important;
+        min-width: auto !important;
+        padding: 6px 12px !important;
+        font-size: 0.8rem !important;
+        min-height: 32px !important;
+      }
+      .nav-tabs, #settingsBlocks, .tab-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      #tabLog {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+      }
+      .log-section {
+        flex-shrink: 0 !important;
+        margin-top: 2px !important;
+        margin-bottom: 6px !important;
+      }
+      #log {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+        font-family: "SF Mono", Menlo, Consolas, Monaco, monospace !important;
+        font-size: 11px !important;
+        line-height: 1.35 !important;
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
         box-sizing: border-box !important;
       }
       .ctrl-panel {

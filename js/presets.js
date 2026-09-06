@@ -3,14 +3,14 @@
  */
 export const PRESETS = [
   {
-    name: 'Clean Pedal Steel Guitar',
+    name: "Clean Pedal Steel Guitar",
     params: {
-      osc1Waveform: 'triangle',
+      osc1Waveform: "triangle",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "sawtooth",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 2,
@@ -30,10 +30,10 @@ export const PRESETS = [
       ampSustain: 0.75,
       ampRelease: 0.45,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 4.8,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -51,18 +51,18 @@ export const PRESETS = [
       reverbMix: 0.28,
 
       masterVolume: 0.8,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'MPE Dream Pad',
+    name: "MPE Dream Pad",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: -4,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "sawtooth",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 8,
@@ -82,10 +82,10 @@ export const PRESETS = [
       ampSustain: 0.8,
       ampRelease: 0.9,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 2.0,
       lfoDepth: 0.15,
-      lfoTarget: 'filter',
+      lfoTarget: "filter",
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -103,18 +103,18 @@ export const PRESETS = [
       reverbMix: 0.4,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Ambient Shoegaze Shimmer',
+    name: "Ambient Shoegaze Shimmer",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: -5,
 
-      osc2Waveform: 'square',
+      osc2Waveform: "square",
       osc2Octave: 1,
       osc2Semi: 0,
       osc2Fine: 7,
@@ -134,10 +134,10 @@ export const PRESETS = [
       ampSustain: 0.85,
       ampRelease: 1.5,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 0.8,
       lfoDepth: 0.25,
-      lfoTarget: 'filter',
+      lfoTarget: "filter",
 
       distortionEnabled: false,
       distortionDrive: 20,
@@ -155,18 +155,18 @@ export const PRESETS = [
       reverbMix: 0.5,
 
       masterVolume: 0.72,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Vaporwave Electric Piano',
+    name: "Vaporwave Electric Piano",
     params: {
-      osc1Waveform: 'sine',
+      osc1Waveform: "sine",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'triangle',
+      osc2Waveform: "triangle",
       osc2Octave: 1,
       osc2Semi: 0,
       osc2Fine: 3,
@@ -186,10 +186,10 @@ export const PRESETS = [
       ampSustain: 0.45,
       ampRelease: 0.35,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 4.2,
       lfoDepth: 0.0,
-      lfoTarget: 'pitch',
+      lfoTarget: "pitch",
 
       distortionEnabled: false,
       distortionDrive: 12,
@@ -207,18 +207,18 @@ export const PRESETS = [
       reverbMix: 0.28,
 
       masterVolume: 0.78,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Retro Funk Clavinet',
+    name: "Retro Funk Clavinet",
     params: {
-      osc1Waveform: 'square',
+      osc1Waveform: "square",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'square',
+      osc2Waveform: "square",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 5,
@@ -238,10 +238,10 @@ export const PRESETS = [
       ampSustain: 0.5,
       ampRelease: 0.15,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 5.0,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: true,
       distortionDrive: 18,
@@ -259,18 +259,18 @@ export const PRESETS = [
       reverbMix: 0.18,
 
       masterVolume: 0.8,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Cinematic Bowed Strings',
+    name: "Cinematic Bowed Strings",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: -1,
       osc1Semi: 0,
       osc1Fine: -4,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "sawtooth",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 6,
@@ -290,10 +290,10 @@ export const PRESETS = [
       ampSustain: 0.85,
       ampRelease: 0.7,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 3.8,
       lfoDepth: 0.08,
-      lfoTarget: 'pitch',
+      lfoTarget: "pitch",
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -311,18 +311,18 @@ export const PRESETS = [
       reverbMix: 0.42,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Acid Bass Line',
+    name: "Acid Bass Line",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: -1,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'square',
+      osc2Waveform: "square",
       osc2Octave: -1,
       osc2Semi: 0,
       osc2Fine: 0,
@@ -342,10 +342,10 @@ export const PRESETS = [
       ampSustain: 0.4,
       ampRelease: 0.15,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 5.0,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: true,
       distortionDrive: 35,
@@ -363,18 +363,18 @@ export const PRESETS = [
       reverbMix: 0.1,
 
       masterVolume: 0.8,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Expressive Solo Lead',
+    name: "Expressive Solo Lead",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'square',
+      osc2Waveform: "square",
       osc2Octave: 0,
       osc2Semi: 7, // 5th interval for fat lead
       osc2Fine: 5,
@@ -394,10 +394,10 @@ export const PRESETS = [
       ampSustain: 0.85,
       ampRelease: 0.35,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 4.5,
       lfoDepth: 0.12,
-      lfoTarget: 'pitch',
+      lfoTarget: "pitch",
 
       distortionEnabled: true,
       distortionDrive: 25,
@@ -415,18 +415,18 @@ export const PRESETS = [
       reverbMix: 0.32,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: '80s Poly Brass',
+    name: "80s Poly Brass",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: -6,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "sawtooth",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 8,
@@ -446,10 +446,10 @@ export const PRESETS = [
       ampSustain: 0.75,
       ampRelease: 0.4,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 1.5,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -467,18 +467,18 @@ export const PRESETS = [
       reverbMix: 0.25,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Cosmic Pluck',
+    name: "Cosmic Pluck",
     params: {
-      osc1Waveform: 'triangle',
+      osc1Waveform: "triangle",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "sawtooth",
       osc2Octave: 1, // Octave above
       osc2Semi: 0,
       osc2Fine: 4,
@@ -498,10 +498,10 @@ export const PRESETS = [
       ampSustain: 0.1,
       ampRelease: 0.3,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 3.0,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -519,18 +519,18 @@ export const PRESETS = [
       reverbMix: 0.35,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Vocal Formant Choir',
+    name: "Vocal Formant Choir",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: -3,
 
-      osc2Waveform: 'square',
+      osc2Waveform: "square",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 4,
@@ -550,10 +550,10 @@ export const PRESETS = [
       ampSustain: 0.85,
       ampRelease: 0.65,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 5.4,
       lfoDepth: 0.08,
-      lfoTarget: 'pitch',
+      lfoTarget: "pitch",
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -571,18 +571,18 @@ export const PRESETS = [
       reverbMix: 0.42,
 
       masterVolume: 0.78,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: '8-Bit Arcade Hero',
+    name: "8-Bit Arcade Hero",
     params: {
-      osc1Waveform: 'square',
+      osc1Waveform: "square",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'triangle',
+      osc2Waveform: "triangle",
       osc2Octave: -1,
       osc2Semi: 0,
       osc2Fine: 0,
@@ -602,10 +602,10 @@ export const PRESETS = [
       ampSustain: 0.6,
       ampRelease: 0.08,
 
-      lfoWaveform: 'square',
+      lfoWaveform: "square",
       lfoRate: 12.0,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: true,
       distortionDrive: 22,
@@ -623,18 +623,18 @@ export const PRESETS = [
       reverbMix: 0.1,
 
       masterVolume: 0.76,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
     name: "Cat's Meow",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 1,
       osc1Semi: 0,
       osc1Fine: -2,
 
-      osc2Waveform: 'triangle',
+      osc2Waveform: "triangle",
       osc2Octave: 1,
       osc2Semi: 0,
       osc2Fine: 3,
@@ -654,10 +654,10 @@ export const PRESETS = [
       ampSustain: 0.45,
       ampRelease: 0.35,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 6.2,
       lfoDepth: 0.06,
-      lfoTarget: 'pitch',
+      lfoTarget: "pitch",
 
       distortionEnabled: true,
       distortionDrive: 12,
@@ -675,18 +675,18 @@ export const PRESETS = [
       reverbMix: 0.22,
 
       masterVolume: 0.78,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Spacey Cosmic Organ',
+    name: "Spacey Cosmic Organ",
     params: {
-      osc1Waveform: 'sine',
+      osc1Waveform: "sine",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'triangle',
+      osc2Waveform: "triangle",
       osc2Octave: 1,
       osc2Semi: 0,
       osc2Fine: 3,
@@ -706,10 +706,10 @@ export const PRESETS = [
       ampSustain: 0.95,
       ampRelease: 0.35,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 5.8,
       lfoDepth: 0.14,
-      lfoTarget: 'pitch',
+      lfoTarget: "pitch",
 
       distortionEnabled: true,
       distortionDrive: 14,
@@ -727,18 +727,278 @@ export const PRESETS = [
       reverbMix: 0.45,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
+      mpePitchBendRange: 48,
+    },
   },
   {
-    name: 'Init Dual Saw',
+    name: "Jazz Club Vibraphone",
     params: {
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sine",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "triangle",
+      osc2Octave: 2,
+      osc2Semi: 0,
+      osc2Fine: 4,
+      osc2Mix: 0.35,
+
+      filterCutoff: 4200,
+      filterResonance: 1.6,
+      filterEnvAmount: 0.28,
+      filterKeyTracking: 0.85,
+      filterAttack: 0.002,
+      filterDecay: 0.45,
+      filterSustain: 0.35,
+      filterRelease: 0.45,
+
+      ampAttack: 0.003,
+      ampDecay: 1.6,
+      ampSustain: 0.12,
+      ampRelease: 0.45,
+
+      lfoWaveform: "sine",
+      lfoRate: 4.4,
+      lfoDepth: 0.42,
+      lfoTarget: "filter",
+
+      distortionEnabled: false,
+      distortionDrive: 10,
+      distortionTone: 4000,
+      distortionMix: 0.0,
+
+      delayEnabled: false,
+      delayTime: 0.24,
+      delayFeedback: 0.25,
+      delayMix: 0.15,
+
+      reverbEnabled: true,
+      reverbTime: 2.2,
+      reverbDamp: 3600,
+      reverbMix: 0.3,
+
+      masterVolume: 0.82,
+      mpePitchBendRange: 48,
+    },
+  },
+  {
+    name: "Cyberpunk Industrial Bass",
+    params: {
+      osc1Waveform: "sawtooth",
+      osc1Octave: -1,
+      osc1Semi: 0,
+      osc1Fine: -5,
+
+      osc2Waveform: "square",
+      osc2Octave: -1,
+      osc2Semi: 0,
+      osc2Fine: 6,
+      osc2Mix: 0.55,
+
+      filterCutoff: 1100,
+      filterResonance: 5.2,
+      filterEnvAmount: 0.62,
+      filterKeyTracking: 0.5,
+      filterAttack: 0.006,
+      filterDecay: 0.26,
+      filterSustain: 0.22,
+      filterRelease: 0.14,
+
+      ampAttack: 0.004,
+      ampDecay: 0.38,
+      ampSustain: 0.5,
+      ampRelease: 0.15,
+
+      lfoWaveform: "sawtooth",
+      lfoRate: 1.2,
+      lfoDepth: 0.0,
+      lfoTarget: "none",
+
+      distortionEnabled: true,
+      distortionDrive: 58,
+      distortionTone: 2800,
+      distortionMix: 0.65,
+
+      delayEnabled: true,
+      delayTime: 0.12,
+      delayFeedback: 0.22,
+      delayMix: 0.16,
+
+      reverbEnabled: false,
+      reverbTime: 1.5,
+      reverbDamp: 2500,
+      reverbMix: 0.15,
+
+      masterVolume: 0.72,
+      mpePitchBendRange: 48,
+    },
+  },
+  {
+    name: "Celtic Crystal Harp",
+    params: {
+      osc1Waveform: "triangle",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: -2,
+
+      osc2Waveform: "sine",
+      osc2Octave: 1,
+      osc2Semi: 0,
+      osc2Fine: 3,
+      osc2Mix: 0.36,
+
+      filterCutoff: 3400,
+      filterResonance: 2.2,
+      filterEnvAmount: 0.42,
+      filterKeyTracking: 0.9,
+      filterAttack: 0.001,
+      filterDecay: 0.55,
+      filterSustain: 0.12,
+      filterRelease: 0.7,
+
+      ampAttack: 0.002,
+      ampDecay: 1.4,
+      ampSustain: 0.08,
+      ampRelease: 0.65,
+
+      lfoWaveform: "sine",
+      lfoRate: 3.2,
+      lfoDepth: 0.0,
+      lfoTarget: "none",
+
+      distortionEnabled: false,
+      distortionDrive: 10,
+      distortionTone: 4000,
+      distortionMix: 0.0,
+
+      delayEnabled: true,
+      delayTime: 0.36,
+      delayFeedback: 0.48,
+      delayMix: 0.32,
+
+      reverbEnabled: true,
+      reverbTime: 3.5,
+      reverbDamp: 5500,
+      reverbMix: 0.35,
+
+      masterVolume: 0.8,
+      mpePitchBendRange: 48,
+    },
+  },
+  {
+    name: "Dark Matter Drone",
+    params: {
+      osc1Waveform: "sawtooth",
+      osc1Octave: -1,
+      osc1Semi: 0,
+      osc1Fine: -10,
+
+      osc2Waveform: "triangle",
+      osc2Octave: 0,
+      osc2Semi: 7,
+      osc2Fine: 12,
+      osc2Mix: 0.45,
+
+      filterCutoff: 750,
+      filterResonance: 4.6,
+      filterEnvAmount: 0.35,
+      filterKeyTracking: 0.3,
+      filterAttack: 1.6,
+      filterDecay: 2.4,
+      filterSustain: 0.8,
+      filterRelease: 2.2,
+
+      ampAttack: 1.2,
+      ampDecay: 1.5,
+      ampSustain: 0.88,
+      ampRelease: 2.5,
+
+      lfoWaveform: "triangle",
+      lfoRate: 0.28,
+      lfoDepth: 0.45,
+      lfoTarget: "filter",
+
+      distortionEnabled: true,
+      distortionDrive: 18,
+      distortionTone: 2200,
+      distortionMix: 0.22,
+
+      delayEnabled: true,
+      delayTime: 0.54,
+      delayFeedback: 0.65,
+      delayMix: 0.38,
+
+      reverbEnabled: true,
+      reverbTime: 6.2,
+      reverbDamp: 2400,
+      reverbMix: 0.52,
+
+      masterVolume: 0.74,
+      mpePitchBendRange: 48,
+    },
+  },
+  {
+    name: "Tokyo Neon Mallet",
+    params: {
+      osc1Waveform: "sine",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: -3,
+
+      osc2Waveform: "square",
+      osc2Octave: 1,
+      osc2Semi: 7,
+      osc2Fine: 8,
+      osc2Mix: 0.28,
+
+      filterCutoff: 4800,
+      filterResonance: 3.2,
+      filterEnvAmount: 0.48,
+      filterKeyTracking: 0.8,
+      filterAttack: 0.001,
+      filterDecay: 0.38,
+      filterSustain: 0.15,
+      filterRelease: 0.75,
+
+      ampAttack: 0.002,
+      ampDecay: 1.2,
+      ampSustain: 0.1,
+      ampRelease: 0.7,
+
+      lfoWaveform: "sine",
+      lfoRate: 6.0,
+      lfoDepth: 0.06,
+      lfoTarget: "pitch",
+
+      distortionEnabled: false,
+      distortionDrive: 12,
+      distortionTone: 4500,
+      distortionMix: 0.0,
+
+      delayEnabled: true,
+      delayTime: 0.26,
+      delayFeedback: 0.42,
+      delayMix: 0.3,
+
+      reverbEnabled: true,
+      reverbTime: 2.8,
+      reverbDamp: 6500,
+      reverbMix: 0.32,
+
+      masterVolume: 0.78,
+      mpePitchBendRange: 48,
+    },
+  },
+  {
+    name: "Init Dual Saw",
+    params: {
+      osc1Waveform: "sawtooth",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: "sawtooth",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 7,
@@ -758,10 +1018,10 @@ export const PRESETS = [
       ampSustain: 0.8,
       ampRelease: 0.3,
 
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 3.5,
       lfoDepth: 0.0,
-      lfoTarget: 'none',
+      lfoTarget: "none",
 
       distortionEnabled: false,
       distortionDrive: 20,
@@ -779,7 +1039,7 @@ export const PRESETS = [
       reverbMix: 0.3,
 
       masterVolume: 0.75,
-      mpePitchBendRange: 48
-    }
-  }
+      mpePitchBendRange: 48,
+    },
+  },
 ];

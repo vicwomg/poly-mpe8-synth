@@ -19,6 +19,10 @@ export class MidiHandler {
     this.lastMidiEventStr = 'none';
     this.isCoreMidiListening = false;
     this.externalMidiListeners = new Set();
+    this.verifiedMidiSteelDeviceIds = new Set();
+    this.hasSysexIdentifiedMidiSteel = false;
+    this.midiSteelDeviceName = null;
+    this.onMidiSteelDetected = null;
 
     if (typeof window !== 'undefined') {
       window.midiHandler = this;
@@ -30,7 +34,8 @@ export class MidiHandler {
         unsubscribeMidi: (cb) => this.unsubscribeMidi(cb),
         getInputs: () => [...this.inputs],
         getNativeMidiAccess: () => this.midiAccess,
-        getDiagnostics: () => this.getDiagnostics()
+        getDiagnostics: () => this.getDiagnostics(),
+        probeIdentity: () => this.probeMidiIdentity()
       };
     }
   }
@@ -62,7 +67,7 @@ export class MidiHandler {
       data: new Uint8Array(detail.data),
       timeStamp: detail.timestamp || performance.now()
     };
-    this.handleMidiMessage(fakeEvent, sourceName);
+    this.handleMidiMessage(fakeEvent, sourceName, sourceId);
   }
 
   /**
@@ -118,23 +123,145 @@ export class MidiHandler {
   }
 
   /**
-   * Prioritizes hardware / USB MIDI devices over virtual network sessions.
+   * Retrieves the user-configured preferred MIDI device from persistent storage.
+   */
+  getPreferredDevice() {
+    try {
+      if (typeof localStorage === 'undefined') return null;
+      const raw = localStorage.getItem('poly_mpe_preferred_midi_device');
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Saves a controller as the persistent preferred MIDI device.
+   */
+  setPreferredDevice(device) {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      if (!device) {
+        this.clearPreferredDevice();
+        return;
+      }
+      const data = {
+        id: device.id,
+        name: device.name || (device.id === 'all' ? 'All MIDI Inputs' : 'Unknown Device'),
+        manufacturer: device.manufacturer || ''
+      };
+      localStorage.setItem('poly_mpe_preferred_midi_device', JSON.stringify(data));
+      this.autoSelectInput();
+      this.bindInputs();
+      if (typeof this.onDeviceListChange === 'function') {
+        this.onDeviceListChange(this.inputs, this.selectedInputId);
+      }
+    } catch (_) {}
+  }
+
+  /**
+   * Clears the user-configured preferred device.
+   */
+  clearPreferredDevice() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('poly_mpe_preferred_midi_device');
+      }
+      this.autoSelectInput();
+      this.bindInputs();
+      if (typeof this.onDeviceListChange === 'function') {
+        this.onDeviceListChange(this.inputs, this.selectedInputId);
+      }
+    } catch (_) {}
+  }
+
+  /**
+   * Evaluates inputs and auto-selects the preferred device if connected,
+   * or falls back to hardware priority.
+   */
+  autoSelectInput() {
+    if (!this.inputs || this.inputs.length === 0) {
+      this.selectedInputId = 'all';
+      return 'all';
+    }
+
+    const pref = this.getPreferredDevice();
+    const prefId = this.getPreferredInputId(this.inputs);
+    const isPrefConnected = pref && pref.id !== 'all' && this.inputs.some(d => d.id === prefId);
+
+    // If preferred controller is connected, auto-select it immediately!
+    if (isPrefConnected) {
+      this.selectedInputId = prefId;
+    } else if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
+      this.selectedInputId = prefId;
+    }
+    return this.selectedInputId;
+  }
+
+  /**
+   * Prioritizes user preferred device, then hardware controllers over virtual network sessions.
    */
   getPreferredInputId(inputs) {
     if (!inputs || inputs.length === 0) return 'all';
 
+    // Priority 0: User-configured preferred device
+    const pref = this.getPreferredDevice();
+    if (pref) {
+      if (pref.id === 'all') return 'all';
+      const userMatch = inputs.find(d => {
+        if (pref.id && d.id === pref.id) return true;
+        if (pref.name && d.name) {
+          const dn = d.name.toLowerCase().trim();
+          const pn = pref.name.toLowerCase().trim();
+          if (dn === pn) return true;
+          if (dn.includes(pn) || pn.includes(dn)) return true;
+        }
+        return false;
+      });
+      if (userMatch) {
+        return userMatch.id;
+      }
+    }
+
     const isVirtual = (d) => {
-      const n = (d.name || '').toLowerCase();
-      return d.isNetwork || n.includes('network session') || n.includes('session ') || n.includes('rtpmidi') || n.includes('network');
+      const n = `${d.name || ''} ${d.manufacturer || ''} ${d.id || ''}`.toLowerCase();
+      return (
+        d.isNetwork ||
+        n.includes('network session') ||
+        n.includes('session ') ||
+        n.includes('rtpmidi') ||
+        n.includes('network') ||
+        n.includes('iac') ||
+        n.includes('iac driver') ||
+        n.includes('bus 1') ||
+        n.includes('bus 2') ||
+        n.includes('loopmidi') ||
+        n.includes('loopbe') ||
+        n.includes('midi through') ||
+        n.includes('through') ||
+        n.includes('virtual')
+      );
     };
 
+    const isMidiSteel = (d) => {
+      const n = `${d.name || ''} ${d.manufacturer || ''} ${d.id || ''}`.toLowerCase();
+      return /midi[-_\s]?steel|lap[-_\s]?steel|teensy/i.test(n);
+    };
+
+    // Priority 1: Dedicated MIDISteel / Teensy controller
+    const midiSteelDevice = inputs.find(isMidiSteel);
+    if (midiSteelDevice) {
+      return midiSteelDevice.id;
+    }
+
+    // Priority 2: Any physical hardware controller (non-virtual)
     const hardwareDevices = inputs.filter(d => !isVirtual(d));
     if (hardwareDevices.length > 0) {
-      // Pick the first physical hardware controller (e.g. Teensy MIDI)
       return hardwareDevices[0].id;
     }
 
-    return inputs[0].id;
+    // Priority 3: Fall back to single device or 'all' if only virtual exist
+    return inputs.length === 1 ? inputs[0].id : 'all';
   }
 
   /**
@@ -167,10 +294,7 @@ export class MidiHandler {
           state: 'connected'
         }));
 
-        // Prioritize hardware controller over virtual network sessions
-        if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
-          this.selectedInputId = this.getPreferredInputId(this.inputs);
-        }
+        this.autoSelectInput();
 
         // Set up CoreMIDI event listeners once
         if (!this.isCoreMidiListening) {
@@ -198,9 +322,7 @@ export class MidiHandler {
               manufacturer: 'Apple CoreMIDI',
               state: 'connected'
             }));
-            if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
-              this.selectedInputId = this.getPreferredInputId(this.inputs);
-            }
+            this.autoSelectInput();
             if (this.onDeviceListChange) {
               this.onDeviceListChange(this.inputs, this.selectedInputId);
             }
@@ -223,6 +345,7 @@ export class MidiHandler {
         if (this.onDeviceListChange) {
           this.onDeviceListChange(this.inputs, this.selectedInputId);
         }
+        setTimeout(() => this.probeMidiIdentity(), 150);
         return { supported: true, isSecureContext: true, inputs: this.inputs };
       } catch (err) {
         console.warn('CoreMIDI plugin initialization failed:', err);
@@ -276,10 +399,14 @@ export class MidiHandler {
             port.state === 'connected' ? 'connected' : 'disconnected',
             `Device ${port.state}: ${port.name || port.id}`
           );
+          if (port.state === 'connected') {
+            setTimeout(() => this.probeMidiIdentity(), 150);
+          }
         }
       };
 
       this.bindInputs();
+      setTimeout(() => this.probeMidiIdentity(), 150);
 
       const deviceCount = this.inputs.length;
       if (deviceCount > 0) {
@@ -328,10 +455,8 @@ export class MidiHandler {
       });
     }
 
-    // Prioritize physical hardware devices over virtual sessions
-    if (this.selectedInputId === 'all' || !this.inputs.some(d => d.id === this.selectedInputId)) {
-      this.selectedInputId = this.getPreferredInputId(this.inputs);
-    }
+    // Auto-select preferred device if connected, or hardware priority
+    this.autoSelectInput();
 
     this.bindInputs();
 
@@ -349,21 +474,44 @@ export class MidiHandler {
     if (!this.midiAccess || this.midiAccess.isCoreMidi) return;
 
     for (const input of this.midiAccess.inputs.values()) {
-      // Detach previous handler
       input.onmidimessage = null;
+      const isSelected = (this.selectedInputId === 'all' || this.selectedInputId === input.id);
 
-      if (this.selectedInputId === 'all' || this.selectedInputId === input.id) {
-        input.onmidimessage = (message) => this.handleMidiMessage(message, input.name);
+      if (isSelected) {
+        // Full synthesis note handling + broadcast to external subscribers + SysEx identity check
+        input.onmidimessage = (message) => this.handleMidiMessage(message, input.name, input.id);
+      } else {
+        // Always listen to non-selected inputs for SysEx Identity Replies & MIDISteel settings communication
+        input.onmidimessage = (message) => this.handleAuxMessage(message, input.name, input.id);
       }
     }
   }
 
-  handleMidiMessage(message, sourceName = '') {
+  handleAuxMessage(message, sourceName = '', sourceId = '') {
     if (!message || !message.data || message.data.length === 0) return;
+    const rawBytes = message.data instanceof Uint8Array ? message.data : new Uint8Array(message.data);
 
-    // Broadcast raw incoming message to any external subscribers (such as MIDISteel settings)
+    // 1. Check for Universal SysEx Identity Reply (detects MIDISteel regardless of port name)
+    this.checkSysexIdentity(rawBytes, sourceName, sourceId);
+
+    // 2. Broadcast raw incoming message to external subscribers (such as MIDISteel settings bridge)
+    const isMidiSteel = this.isMidiSteelDevice({ id: sourceId, name: sourceName });
+    if (isMidiSteel && this.externalMidiListeners && this.externalMidiListeners.size > 0) {
+      for (const cb of this.externalMidiListeners) {
+        try { cb(rawBytes, sourceName); } catch (e) { console.error('Error in external MIDI listener:', e); }
+      }
+    }
+  }
+
+  handleMidiMessage(message, sourceName = '', sourceId = '') {
+    if (!message || !message.data || message.data.length === 0) return;
+    const rawBytes = message.data instanceof Uint8Array ? message.data : new Uint8Array(message.data);
+
+    // 1. Check for Universal SysEx Identity Reply (detects MIDISteel regardless of port name)
+    this.checkSysexIdentity(rawBytes, sourceName, sourceId);
+
+    // 2. Broadcast raw incoming message to any external subscribers (such as MIDISteel settings)
     if (this.externalMidiListeners && this.externalMidiListeners.size > 0) {
-      const rawBytes = message.data instanceof Uint8Array ? message.data : new Uint8Array(message.data);
       for (const cb of this.externalMidiListeners) {
         try { cb(rawBytes, sourceName); } catch (e) { console.error('Error in external MIDI listener:', e); }
       }
@@ -485,7 +633,11 @@ export class MidiHandler {
           // Standard / MPE CC
           let desc = `CC ${ccNumber}`;
           if (ccNumber === 73) desc = 'CC73 (Cutoff)';
-          if (ccNumber === 74) desc = 'CC74 (Cutoff / MPE Timbre)';
+          if (ccNumber === 74) {
+            const yTarget = this.synth?.params?.mpeTimbreTarget || 'cutoff';
+            const yNames = { cutoff: 'Cutoff', resonance: 'Reso Q', osc2mix: 'Osc2 Mix', lforate: 'LFO Rate', lfodepth: 'LFO Depth', off: 'Disabled' };
+            desc = `CC74 (MPE Y: ${yNames[yTarget] || 'Timbre'})`;
+          }
           if (ccNumber === 1) desc = this.synth.params.cc1Target === 'lforate' ? 'CC1 (LFO Rate)' : 'CC1 (Resonance)';
           const activeVolCC = Number(this.synth?.params?.volumeCC) || 11;
           if (ccNumber === activeVolCC) {
@@ -597,18 +749,32 @@ export class MidiHandler {
   }
 
   /**
-   * Checks whether a connected device is named "MIDISteel" (case-insensitive, flexible spacing/hyphens).
+   * Checks whether a device matches the MIDISteel identity (by verified SysEx ID or port name).
+   */
+  isMidiSteelDevice(d) {
+    if (!d) return false;
+    if (this.verifiedMidiSteelDeviceIds && d.id && this.verifiedMidiSteelDeviceIds.has(String(d.id))) {
+      return true;
+    }
+    const pattern = /midi[-_\s]?steel|lap[-_\s]?steel|teensy/i;
+    return pattern.test(`${d.name || ''} ${d.manufacturer || ''} ${d.id || ''}`);
+  }
+
+  /**
+   * Checks whether a connected device is named or verified as "MIDISteel".
    */
   isMidiSteelConnected(inputs = this.inputs) {
-    const pattern = /midi[-_\s]?steel|lap[-_\s]?steel/i;
+    if (this.hasSysexIdentifiedMidiSteel || (this.verifiedMidiSteelDeviceIds && this.verifiedMidiSteelDeviceIds.size > 0)) {
+      return true;
+    }
     const list = inputs && inputs.length > 0 ? inputs : this.inputs;
-    if (list && list.some(d => pattern.test(d.name || '') || pattern.test(d.manufacturer || '') || pattern.test(d.id || ''))) {
+    if (list && list.some(d => this.isMidiSteelDevice(d))) {
       return true;
     }
     // Also check raw midiAccess.inputs if cached list has not been populated yet
     if (this.midiAccess && this.midiAccess.inputs) {
       for (const entry of this.midiAccess.inputs.values()) {
-        if (pattern.test(entry.name || '') || pattern.test(entry.manufacturer || '') || pattern.test(entry.id || '')) {
+        if (this.isMidiSteelDevice(entry)) {
           return true;
         }
       }
@@ -620,13 +786,116 @@ export class MidiHandler {
    * Returns the display name of the connected MIDISteel device.
    */
   getMidiSteelDeviceName() {
-    const pattern = /midi[-_\s]?steel|lap[-_\s]?steel/i;
-    const check = (d) => pattern.test(`${d.name || ''} ${d.manufacturer || ''} ${d.id || ''}`);
+    if (this.midiSteelDeviceName) {
+      return this.midiSteelDeviceName;
+    }
+    const check = (d) => this.isMidiSteelDevice(d);
     let dev = this.inputs.find(check);
     if (!dev && this.midiAccess?.inputs) {
       dev = Array.from(this.midiAccess.inputs.values()).find(check);
     }
     return dev ? (dev.name || 'MIDISteel') : 'MIDISteel';
+  }
+
+  /**
+   * Evaluates incoming MIDI bytes to detect the MIDISteel Universal SysEx Identity Reply.
+   * Format: F0 7E <devId> 06 02 7D 53 4D (or 4D 53) ... F7
+   */
+  checkSysexIdentity(bytes, sourceName = '', sourceId = '') {
+    if (!bytes || bytes.length < 8) return false;
+
+    // Scan for Universal SysEx Identity Reply
+    const maxSearch = Math.min(bytes.length - 8, 64);
+    for (let i = 0; i <= maxSearch; i++) {
+      if (
+        bytes[i] === 0xF0 &&
+        bytes[i + 1] === 0x7E &&
+        bytes[i + 3] === 0x06 &&
+        bytes[i + 4] === 0x02 && // Identity Reply
+        bytes[i + 5] === 0x7D && // Mfr: 0x7D
+        ((bytes[i + 6] === 0x53 && bytes[i + 7] === 0x4D) || (bytes[i + 6] === 0x4D && bytes[i + 7] === 0x53)) // Family: 'MS' (MidiSteel)
+      ) {
+        console.log("MidiSteel detected! Enabling lap steel mode...");
+        this.enableLapSteelFeatures(sourceName, sourceId);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Activates MIDISteel / Lap Steel controller features when detected by port name or SysEx identity.
+   */
+  enableLapSteelFeatures(sourceName = '', sourceId = '') {
+    this.hasSysexIdentifiedMidiSteel = true;
+    if (sourceId) {
+      this.verifiedMidiSteelDeviceIds.add(String(sourceId));
+    }
+    if (sourceName) {
+      this.midiSteelDeviceName = sourceName;
+    }
+
+    // If current selection is virtual (like IAC Driver) or generic, switch to the verified MIDISteel
+    const currentDevice = this.inputs.find(d => d.id === this.selectedInputId);
+    const isCurrentVirtual = currentDevice && (
+      (currentDevice.name || '').toLowerCase().includes('iac') ||
+      (currentDevice.name || '').toLowerCase().includes('network') ||
+      (currentDevice.name || '').toLowerCase().includes('loop')
+    );
+
+    if (sourceId && (this.selectedInputId === 'all' || isCurrentVirtual || !currentDevice)) {
+      this.selectedInputId = sourceId;
+      if (typeof this.onDeviceListChange === 'function') {
+        this.onDeviceListChange(this.inputs, this.selectedInputId);
+      }
+    }
+
+    // Refresh port bindings so MIDISteel is prioritized and kept active
+    this.bindInputs();
+
+    // Notify UI to display MIDISteel buttons & settings options
+    if (typeof this.onMidiSteelDetected === 'function') {
+      try {
+        this.onMidiSteelDetected({ sourceName, sourceId });
+      } catch (err) {
+        console.error('Error in onMidiSteelDetected callback:', err);
+      }
+    }
+  }
+
+  /**
+   * Broadcasts a standard MIDI Universal SysEx Identity Request to connected hardware outputs.
+   * Format: F0 7E 7F 06 01 F7
+   */
+  async probeMidiIdentity() {
+    const identityRequest = [0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7];
+    const env = this.checkEnvironment();
+
+    // 1. Native iOS CoreMIDI Output
+    if (env.isIOS || env.hasCoreMidiPlugin) {
+      const coreMidi = this.getCoreMidiPlugin();
+      if (coreMidi && typeof coreMidi.sendMidi === 'function') {
+        try {
+          await coreMidi.sendMidi({ data: identityRequest });
+        } catch (_) {}
+      }
+    }
+
+    // 2. Web MIDI API Outputs
+    if (this.midiAccess && this.midiAccess.outputs) {
+      const isVirtual = (o) => {
+        const n = `${o.name || ''} ${o.manufacturer || ''} ${o.id || ''}`.toLowerCase();
+        return n.includes('iac') || n.includes('network') || n.includes('session') || n.includes('loop') || n.includes('virtual');
+      };
+
+      for (const output of this.midiAccess.outputs.values()) {
+        if (!isVirtual(output) && typeof output.send === 'function') {
+          try {
+            output.send(identityRequest);
+          } catch (_) {}
+        }
+      }
+    }
   }
 
   /**
@@ -658,11 +927,22 @@ export class MidiHandler {
     if (this.midiAccess && this.midiAccess.outputs) {
       let targetOutput = null;
       const outputs = Array.from(this.midiAccess.outputs.values());
+      const isVirtual = (o) => {
+        const n = `${o.name || ''} ${o.manufacturer || ''} ${o.id || ''}`.toLowerCase();
+        return n.includes('iac') || n.includes('network') || n.includes('session') || n.includes('loop') || n.includes('virtual');
+      };
+
       if (targetNameOrId) {
         targetOutput = outputs.find(o => o.id === targetNameOrId || (o.name && o.name.toLowerCase().includes(targetNameOrId.toLowerCase())));
       }
+      if (!targetOutput && this.verifiedMidiSteelDeviceIds && this.verifiedMidiSteelDeviceIds.size > 0) {
+        targetOutput = outputs.find(o => this.verifiedMidiSteelDeviceIds.has(String(o.id)));
+      }
       if (!targetOutput) {
-        targetOutput = outputs.find(o => /midisteel|teensy/i.test(o.name || '')) || outputs[0];
+        targetOutput = outputs.find(o => this.isMidiSteelDevice(o));
+      }
+      if (!targetOutput) {
+        targetOutput = outputs.find(o => !isVirtual(o)) || outputs[0];
       }
       if (targetOutput && typeof targetOutput.send === 'function') {
         try {
