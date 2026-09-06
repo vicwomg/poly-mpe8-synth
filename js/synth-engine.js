@@ -395,9 +395,13 @@ export class SynthEngine {
 
   updateReverbImpulse(duration = 2.0) {
     if (!this.ctx || !this.reverbIn || !this.reverbFilter) return;
+    const key = Math.round(Math.min(Math.max(0.2, duration), 6.0) * 10) / 10;
+    if (this._currentReverbDuration === key && this.reverbConvolver) return;
+    this._currentReverbDuration = key;
+
     try {
       const newConvolver = this.ctx.createConvolver();
-      newConvolver.buffer = this.buildImpulseResponse(duration);
+      newConvolver.buffer = this.buildImpulseResponse(key);
 
       if (this.reverbConvolver) {
         try {
@@ -415,9 +419,16 @@ export class SynthEngine {
   }
 
   buildImpulseResponse(duration = 2.0) {
+    if (!this._impulseCache) {
+      this._impulseCache = new Map();
+    }
+    const key = Math.round(Math.min(Math.max(0.2, duration), 6.0) * 10) / 10;
+    if (this._impulseCache.has(key)) {
+      return this._impulseCache.get(key);
+    }
+
     const rate = this.ctx.sampleRate;
-    const dur = Math.min(Math.max(0.2, duration), 6.0);
-    const length = Math.floor(rate * dur);
+    const length = Math.floor(rate * key);
     const impulse = this.ctx.createBuffer(2, length, rate);
     const left = impulse.getChannelData(0);
     const right = impulse.getChannelData(1);
@@ -427,6 +438,8 @@ export class SynthEngine {
       left[i] = (Math.random() * 2 - 1) * decay;
       right[i] = (Math.random() * 2 - 1) * decay;
     }
+
+    this._impulseCache.set(key, impulse);
     return impulse;
   }
 
@@ -834,7 +847,11 @@ export class SynthEngine {
 
     this.updateDistortionMix();
     if (this.distWaveShaper) {
-      this.distWaveShaper.curve = this.makeDistortionCurve(this.params.distortionDrive ?? 20);
+      const drive = this.params.distortionDrive ?? 20;
+      if (this._currentDistDrive !== drive) {
+        this._currentDistDrive = drive;
+        this.distWaveShaper.curve = this.makeDistortionCurve(drive);
+      }
     }
     if (this.distFilter) {
       this.distFilter.frequency.setTargetAtTime(this.params.distortionTone ?? 4000, this.ctx.currentTime, 0.02);
@@ -849,8 +866,11 @@ export class SynthEngine {
     }
 
     this.updateReverbMix();
-    if (this.params.reverbTime) {
-      this.updateReverbImpulse(this.params.reverbTime);
+    if (this.params.reverbEnabled && this.params.reverbTime) {
+      if (this._reverbUpdateTimeout) clearTimeout(this._reverbUpdateTimeout);
+      this._reverbUpdateTimeout = setTimeout(() => {
+        this.updateReverbImpulse(this.params.reverbTime);
+      }, 120);
     }
     if (this.reverbFilter && this.params.reverbDamp) {
       this.reverbFilter.frequency.setTargetAtTime(this.params.reverbDamp, this.ctx.currentTime, 0.02);

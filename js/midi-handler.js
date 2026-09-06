@@ -23,6 +23,9 @@ export class MidiHandler {
     this.hasSysexIdentifiedMidiSteel = false;
     this.midiSteelDeviceName = null;
     this.onMidiSteelDetected = null;
+    this.bankMSB = 0;
+    this.bankLSB = 0;
+    this.onProgramChange = null;
 
     if (typeof window !== 'undefined') {
       window.midiHandler = this;
@@ -612,7 +615,15 @@ export class MidiHandler {
         const ccNumber = data1;
         const ccValue = data2;
 
-        if (ccNumber === 64) {
+        if (ccNumber === 0) {
+          // Bank Select MSB
+          this.bankMSB = ccValue;
+          logEvent = { type: 'Bank MSB (CC0)', ccNumber, channel, note: '-', value: ccValue, detail: `Val: ${ccValue}` };
+        } else if (ccNumber === 32) {
+          // Bank Select LSB
+          this.bankLSB = ccValue;
+          logEvent = { type: 'Bank LSB (CC32)', ccNumber, channel, note: '-', value: ccValue, detail: `Val: ${ccValue}` };
+        } else if (ccNumber === 64) {
           // Sustain Pedal
           this.sustainPedal = ccValue >= 64;
           if (!this.sustainPedal) {
@@ -651,6 +662,26 @@ export class MidiHandler {
           this.synth.setCC(channel, ccNumber, ccValue);
           logEvent = { type: desc, ccNumber, channel, note: '-', value: ccValue, detail: `Val: ${ccValue}` };
         }
+        break;
+      }
+
+      case 0xC: { // Program Change
+        const programNumber = data1;
+        const currentBank = this.bankMSB || 0;
+        let presetName = '';
+        if (typeof this.onProgramChange === 'function') {
+          const loadedPreset = this.onProgramChange(programNumber, currentBank, channel);
+          if (loadedPreset && loadedPreset.name) {
+            presetName = loadedPreset.name;
+          }
+        }
+        logEvent = {
+          type: 'Program Change',
+          channel,
+          note: '-',
+          value: programNumber,
+          detail: presetName ? `Prog ${programNumber} (${presetName})` : `Prog ${programNumber}`
+        };
         break;
       }
 

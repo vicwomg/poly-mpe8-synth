@@ -153,6 +153,34 @@ export class PresetManager {
   }
 
   /**
+   * Resolves a preset by MIDI Program Change number and optional Bank.
+   * Assumes Bank 0 by default. Wraps out-of-range program numbers using modular math.
+   * @param {number} programNumber - MIDI program number (0..127 or any integer)
+   * @param {number} bank - Bank number (default 0)
+   * @returns {Object|null} The resolved preset object
+   */
+  getPresetByProgram(programNumber, bank = 0) {
+    let pool = [];
+
+    if (bank === 1 && this.userPresets.length > 0) {
+      // Bank 1: Dedicated User Presets bank
+      pool = this.userPresets;
+    } else {
+      // Bank 0 (default): Matches dropdown order (user presets first if any, followed by factory presets)
+      pool = this.getAllPresets();
+    }
+
+    if (!pool || pool.length === 0) {
+      return this.factoryPresets[0] || null;
+    }
+
+    // Modular arithmetic wrapping (handles out of range and negative numbers)
+    const count = pool.length;
+    const index = ((programNumber % count) + count) % count;
+    return pool[index];
+  }
+
+  /**
    * Saves a new user preset or overwrites an existing user preset.
    * @param {string} name - The preset name
    * @param {Object} params - Current synth parameters

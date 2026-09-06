@@ -14,6 +14,7 @@ class SynthUI {
     this.midiLogEntries = [];
     this.presetManager = new PresetManager();
     this.currentPresetId = null;
+    this.lastReceivedProgramNumber = null;
     this.isMidiMonitorEnabled = false; // Disabled by default for maximum performance
 
     this.synth.ui = this;
@@ -465,6 +466,10 @@ class SynthUI {
       }
     };
 
+    this.midi.onProgramChange = (programNumber, bank = 0) => {
+      return this.handleProgramChange(programNumber, bank);
+    };
+
     // Initial silent check / request
     await this.midi.requestAccess();
     syncMidiSteelUI();
@@ -834,34 +839,38 @@ class SynthUI {
     const targetId = selectedId || this.currentPresetId || factoryPresets[0]?.id;
     this.currentPresetId = targetId;
 
-    select.innerHTML = '';
+    const totalExpectedOptions = userPresets.length + factoryPresets.length;
+    const existingOptions = select.querySelectorAll('option');
     const isModified = this.presetManager.isModified;
 
-    // 1. User Presets (custom patches created by user)
-    if (userPresets.length > 0) {
-      const userGroup = document.createElement('optgroup');
-      userGroup.label = 'User Presets';
-      userPresets.forEach(p => {
+    // Only rebuild DOM options if the preset counts changed (e.g. user preset saved/deleted)
+    if (existingOptions.length !== totalExpectedOptions) {
+      select.innerHTML = '';
+
+      // 1. User Presets (custom patches created by user)
+      if (userPresets.length > 0) {
+        const userGroup = document.createElement('optgroup');
+        userGroup.label = 'User Presets';
+        userPresets.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name;
+          userGroup.appendChild(opt);
+        });
+        select.appendChild(userGroup);
+      }
+
+      // 2. Factory Presets
+      const factoryGroup = document.createElement('optgroup');
+      factoryGroup.label = 'Factory Presets';
+      factoryPresets.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
-        const dirty = (p.id === targetId && isModified);
-        opt.textContent = dirty ? `${p.name} *` : p.name;
-        userGroup.appendChild(opt);
+        opt.textContent = p.name;
+        factoryGroup.appendChild(opt);
       });
-      select.appendChild(userGroup);
+      select.appendChild(factoryGroup);
     }
-
-    // 2. Factory Presets (no default asterisk; asterisk only appears when modified)
-    const factoryGroup = document.createElement('optgroup');
-    factoryGroup.label = 'Factory Presets';
-    factoryPresets.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      const dirty = (p.id === targetId && isModified);
-      opt.textContent = dirty ? `${p.name} *` : p.name;
-      factoryGroup.appendChild(opt);
-    });
-    select.appendChild(factoryGroup);
 
     if (targetId) {
       select.value = targetId;
@@ -997,7 +1006,7 @@ class SynthUI {
 
   navigatePreset(direction) {
     const allPresets = this.presetManager.getAllPresets();
-    if (!allPresets || allPresets.length === 0) return;
+    if (!allPresets || allPresets.length === 0) return null;
 
     const select = document.getElementById('preset-select');
     const targetId = this.currentPresetId || select?.value;
@@ -1010,6 +1019,69 @@ class SynthUI {
     const nextPreset = allPresets[nextIndex];
     if (nextPreset) {
       this.loadPreset(nextPreset.id);
+      return nextPreset;
+    }
+    return null;
+  }
+
+  /**
+   * Smart Delta Program Change Handler:
+   * Supports both incremental controller stepping (Next / Prev hotkeys, footswitches)
+   * without truncation or wrap desynchronization, as well as direct patch selection from DAWs.
+   */
+  handleProgramChange(programNumber, bank = 0) {
+    const allPresets = this.presetManager.getAllPresets();
+    const count = allPresets.length;
+    if (count === 0) return null;
+
+    const prev = this.lastReceivedProgramNumber;
+    this.lastReceivedProgramNumber = programNumber;
+
+    // First program change received since launch
+    if (prev === null) {
+      const targetPreset = this.presetManager.getPresetByProgram(programNumber, bank);
+      if (targetPreset) {
+        this.loadPreset(targetPreset.id);
+        return targetPreset;
+      }
+      return null;
+    }
+
+    const rawDiff = programNumber - prev;
+
+    // Detect Step Down (-1):
+    // 1. Standard sequential decrement: rawDiff === -1
+    // 2. Controller 7-bit wrap backward: prev === 0 && programNumber === 127
+    // 3. Controller bank limit wrap backward (e.g. 0 -> 19 or 0 -> count - 1):
+    //    prev === 0 && (programNumber === count - 1 || programNumber === count || programNumber === 127)
+    const isStepDown = (rawDiff === -1) ||
+                       (prev === 0 && programNumber === 127) ||
+                       (prev === 0 && (programNumber === count - 1 || programNumber === count));
+
+    // Detect Step Up (+1):
+    // 1. Standard sequential increment: rawDiff === 1
+    // 2. Controller 7-bit wrap: prev === 127 && programNumber === 0
+    // 3. Controller bank limit wrap (e.g. 19 -> 0, or any jump from higher number > 1 back to 0):
+    //    programNumber === 0 && prev > 1
+    // 4. Controller 1-based wrap (e.g. 20 -> 1):
+    //    programNumber === 1 && prev >= count
+    const isStepUp = (rawDiff === 1) ||
+                     (prev === 127 && programNumber === 0) ||
+                     (programNumber === 0 && prev > 1) ||
+                     (programNumber === 1 && prev >= count);
+
+    if (isStepDown) {
+      return this.navigatePreset(-1);
+    } else if (isStepUp) {
+      return this.navigatePreset(1);
+    } else {
+      // Direct jump (e.g. DAW direct patch selection or keypad entry)
+      const targetPreset = this.presetManager.getPresetByProgram(programNumber, bank);
+      if (targetPreset) {
+        this.loadPreset(targetPreset.id);
+        return targetPreset;
+      }
+      return null;
     }
   }
 
