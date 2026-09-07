@@ -2,6 +2,7 @@ import Foundation
 import Capacitor
 import CoreMIDI
 import AVFoundation
+import MediaPlayer
 
 @objc(CoreMidiPlugin)
 public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -14,7 +15,8 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "sendMidi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getDiagnostics", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "configureAudioSession", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setIdleTimerDisabled", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "setIdleTimerDisabled", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "updateNowPlayingInfo", returnType: CAPPluginReturnPromise)
     ]
 
     public static weak var shared: CoreMidiPlugin?
@@ -449,5 +451,31 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
             UIApplication.shared.isIdleTimerDisabled = disabled
         }
         call.resolve(["disabled": disabled])
+    }
+
+    @objc public func updateNowPlayingInfo(_ call: CAPPluginCall) {
+        let title = call.getString("title") ?? "PM-8"
+        let artist = call.getString("artist") ?? "Polyphonic MPE Synthesizer"
+
+        DispatchQueue.main.async {
+            var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
+            info[MPMediaItemPropertyTitle] = title
+            info[MPMediaItemPropertyArtist] = artist
+            info[MPMediaItemPropertyAlbumTitle] = "PM-8"
+            info[MPNowPlayingInfoPropertyIsLiveStream] = true
+
+            if info[MPMediaItemPropertyArtwork] == nil {
+                if let iconPath = Bundle.main.path(forResource: "public/assets/icon-pm8", ofType: "png"),
+                   let image = UIImage(contentsOfFile: iconPath) {
+                    let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+                    info[MPMediaItemPropertyArtwork] = artwork
+                } else if let icon = UIImage(named: "AppIcon") {
+                    let artwork = MPMediaItemArtwork(boundsSize: icon.size) { _ in icon }
+                    info[MPMediaItemPropertyArtwork] = artwork
+                }
+            }
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        }
+        call.resolve(["title": title, "artist": artist])
     }
 }

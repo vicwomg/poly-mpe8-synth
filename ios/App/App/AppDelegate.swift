@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import AVFoundation
+import MediaPlayer
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -20,7 +21,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             print("[AppDelegate] Failed to set AVAudioSession category: \(error)")
         }
 
+        // Initialize Now Playing info with "PM-8" branding (Option 2: Native iOS APIs)
+        setupNowPlayingInfo()
+
         return true
+    }
+
+    private func setupNowPlayingInfo() {
+        var info = [String: Any]()
+        info[MPMediaItemPropertyTitle] = "PM-8"
+        info[MPMediaItemPropertyArtist] = "Polyphonic MPE Synthesizer"
+        info[MPMediaItemPropertyAlbumTitle] = "PM-8"
+        info[MPNowPlayingInfoPropertyIsLiveStream] = true
+
+        if let iconPath = Bundle.main.path(forResource: "public/assets/icon-pm8", ofType: "png"),
+           let image = UIImage(contentsOfFile: iconPath) {
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            info[MPMediaItemPropertyArtwork] = artwork
+        } else if let icon = UIImage(named: "AppIcon") {
+            let artwork = MPMediaItemArtwork(boundsSize: icon.size) { _ in icon }
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+
+        // Enable remote control events so iOS recognizes this app as an active media provider
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+        let commandCenter = MPRemoteCommandCenter.shared()
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.stopCommand.isEnabled = true
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

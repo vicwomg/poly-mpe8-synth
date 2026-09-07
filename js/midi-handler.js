@@ -99,11 +99,26 @@ export class MidiHandler {
         sendMidi: (opts) => window.Capacitor.nativePromise(pluginName, 'sendMidi', opts || {}),
         getDiagnostics: (opts) => window.Capacitor.nativePromise(pluginName, 'getDiagnostics', opts || {}),
         setIdleTimerDisabled: (opts) => window.Capacitor.nativePromise(pluginName, 'setIdleTimerDisabled', opts || {}),
+        updateNowPlayingInfo: (opts) => window.Capacitor.nativePromise(pluginName, 'updateNowPlayingInfo', opts || {}),
         addListener: (eventName, callback) => window.Capacitor.addListener(pluginName, eventName, callback),
         removeAllListeners: () => window.Capacitor.nativePromise(pluginName, 'removeAllListeners', {})
       };
     }
     return null;
+  }
+
+  /**
+   * Updates native iOS Now Playing metadata (Option 2)
+   */
+  async updateNowPlayingInfo(title = 'PM-8', artist = 'Polyphonic MPE Synthesizer') {
+    const coreMidi = this.getCoreMidiPlugin();
+    if (coreMidi?.updateNowPlayingInfo) {
+      try {
+        await coreMidi.updateNowPlayingInfo({ title, artist });
+      } catch (e) {
+        console.debug('Failed to update native NowPlayingInfo:', e);
+      }
+    }
   }
 
   /**

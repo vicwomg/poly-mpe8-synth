@@ -59,6 +59,9 @@ class SynthUI {
         await this.requestWakeLock();
         this.recordActivity();
       }
+
+      // Initialize Media Session & Now Playing metadata (Option 1 & 2)
+      this.initMediaSession();
     };
 
     btnPower?.addEventListener('click', startAudioEngine);
@@ -545,6 +548,53 @@ class SynthUI {
         console.warn('Failed to set native Android screen flag:', e);
       }
     }
+  }
+
+  // --- Web Media Session API (Option 1) & Native Now Playing Sync (Option 2) ---
+
+  initMediaSession() {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const currentPreset = this.presetManager?.getPresetById(this.currentPresetId);
+    this.updateMediaSession(currentPreset?.name || 'PM-8 Synthesizer');
+
+    try {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (this.synth?.ctx?.state === 'suspended') {
+          this.synth.ctx.resume();
+        }
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        this.synth?.panic();
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        this.synth?.panic();
+      });
+    } catch (e) {
+      console.debug('MediaSession setActionHandler error:', e);
+    }
+  }
+
+  updateMediaSession(presetName = 'PM-8 Synthesizer') {
+    // Option 1: Web Media Session API (Frontend / JS)
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'PM-8',
+          artist: presetName,
+          album: 'PM-8 Synthesizer',
+          artwork: [
+            { src: 'assets/icon-pm8.png', sizes: '512x512', type: 'image/png' },
+            { src: 'favicon.png', sizes: '192x192', type: 'image/png' }
+          ]
+        });
+      } catch (e) {
+        console.debug('MediaMetadata error:', e);
+      }
+    }
+
+    // Option 2: Native iOS MPNowPlayingInfoCenter sync
+    this.midi?.updateNowPlayingInfo?.('PM-8', presetName);
   }
 
   initWakeLock() {
@@ -1107,6 +1157,7 @@ class SynthUI {
 
     this.renderPresetDropdown(preset.id);
     this.saveActiveSession();
+    this.updateMediaSession(preset.name);
   }
 
   navigatePreset(direction) {
