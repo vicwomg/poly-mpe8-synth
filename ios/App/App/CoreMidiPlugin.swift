@@ -13,7 +13,8 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "listOutputs", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "sendMidi", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getDiagnostics", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "configureAudioSession", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "configureAudioSession", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setIdleTimerDisabled", returnType: CAPPluginReturnPromise)
     ]
 
     public static weak var shared: CoreMidiPlugin?
@@ -440,5 +441,13 @@ public class CoreMidiPlugin: CAPPlugin, CAPBridgedPlugin {
         } catch {
             call.reject("Failed to set AVAudioSession: \(error.localizedDescription)")
         }
+    }
+
+    @objc public func setIdleTimerDisabled(_ call: CAPPluginCall) {
+        let disabled = call.getBool("disabled") ?? true
+        DispatchQueue.main.async {
+            UIApplication.shared.isIdleTimerDisabled = disabled
+        }
+        call.resolve(["disabled": disabled])
     }
 }

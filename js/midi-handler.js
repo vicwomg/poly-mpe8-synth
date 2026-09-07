@@ -98,6 +98,7 @@ export class MidiHandler {
         listOutputs: (opts) => window.Capacitor.nativePromise(pluginName, 'listOutputs', opts || {}),
         sendMidi: (opts) => window.Capacitor.nativePromise(pluginName, 'sendMidi', opts || {}),
         getDiagnostics: (opts) => window.Capacitor.nativePromise(pluginName, 'getDiagnostics', opts || {}),
+        setIdleTimerDisabled: (opts) => window.Capacitor.nativePromise(pluginName, 'setIdleTimerDisabled', opts || {}),
         addListener: (eventName, callback) => window.Capacitor.addListener(pluginName, eventName, callback),
         removeAllListeners: () => window.Capacitor.nativePromise(pluginName, 'removeAllListeners', {})
       };

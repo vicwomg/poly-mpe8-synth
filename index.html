@@ -279,10 +279,10 @@
 
             <!-- Display & Wake Lock Section -->
             <div class="settings-section" id="settings-wake-lock-section">
-              <div class="settings-title">Display & Screen Wake Lock</div>
+              <div class="settings-title">Display & Screen Sleep</div>
               <p class="settings-desc">
-                Keep your mobile or tablet screen awake while actively playing
-                the synthesizer.
+                Manages display power and sleep while actively playing or
+                monitoring the synthesizer.
               </p>
               <div class="settings-row">
                 <label for="toggle-wake-lock">Keep Screen Awake:</label>
@@ -297,13 +297,32 @@
                   >ON AUDIO START</span
                 >
               </div>
+              <div
+                class="settings-row"
+                id="auto-sleep-row"
+                style="margin-top: 8px"
+              >
+                <label for="toggle-auto-sleep"
+                  >Auto Sleep (10m Inactivity):</label
+                >
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggle-auto-sleep" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+                <span
+                  id="auto-sleep-status"
+                  class="badge badge-emerald"
+                  style="font-size: 9px; padding: 2px 6px"
+                  >10 MIN</span
+                >
+              </div>
               <p
                 class="settings-desc"
                 style="margin-top: 8px; font-size: 10px; color: var(--text-dim)"
               >
-                Dual-tier keep-awake: Combines the W3C WakeLock API with an
-                HTML5 media keep-alive fallback for non-HTTPS connections and
-                devices without native WakeLock support.
+                When Auto Sleep is enabled (default), the screen will sleep
+                after 10 minutes of no touch, key, or MIDI activity to conserve
+                battery. Turn off to keep the screen awake indefinitely.
               </p>
             </div>
 
@@ -759,7 +778,7 @@
           <div class="card-title">
             <span>OSCILLATORS</span>
             <div class="osc-mix-inline">
-              <label for="osc2Mix">OSC 1/2 MIX</label>
+              <label for="osc2Mix">OSC 2 MIX</label>
               <input
                 type="range"
                 id="osc2Mix"
@@ -777,7 +796,7 @@
             <!-- OSCILLATOR 1 -->
             <div class="osc-sub-block" id="osc1-block">
               <div class="control-row">
-                <span class="sub-label">OSC 1</span>
+                <span class="sub-label" id="osc1-label">OSC 1</span>
                 <div class="btn-group wave-select" data-param="osc1Waveform">
                   <button class="btn btn-tab active" data-value="sawtooth">
                     SAW
@@ -833,7 +852,7 @@
             <!-- OSCILLATOR 2 -->
             <div class="osc-sub-block" id="osc2-block">
               <div class="control-row">
-                <span class="sub-label">OSC 2</span>
+                <span class="sub-label" id="osc2-label">OSC 2</span>
                 <div class="btn-group wave-select" data-param="osc2Waveform">
                   <button class="btn btn-tab" data-value="sawtooth">SAW</button>
                   <button class="btn btn-tab active" data-value="square">

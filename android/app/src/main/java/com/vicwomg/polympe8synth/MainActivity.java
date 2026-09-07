@@ -14,8 +14,6 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // Keep screen awake while synthesizer is active
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         // Allow app to render edge-to-edge through display cutouts / notches
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

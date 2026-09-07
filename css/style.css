@@ -1471,14 +1471,49 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.osc-mix-inline label {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--osc-mix-color, var(--text-dim));
+  transition: color 0.1s ease;
+}
+
+.osc-mix-inline .val-display {
+  width: 28px;
+  min-width: 28px;
+  color: var(--osc-mix-color, var(--accent-cyan));
+  text-shadow: 0 0 6px var(--osc-mix-glow, transparent);
+  transition: color 0.1s ease, text-shadow 0.1s ease;
 }
 
 .osc-mix-inline input[type="range"] {
   width: 70px;
+  background: linear-gradient(
+    to right,
+    #00c4f8 0%,
+    var(--osc-mix-color, #80af86) var(--osc-mix-pct, 50%),
+    rgba(255, 153, 20, 0.25) var(--osc-mix-pct, 50%),
+    rgba(255, 153, 20, 0.25) 100%
+  );
+  border: 1px solid var(--osc-mix-color, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 0 6px var(--osc-mix-glow, transparent);
+  transition: border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.osc-mix-inline input[type="range"]::-webkit-slider-thumb {
+  background: var(--osc-mix-color, #80af86);
+  box-shadow: 0 0 8px var(--osc-mix-glow, rgba(128, 175, 134, 0.5));
+  border: 2px solid #fff;
+  transition: background 0.05s ease, box-shadow 0.05s ease;
+}
+
+.osc-mix-inline input[type="range"]::-moz-range-thumb {
+  background: var(--osc-mix-color, #80af86);
+  box-shadow: 0 0 8px var(--osc-mix-glow, rgba(128, 175, 134, 0.5));
+  border: 2px solid #fff;
+  transition: background 0.05s ease, box-shadow 0.05s ease;
 }
 
 .card-title {
@@ -1548,9 +1583,15 @@ button {
   font-weight: 700;
 }
 
-.highlight-card .btn-tab.active {
-  background-color: var(--accent-amber);
+.highlight-card .btn-tab.active,
+#osc2-block .btn-tab.active {
+  background-color: #ff9914;
   color: #0b0f17;
+}
+
+#osc1-label,
+#osc2-label {
+  transition: color 0.15s ease, opacity 0.15s ease, text-shadow 0.15s ease;
 }
 
 /* Knob / Slider Units */
@@ -1596,8 +1637,20 @@ button {
   gap: 10px;
 }
 
+.slider-row label {
+  flex-shrink: 0;
+}
+
 .slider-row input[type="range"] {
   flex: 1;
+}
+
+.slider-row .val-display {
+  width: 32px;
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Range Inputs */

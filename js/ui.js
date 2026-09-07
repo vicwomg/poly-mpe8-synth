@@ -54,9 +54,10 @@ class SynthUI {
         await this.midi.requestAccess();
       }
 
-      // Keep screen awake while audio is running on mobile/desktop (web mode only)
-      if (this.keepScreenAwake && (!window.Capacitor || !window.Capacitor.isNativePlatform())) {
+      // Keep screen awake while audio is running on mobile/desktop and native apps
+      if (this.keepScreenAwake) {
         await this.requestWakeLock();
+        this.recordActivity();
       }
     };
 
@@ -406,6 +407,8 @@ class SynthUI {
     let ledTimeout = null;
 
     this.midi.onMidiActivity = (logEvent) => {
+      this.recordActivity();
+
       // Flash LED inside POLY status badge
       if (activityLed) {
         activityLed.classList.add('active');
@@ -511,19 +514,34 @@ class SynthUI {
     this.initPerformanceVisibility();
   }
 
-  // --- Screen Wake Lock Management (Mobile Screen Stay-Awake) ---
+  // --- Screen Wake Lock & Auto Screen Sleep Management ---
+
+  async setNativeIdleTimerDisabled(disabled) {
+    if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform?.() === 'ios') {
+      try {
+        const plugin = this.midi?.getCoreMidiPlugin?.() || window.Capacitor?.Plugins?.CoreMidiPlugin;
+        if (plugin?.setIdleTimerDisabled) {
+          await plugin.setIdleTimerDisabled({ disabled });
+        } else if (window.Capacitor?.nativePromise) {
+          await window.Capacitor.nativePromise('CoreMidiPlugin', 'setIdleTimerDisabled', { disabled });
+        }
+      } catch (e) {
+        console.warn('Failed to set native iOS idle timer:', e);
+      }
+    }
+  }
 
   initWakeLock() {
-    // If running in native Capacitor (iOS/Android), OS flags handle screen keep-awake natively
     const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform();
-    if (isNative) {
-      const wakeLockSection = document.getElementById('settings-wake-lock-section');
-      if (wakeLockSection) wakeLockSection.style.display = 'none';
-      return;
-    }
 
     this.wakeLock = null;
     this.keepScreenAwake = localStorage.getItem('synth_keep_screen_awake') !== 'false';
+    this.autoScreenSleep = localStorage.getItem('synth_auto_screen_sleep') !== 'false';
+    this.inactivityTimeoutMs = 10 * 60 * 1000; // 10 minutes default
+    this.lastActivityTime = Date.now();
+    this.lastTimerScheduleTime = 0;
+    this.inactivityTimer = null;
+    this.isScreenSleeping = false;
     this.fallbackVideo = null;
 
     // Create persistent invisible video element for universal mobile fallback (NoSleep technique).
@@ -552,18 +570,37 @@ class SynthUI {
 
     const wakeLockToggle = document.getElementById('toggle-wake-lock');
     const wakeLockStatus = document.getElementById('wake-lock-status');
+    const autoSleepToggle = document.getElementById('toggle-auto-sleep');
+    const autoSleepStatus = document.getElementById('auto-sleep-status');
 
     const updateStatusUI = () => {
-      if (!wakeLockStatus) return;
-      if (this.wakeLock || (this.fallbackVideo && !this.fallbackVideo.paused)) {
-        wakeLockStatus.textContent = this.wakeLock ? 'AWAKE (API)' : 'AWAKE (MEDIA)';
-        wakeLockStatus.className = 'badge badge-emerald';
-      } else if (this.keepScreenAwake) {
-        wakeLockStatus.textContent = this.synth.isAudioStarted ? 'ACQUIRING...' : 'ON AUDIO START';
-        wakeLockStatus.className = 'badge badge-cyan';
-      } else {
-        wakeLockStatus.textContent = 'DISABLED';
-        wakeLockStatus.className = 'badge badge-muted';
+      if (wakeLockStatus) {
+        if (!this.keepScreenAwake) {
+          wakeLockStatus.textContent = 'DISABLED';
+          wakeLockStatus.className = 'badge badge-muted';
+        } else if (this.isScreenSleeping) {
+          wakeLockStatus.textContent = 'SLEEPING';
+          wakeLockStatus.className = 'badge badge-amber';
+        } else if (this.wakeLock || (this.fallbackVideo && !this.fallbackVideo.paused) || (isNative && this.synth.isAudioStarted)) {
+          wakeLockStatus.textContent = this.wakeLock ? 'AWAKE (API)' : (isNative ? 'AWAKE (NATIVE)' : 'AWAKE (MEDIA)');
+          wakeLockStatus.className = 'badge badge-emerald';
+        } else {
+          wakeLockStatus.textContent = this.synth.isAudioStarted ? 'ACQUIRING...' : 'ON AUDIO START';
+          wakeLockStatus.className = 'badge badge-cyan';
+        }
+      }
+
+      if (autoSleepStatus) {
+        if (!this.autoScreenSleep) {
+          autoSleepStatus.textContent = 'OFF';
+          autoSleepStatus.className = 'badge badge-muted';
+        } else if (this.isScreenSleeping) {
+          autoSleepStatus.textContent = 'SLEEPING';
+          autoSleepStatus.className = 'badge badge-amber';
+        } else {
+          autoSleepStatus.textContent = '10 MIN';
+          autoSleepStatus.className = 'badge badge-emerald';
+        }
       }
     };
 
@@ -573,6 +610,8 @@ class SynthUI {
         this.keepScreenAwake = e.target.checked;
         localStorage.setItem('synth_keep_screen_awake', this.keepScreenAwake);
         if (this.keepScreenAwake) {
+          this.isScreenSleeping = false;
+          this.recordActivity();
           if (this.synth.isAudioStarted) {
             await this.requestWakeLock();
           }
@@ -583,21 +622,107 @@ class SynthUI {
       });
     }
 
+    if (autoSleepToggle) {
+      autoSleepToggle.checked = this.autoScreenSleep;
+      autoSleepToggle.addEventListener('change', async (e) => {
+        this.autoScreenSleep = e.target.checked;
+        localStorage.setItem('synth_auto_screen_sleep', this.autoScreenSleep);
+        if (!this.autoScreenSleep) {
+          if (this.inactivityTimer) {
+            clearTimeout(this.inactivityTimer);
+            this.inactivityTimer = null;
+          }
+          if (this.isScreenSleeping) {
+            await this.wakeFromSleep();
+          }
+        } else {
+          this.recordActivity();
+        }
+        updateStatusUI();
+      });
+    }
+
+    // Activity listeners for screen auto-sleep
+    ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((evt) => {
+      window.addEventListener(evt, () => this.recordActivity(), { passive: true });
+    });
+
     // Re-acquire wake lock when returning to the tab/app
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible' && this.keepScreenAwake && this.synth.isAudioStarted) {
+        this.recordActivity();
         await this.requestWakeLock();
       }
     });
 
     this.updateWakeLockUI = updateStatusUI;
+    this.scheduleInactivityTimer();
     updateStatusUI();
   }
 
-  async requestWakeLock() {
-    if (!this.keepScreenAwake) return;
+  recordActivity() {
+    const now = Date.now();
+    const wasSleeping = this.isScreenSleeping;
+    this.lastActivityTime = now;
 
-    // 1. Try W3C Screen Wake Lock API (requires HTTPS or localhost)
+    if (wasSleeping) {
+      this.wakeFromSleep();
+    }
+
+    if (!this.autoScreenSleep) return;
+
+    // Throttle timer rescheduling so high-rate MIDI messages don't churn timers
+    if (!this.inactivityTimer || (now - this.lastTimerScheduleTime > 5000)) {
+      this.lastTimerScheduleTime = now;
+      this.scheduleInactivityTimer();
+    }
+  }
+
+  scheduleInactivityTimer() {
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = null;
+    }
+    if (!this.autoScreenSleep) return;
+
+    const elapsed = Date.now() - this.lastActivityTime;
+    const remaining = this.inactivityTimeoutMs - elapsed;
+    if (remaining <= 0) {
+      this.triggerScreenSleep();
+    } else {
+      this.inactivityTimer = setTimeout(() => {
+        const currentElapsed = Date.now() - this.lastActivityTime;
+        if (currentElapsed >= this.inactivityTimeoutMs) {
+          this.triggerScreenSleep();
+        } else {
+          this.scheduleInactivityTimer();
+        }
+      }, remaining);
+    }
+  }
+
+  async triggerScreenSleep() {
+    if (!this.autoScreenSleep || this.isScreenSleeping) return;
+    this.isScreenSleeping = true;
+    await this.releaseWakeLock();
+    if (this.updateWakeLockUI) this.updateWakeLockUI();
+  }
+
+  async wakeFromSleep() {
+    this.isScreenSleeping = false;
+    if (this.keepScreenAwake && this.synth.isAudioStarted) {
+      await this.requestWakeLock();
+    }
+    if (this.updateWakeLockUI) this.updateWakeLockUI();
+  }
+
+  async requestWakeLock() {
+    if (!this.keepScreenAwake || this.isScreenSleeping) return;
+
+    // 1. Native iOS keep-awake via CoreMidiPlugin
+    await this.setNativeIdleTimerDisabled(true);
+
+    // 2. W3C Screen Wake Lock API (requires HTTPS or localhost)
     if ('wakeLock' in navigator) {
       try {
         if (!this.wakeLock) {
@@ -612,7 +737,7 @@ class SynthUI {
       }
     }
 
-    // 2. Universal Mobile Fallback: Silent Video Keep-Alive
+    // 3. Universal Mobile Fallback: Silent Video Keep-Alive
     // Android OS, iOS, and Moto Display kernel always keep screen awake during active media playback.
     if (this.fallbackVideo) {
       try {
@@ -627,17 +752,24 @@ class SynthUI {
   }
 
   async releaseWakeLock() {
+    // 1. Native iOS idle timer restore
+    await this.setNativeIdleTimerDisabled(false);
+
+    // 2. W3C Screen Wake Lock API
     if (this.wakeLock) {
       try {
         await this.wakeLock.release();
       } catch (_) {}
       this.wakeLock = null;
     }
+
+    // 3. Universal Mobile Fallback
     if (this.fallbackVideo) {
       try {
         this.fallbackVideo.pause();
       } catch (_) {}
     }
+
     if (this.updateWakeLockUI) this.updateWakeLockUI();
   }
 
@@ -1030,6 +1162,7 @@ class SynthUI {
    * without truncation or wrap desynchronization, as well as direct patch selection from DAWs.
    */
   handleProgramChange(programNumber, bank = 0) {
+    this.recordActivity();
     const allPresets = this.presetManager.getAllPresets();
     const count = allPresets.length;
     if (count === 0) return null;
@@ -1547,6 +1680,79 @@ class SynthUI {
     }
     const disp = document.getElementById(`${sliderId}-val`);
     if (disp) disp.textContent = displayStr;
+    if (sliderId === 'osc2Mix') {
+      this.updateOscMixVisuals(value);
+    }
+  }
+
+  /**
+   * Updates dynamic color representation of the oscillator mix state.
+   * At 0% mix (pure OSC 1): Blue on the left of the PM-8 logo (#00c4f8 / rgb(0, 196, 248))
+   * At 100% mix (pure OSC 2): Orange-yellow on the right of the PM-8 logo (#ff9914 / rgb(255, 153, 20))
+   * In between: smooth interpolated color on the slider, text, and proportional highlights on OSC 1 & OSC 2 headers.
+   */
+  updateOscMixVisuals(mix) {
+    const t = Math.max(0, Math.min(1, parseFloat(mix) || 0));
+
+    // Logo colors:
+    // Left blue (0%): rgb(0, 196, 248) -> #00c4f8
+    // Right orange-yellow (100%): rgb(255, 153, 20) -> #ff9914
+    const r = Math.round(0 * (1 - t) + 255 * t);
+    const g = Math.round(196 * (1 - t) + 153 * t);
+    const b = Math.round(248 * (1 - t) + 20 * t);
+    const mixColor = `rgb(${r}, ${g}, ${b})`;
+    const mixGlow = `rgba(${r}, ${g}, ${b}, 0.5)`;
+    const pct = `${Math.round(t * 100)}%`;
+
+    const slider = document.getElementById('osc2Mix');
+    if (slider) {
+      slider.style.setProperty('--osc-mix-color', mixColor);
+      slider.style.setProperty('--osc-mix-glow', mixGlow);
+      slider.style.setProperty('--osc-mix-pct', pct);
+    }
+
+    const mixInline = document.querySelector('.osc-mix-inline');
+    if (mixInline) {
+      mixInline.style.setProperty('--osc-mix-color', mixColor);
+      mixInline.style.setProperty('--osc-mix-glow', mixGlow);
+      mixInline.style.setProperty('--osc-mix-pct', pct);
+    }
+
+    const mixLabel = document.querySelector('.osc-mix-inline label');
+    if (mixLabel) {
+      mixLabel.style.color = mixColor;
+    }
+
+    const valDisplay = document.getElementById('osc2Mix-val');
+    if (valDisplay) {
+      valDisplay.style.color = mixColor;
+      valDisplay.style.textShadow = `0 0 6px ${mixGlow}`;
+    }
+
+    // Highlight OSC 1 and OSC 2 section text accordingly
+    const osc1Label = document.getElementById('osc1-label');
+    const osc2Label = document.getElementById('osc2-label');
+
+    const p1 = 1 - t; // OSC 1 weight: 1.0 at 0% mix, 0.0 at 100% mix
+    const p2 = t;     // OSC 2 weight: 0.0 at 0% mix, 1.0 at 100% mix
+
+    if (osc1Label) {
+      const op1 = (0.35 + 0.65 * p1).toFixed(2);
+      osc1Label.style.color = '#00c4f8';
+      osc1Label.style.opacity = op1;
+      osc1Label.style.textShadow = p1 > 0.05
+        ? `0 0 ${Math.round(8 * p1)}px rgba(0, 196, 248, ${(0.8 * p1).toFixed(2)})`
+        : 'none';
+    }
+
+    if (osc2Label) {
+      const op2 = (0.35 + 0.65 * p2).toFixed(2);
+      osc2Label.style.color = '#ff9914';
+      osc2Label.style.opacity = op2;
+      osc2Label.style.textShadow = p2 > 0.05
+        ? `0 0 ${Math.round(8 * p2)}px rgba(255, 153, 20, ${(0.8 * p2).toFixed(2)})`
+        : 'none';
+    }
   }
 
   // --- Parameter Controls Binding ---
@@ -1578,6 +1784,10 @@ class SynthUI {
 
         if (paramKey.startsWith('filter')) {
           this.visualizer?.markFilterDirty();
+        }
+
+        if (paramKey === 'osc2Mix') {
+          this.updateOscMixVisuals(val);
         }
       });
     };
@@ -1675,6 +1885,9 @@ class SynthUI {
     bindSlider('reverbTime', 'reverbTime', v => `${v}s`);
     bindSlider('reverbDamp', 'reverbDamp', v => v >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${v} Hz`);
     bindSlider('reverbMix', 'reverbMix', v => `${Math.round(v * 100)}%`);
+
+    // Initialize Oscillator Mix visuals with current param
+    this.updateOscMixVisuals(this.synth.params.osc2Mix ?? 0.5);
   }
 
   // --- MPE Performance Controls & 2D Touchpad ---
