@@ -1,6 +1,6 @@
 {
   "appId": "com.vicwomg.polympe8synth",
-  "appName": "PolyMPE-8",
+  "appName": "PM-8",
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
@@ -9,5 +9,6 @@
   "ios": {
     "allowsInlineMediaPlayback": true
   },
-  "plugins": {}
+  "plugins": {},
+  "packageClassList": ["CoreMidiPlugin"]
 }

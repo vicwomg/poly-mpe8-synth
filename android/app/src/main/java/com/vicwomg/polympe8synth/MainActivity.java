@@ -8,12 +8,35 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
 
 public class MainActivity extends BridgeActivity {
+    @CapacitorPlugin(name = "ScreenPlugin")
+    public static class ScreenPlugin extends Plugin {
+        @PluginMethod
+        public void setKeepScreenOn(PluginCall call) {
+            boolean enabled = call.getBoolean("enabled", true);
+            getActivity().runOnUiThread(() -> {
+                if (enabled) {
+                    getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                } else {
+                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
+                call.resolve();
+            });
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(ScreenPlugin.class);
         super.onCreate(savedInstanceState);
         
+        // Keep screen awake while synthesizer is active
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         // Allow app to render edge-to-edge through display cutouts / notches
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

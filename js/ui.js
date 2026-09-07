@@ -516,17 +516,33 @@ class SynthUI {
 
   // --- Screen Wake Lock & Auto Screen Sleep Management ---
 
-  async setNativeIdleTimerDisabled(disabled) {
-    if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform?.() === 'ios') {
+  // --- Screen Wake Lock & Auto Screen Sleep Management ---
+
+  async setNativeKeepAwake(enabled) {
+    if (typeof window === 'undefined' || !window.Capacitor?.isNativePlatform?.()) return;
+
+    const platform = window.Capacitor.getPlatform?.();
+    if (platform === 'ios') {
       try {
         const plugin = this.midi?.getCoreMidiPlugin?.() || window.Capacitor?.Plugins?.CoreMidiPlugin;
         if (plugin?.setIdleTimerDisabled) {
-          await plugin.setIdleTimerDisabled({ disabled });
+          await plugin.setIdleTimerDisabled({ disabled: enabled });
         } else if (window.Capacitor?.nativePromise) {
-          await window.Capacitor.nativePromise('CoreMidiPlugin', 'setIdleTimerDisabled', { disabled });
+          await window.Capacitor.nativePromise('CoreMidiPlugin', 'setIdleTimerDisabled', { disabled: enabled });
         }
       } catch (e) {
         console.warn('Failed to set native iOS idle timer:', e);
+      }
+    } else if (platform === 'android') {
+      try {
+        const plugin = window.Capacitor?.Plugins?.ScreenPlugin;
+        if (plugin?.setKeepScreenOn) {
+          await plugin.setKeepScreenOn({ enabled });
+        } else if (window.Capacitor?.nativePromise) {
+          await window.Capacitor.nativePromise('ScreenPlugin', 'setKeepScreenOn', { enabled });
+        }
+      } catch (e) {
+        console.warn('Failed to set native Android screen flag:', e);
       }
     }
   }
@@ -542,31 +558,6 @@ class SynthUI {
     this.lastTimerScheduleTime = 0;
     this.inactivityTimer = null;
     this.isScreenSleeping = false;
-    this.fallbackVideo = null;
-
-    // Create persistent invisible video element for universal mobile fallback (NoSleep technique).
-    // Android OS, iOS, and Moto Display kernel always keep screen awake during active media playback,
-    // regardless of HTTP/HTTPS, Screen Attention, or browser API restrictions.
-    try {
-      this.fallbackVideo = document.createElement('video');
-      this.fallbackVideo.setAttribute('playsinline', '');
-      this.fallbackVideo.setAttribute('webkit-playsinline', '');
-      this.fallbackVideo.setAttribute('muted', '');
-      this.fallbackVideo.muted = true;
-      this.fallbackVideo.loop = true;
-      this.fallbackVideo.style.position = 'fixed';
-      this.fallbackVideo.style.top = '-9999px';
-      this.fallbackVideo.style.left = '-9999px';
-      this.fallbackVideo.style.width = '1px';
-      this.fallbackVideo.style.height = '1px';
-      this.fallbackVideo.style.opacity = '0.001';
-      this.fallbackVideo.style.pointerEvents = 'none';
-
-      // 1-second tiny blank silent WebM video data URI
-      const base64Webm = 'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAQPEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEjTbuMU6uEHFO7a1OsggP57AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjIuMy4xMDBXQYxMYXZmNjIuMy4xMDBEiYhAj0AAAAAAABZUrmvIrgEAAAAAAAA/14EBc8WI+uLdxUei7SacgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QCYloA4JCwgQK6gQKagQJVsIRVuYEBElTDZ/tzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYyLjMuMTAwc3PWY8CLY8WI+uLdxUei7SZnyKFFo4dFTkNPREVSRIeUTGF2YzYyLjExLjEwMCBsaWJ2cHhnyKFFo4hEVVJBVElPTkSHkzAwOjAwOjAxLjAwMDAwMDAwMAAfQ7Z1QlDngQCjo4EAAIAQAgCdASoCAAIAAEcIhYWIhYSIAgIADA1gAP7/q1CAo5WBACgAsQEADBGMABgAGFgv9AAIAACjlYEAUACxAQAPEfwAGAAYWC/0AAgAAKOVgQB4ALEBAA8R/AAYABhYL/QACAAAo5WBAKAAsQEADxH8ABgAGFgv9AAIAACjlYEAyACxAQAPEfwAGAAYWC/0AAgAAKOVgQDwALEBAA8R/AAYABhYL/QACAAAo5WBARgAsQEADxCMFGAAYWC/0AAgAACjlYEBQACxAQAPEfwAGAAYWC/0AAgAAKOVgQFoALEBAA8R/AAYABhYL/QACAAAo5WBAZAAsQEADxH8ABgAGFgv9AAIAACjlYEBuACxAQAPEfwAGAAYWC/0AAgAAKOVgQHgALEBAA8R/AAYABhYL/QACAAAo5WBAggAsQEADxH8ABgAGFgv9AAIAACjlYECMACxAQAPEfwAGAAYWC/0AAgAAKOVgQJYALEBAA8R/AAYABhYL/QACAAAo5WBAoAAsQEADxH8ABgAGFgv9AAIAACjlYECqACxAQAPEfwAGAAYWC/0AAgAAKOVgQLQALEBAA8QrBRgAGFgv9AAIAAAo5WBAvgAsQEADxH8ABgAGFgv9AAIAACjlYEDIACxAQAPEfwAGAAYWC/0AAgAAKOVgQNIALEBAA8R/AAYABhYL/QACAAAo5WBA3AAsQEADxH8ABgAGFgv9AAIAACjlYEDmACxAQAPEfwAGAAYWC/0AAgAAKOVgQPAALEBAA8R/AAYABhYL/QACAAAHFO7a5G7j7OBALeK94EB8YIBo/CBAw==';
-      this.fallbackVideo.src = `data:video/webm;base64,${base64Webm}`;
-      document.body.appendChild(this.fallbackVideo);
-    } catch (_) {}
 
     const wakeLockToggle = document.getElementById('toggle-wake-lock');
     const wakeLockStatus = document.getElementById('wake-lock-status');
@@ -581,8 +572,8 @@ class SynthUI {
         } else if (this.isScreenSleeping) {
           wakeLockStatus.textContent = 'SLEEPING';
           wakeLockStatus.className = 'badge badge-amber';
-        } else if (this.wakeLock || (this.fallbackVideo && !this.fallbackVideo.paused) || (isNative && this.synth.isAudioStarted)) {
-          wakeLockStatus.textContent = this.wakeLock ? 'AWAKE (API)' : (isNative ? 'AWAKE (NATIVE)' : 'AWAKE (MEDIA)');
+        } else if (this.wakeLock || (isNative && this.synth.isAudioStarted)) {
+          wakeLockStatus.textContent = isNative ? 'AWAKE (NATIVE)' : 'AWAKE (API)';
           wakeLockStatus.className = 'badge badge-emerald';
         } else {
           wakeLockStatus.textContent = this.synth.isAudioStarted ? 'ACQUIRING...' : 'ON AUDIO START';
@@ -719,11 +710,11 @@ class SynthUI {
   async requestWakeLock() {
     if (!this.keepScreenAwake || this.isScreenSleeping) return;
 
-    // 1. Native iOS keep-awake via CoreMidiPlugin
-    await this.setNativeIdleTimerDisabled(true);
+    // 1. Native iOS/Android keep-awake
+    await this.setNativeKeepAwake(true);
 
-    // 2. W3C Screen Wake Lock API (requires HTTPS or localhost)
-    if ('wakeLock' in navigator) {
+    // 2. W3C Screen Wake Lock API (Chrome, Edge, Safari 16.4+)
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
       try {
         if (!this.wakeLock) {
           this.wakeLock = await navigator.wakeLock.request('screen');
@@ -737,23 +728,12 @@ class SynthUI {
       }
     }
 
-    // 3. Universal Mobile Fallback: Silent Video Keep-Alive
-    // Android OS, iOS, and Moto Display kernel always keep screen awake during active media playback.
-    if (this.fallbackVideo) {
-      try {
-        this.fallbackVideo.currentTime = 0;
-        await this.fallbackVideo.play();
-      } catch (err) {
-        console.warn('Wake Lock video fallback play failed:', err);
-      }
-    }
-
     if (this.updateWakeLockUI) this.updateWakeLockUI();
   }
 
   async releaseWakeLock() {
-    // 1. Native iOS idle timer restore
-    await this.setNativeIdleTimerDisabled(false);
+    // 1. Restore native iOS/Android idle sleep timer
+    await this.setNativeKeepAwake(false);
 
     // 2. W3C Screen Wake Lock API
     if (this.wakeLock) {
@@ -761,13 +741,6 @@ class SynthUI {
         await this.wakeLock.release();
       } catch (_) {}
       this.wakeLock = null;
-    }
-
-    // 3. Universal Mobile Fallback
-    if (this.fallbackVideo) {
-      try {
-        this.fallbackVideo.pause();
-      } catch (_) {}
     }
 
     if (this.updateWakeLockUI) this.updateWakeLockUI();

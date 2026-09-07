@@ -6,7 +6,7 @@
   "scripts": {
     "start": "python3 server.py 8080",
     "build": "node scripts/build.js",
-    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync": "npm run build && npx cap sync && node -e \"import('fs').then(fs => { const p = 'ios/App/App/capacitor.config.json'; if (fs.existsSync(p)) { const c = JSON.parse(fs.readFileSync(p)); c.packageClassList = ['CoreMidiPlugin']; fs.writeFileSync(p, JSON.stringify(c, null, '\\t')); } })\"",
     "cap:ios": "npm run build && npx cap open ios",
     "cap:android": "npm run build && npx cap open android",
     "build:apk": "npm run cap:sync && node scripts/build-apk.js",
