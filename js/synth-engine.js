@@ -64,11 +64,15 @@ export class SynthEngine {
       lfoDepth: 0.0, // 0 to 1
       lfoTarget: 'filter', // 'filter', 'pitch', 'amp', 'none'
 
-      // Distortion Effect
+      // Pluck / Pick Transient
+      pickTransient: false, // On/off toggle (Plectrum attack burst & displacement detune)
+
+      // Distortion & Amp Effect
       distortionEnabled: false,
       distortionDrive: 20, // 1 to 80
       distortionTone: 4000, // 500 Hz to 12000 Hz
       distortionMix: 0.5,
+      cabSimEnabled: false, // 12" Guitar Speaker Cabinet Emulation
 
       // Delay Effect
       delayEnabled: true,
@@ -181,8 +185,12 @@ export class SynthEngine {
     this.voicesBus = this.ctx.createGain();
     this.voicesBus.gain.setValueAtTime(0.75, this.ctx.currentTime);
 
-    // 2. Effects Processing Chain (Distortion -> Stereo Delay -> Reverb)
+    // Pre-render acoustic plectrum snap buffer for pick transients
+    this.pickImpulseBuffer = this.createPickImpulseBuffer();
+
+    // 2. Effects Processing Chain (Distortion -> Cab Sim -> Stereo Delay -> Reverb)
     this.setupDistortionEffect();
+    this.setupCabSimEffect();
     this.setupDelayEffect();
     this.setupReverbEffect();
 
@@ -209,16 +217,16 @@ export class SynthEngine {
     this.analyser.smoothingTimeConstant = 0.8;
 
     // Connect audio signal chain:
-    // voicesBus -> dry/wet delay network -> masterLimiter -> masterGain -> masterClipper -> destination (parallel analyser)
+    // voicesBus -> distortion -> cabSim -> stereo delay -> reverb -> limiter -> masterGain -> masterClipper -> destination
     this.connectAudioGraph();
 
-    // 6. Pre-allocate Polyphonic Voices (4 or 8)
+    // 7. Pre-allocate Polyphonic Voices (4 or 8)
     this.voices = [];
     for (let i = 0; i < this.voiceCount; i++) {
-      this.voices.push(new SynthVoice(this.ctx, this.voicesBus, i));
+      this.voices.push(new SynthVoice(this.ctx, this.voicesBus, i, this));
     }
 
-    // 7. LFO Engine Setup
+    // 8. LFO Engine Setup
     this.setupLFO();
 
     this.isAudioStarted = true;
@@ -281,20 +289,122 @@ export class SynthEngine {
     this.distWet.connect(this.distOut);
   }
 
+  createPickImpulseBuffer() {
+    if (!this.ctx) return null;
+    const rate = this.ctx.sampleRate;
+    const duration = 0.032; // 32ms rich acoustic plectrum snap
+    const length = Math.floor(rate * duration);
+    const buffer = this.ctx.createBuffer(1, length, rate);
+    const data = buffer.getChannelData(0);
+
+    // Filtered acoustic plectrum snap: high-frequency friction burst + mechanical string release thump
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      const decayFast = Math.exp(-t * 12.0); // 10ms snap decay
+      const decayBody = Math.exp(-t * 6.0);  // 20ms string thump decay
+      // 1. High-frequency plectrum snap, wire scrape (3.5 kHz & 5 kHz) + broadband attack bite
+      const snapNoise = (Math.random() * 2 - 1) * 1.1;
+      const scrapeTone1 = Math.sin(2 * Math.PI * 3600 * (i / rate)) * 0.6;
+      const scrapeTone2 = Math.sin(2 * Math.PI * 5200 * (i / rate)) * 0.4;
+      // 2. Mechanical string release thump (190 Hz deep attack transient)
+      const stringThump = Math.sin(2 * Math.PI * 190 * (i / rate)) * 0.9;
+      data[i] = (snapNoise + scrapeTone1 + scrapeTone2) * decayFast + stringThump * decayBody;
+    }
+    return buffer;
+  }
+
   makeDistortionCurve(amount = 20) {
     const k = Math.max(0, amount);
     const n_samples = 44100;
     const curve = new Float32Array(n_samples);
     const deg = Math.PI / 180;
     for (let i = 0; i < n_samples; ++i) {
-      const x = (i * 2) / n_samples - 1;
+      let x = (i * 2) / n_samples - 1;
       if (k === 0) {
         curve[i] = x;
       } else {
-        curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+        // Asymmetric bias: introduces rich 2nd/4th order even tube harmonics
+        const asym = x > 0 ? x * (1.0 + 0.20 * x) : x;
+        const shaped = ((3 + k) * asym * 20 * deg) / (Math.PI + k * Math.abs(asym));
+        curve[i] = Math.tanh(shaped * 1.15);
       }
     }
     return curve;
+  }
+
+  setupCabSimEffect() {
+    this.cabIn = this.ctx.createGain();
+    this.cabDry = this.ctx.createGain();
+    this.cabWet = this.ctx.createGain();
+    this.cabOut = this.ctx.createGain();
+
+    // 12" Guitar Speaker Cabinet Filter Chain (Authentic Celestion / Amp Stack Profile):
+    // 1. Sub-bass rumble cut (70 Hz Highpass)
+    this.cabHp = this.ctx.createBiquadFilter();
+    this.cabHp.type = 'highpass';
+    this.cabHp.frequency.setValueAtTime(70, this.ctx.currentTime);
+    this.cabHp.Q.setValueAtTime(0.8, this.ctx.currentTime);
+
+    // 2. Cabinet Wood Resonance / Low-End Thump (+4.0 dB @ 115 Hz)
+    this.cabThump = this.ctx.createBiquadFilter();
+    this.cabThump.type = 'peaking';
+    this.cabThump.frequency.setValueAtTime(115, this.ctx.currentTime);
+    this.cabThump.gain.setValueAtTime(4.0, this.ctx.currentTime);
+    this.cabThump.Q.setValueAtTime(1.4, this.ctx.currentTime);
+
+    // 3. Tone Stack Mid-Scoop (-5.5 dB @ 680 Hz) - eliminates boxy nasal mud
+    this.cabScoop = this.ctx.createBiquadFilter();
+    this.cabScoop.type = 'peaking';
+    this.cabScoop.frequency.setValueAtTime(680, this.ctx.currentTime);
+    this.cabScoop.gain.setValueAtTime(-5.5, this.ctx.currentTime);
+    this.cabScoop.Q.setValueAtTime(1.3, this.ctx.currentTime);
+
+    // 4. Speaker Cone Breakup & Presence Bite (+7.5 dB @ 2900 Hz, Q=2.4)
+    this.cabPresence = this.ctx.createBiquadFilter();
+    this.cabPresence.type = 'peaking';
+    this.cabPresence.frequency.setValueAtTime(2900, this.ctx.currentTime);
+    this.cabPresence.gain.setValueAtTime(7.5, this.ctx.currentTime);
+    this.cabPresence.Q.setValueAtTime(2.4, this.ctx.currentTime);
+
+    // 5. Steep 4-Pole Lowpass Rolloff (Two cascaded 2nd-order stages: 4200 Hz & 5200 Hz)
+    // Eliminates harsh direct-in digital fizz, creating unmistakable miked 12" speaker warmth
+    this.cabLp1 = this.ctx.createBiquadFilter();
+    this.cabLp1.type = 'lowpass';
+    this.cabLp1.frequency.setValueAtTime(4200, this.ctx.currentTime);
+    this.cabLp1.Q.setValueAtTime(1.3, this.ctx.currentTime);
+
+    this.cabLp2 = this.ctx.createBiquadFilter();
+    this.cabLp2.type = 'lowpass';
+    this.cabLp2.frequency.setValueAtTime(5200, this.ctx.currentTime);
+    this.cabLp2.Q.setValueAtTime(0.9, this.ctx.currentTime);
+
+    // Wet chain: cabIn -> cabHp -> cabThump -> cabScoop -> cabPresence -> cabLp1 -> cabLp2 -> cabWet
+    this.cabIn.connect(this.cabHp);
+    this.cabHp.connect(this.cabThump);
+    this.cabThump.connect(this.cabScoop);
+    this.cabScoop.connect(this.cabPresence);
+    this.cabPresence.connect(this.cabLp1);
+    this.cabLp1.connect(this.cabLp2);
+    this.cabLp2.connect(this.cabWet);
+
+    this.cabDry.connect(this.cabOut);
+    this.cabWet.connect(this.cabOut);
+
+    this.updateCabSimMix();
+  }
+
+  updateCabSimMix() {
+    if (!this.ctx || !this.cabDry || !this.cabIn || !this.cabWet) return;
+    const now = this.ctx.currentTime;
+    if (this.params.cabSimEnabled) {
+      this.cabIn.gain.setTargetAtTime(1.0, now, 0.02);
+      this.cabDry.gain.setTargetAtTime(0.0, now, 0.02);
+      this.cabWet.gain.setTargetAtTime(1.0, now, 0.02);
+    } else {
+      this.cabIn.gain.setTargetAtTime(0.0, now, 0.02);
+      this.cabDry.gain.setTargetAtTime(1.0, now, 0.02);
+      this.cabWet.gain.setTargetAtTime(0.0, now, 0.02);
+    }
   }
 
   updateDistortionMix() {
@@ -470,12 +580,17 @@ export class SynthEngine {
   }
 
   connectAudioGraph() {
-    // Signal chain: voicesBus -> Distortion -> Stereo Delay -> Reverb -> Limiter -> Master Gain -> Clipper -> Destination
+    // Signal chain: voicesBus -> Distortion -> Cab Sim -> Stereo Delay -> Reverb -> Limiter -> Master Gain -> Clipper -> Destination
     this.voicesBus.connect(this.distDry);
     this.voicesBus.connect(this.distIn);
 
-    this.distOut.connect(this.delayDry);
-    this.distOut.connect(this.delayIn);
+    // Distortion output routes into Cab Sim:
+    this.distOut.connect(this.cabDry);
+    this.distOut.connect(this.cabIn);
+
+    // Cab Sim output routes into Delay:
+    this.cabOut.connect(this.delayDry);
+    this.cabOut.connect(this.delayIn);
 
     this.delayOut.connect(this.reverbDry);
     this.delayOut.connect(this.reverbIn);
@@ -800,6 +915,8 @@ export class SynthEngine {
       this.masterGain.gain.setTargetAtTime(scaledVol, this.ctx.currentTime, 0.01);
     } else if (key === 'distortionEnabled' || key === 'distortionMix') {
       this.updateDistortionMix();
+    } else if (key === 'cabSimEnabled') {
+      this.updateCabSimMix();
     } else if (key === 'distortionDrive' && this.distWaveShaper) {
       this.distWaveShaper.curve = this.makeDistortionCurve(value);
     } else if (key === 'distortionTone' && this.distFilter) {
@@ -837,6 +954,10 @@ export class SynthEngine {
   }
 
   applyPreset(preset) {
+    // Read cabSimEnabled and pickTransient explicitly from preset definition (default to false if omitted)
+    this.params.cabSimEnabled = Boolean(preset.params?.cabSimEnabled);
+    this.params.pickTransient = Boolean(preset.params?.pickTransient);
+
     Object.assign(this.params, preset.params);
     this.checkLFORunning();
 
@@ -846,6 +967,7 @@ export class SynthEngine {
     }
 
     this.updateDistortionMix();
+    this.updateCabSimMix();
     if (this.distWaveShaper) {
       const drive = this.params.distortionDrive ?? 20;
       if (this._currentDistDrive !== drive) {

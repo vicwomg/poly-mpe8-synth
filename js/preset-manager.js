@@ -72,7 +72,11 @@ export class PresetManager {
       name: p.name,
       displayName: p.name,
       isFactory: true,
-      params: { ...p.params }
+      params: {
+        cabSimEnabled: Boolean(p.params?.cabSimEnabled),
+        pickTransient: Boolean(p.params?.pickTransient),
+        ...p.params
+      }
     }));
     this.userPresets = [];
     this.currentPresetId = this.factoryPresets[0].id;

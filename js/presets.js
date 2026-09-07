@@ -39,6 +39,8 @@ export const PRESETS = [
       distortionDrive: 10,
       distortionTone: 4000,
       distortionMix: 0.0,
+      cabSimEnabled: true,
+      pickTransient: true,
 
       delayEnabled: true,
       delayTime: 0.22,
@@ -52,6 +54,226 @@ export const PRESETS = [
 
       masterVolume: 0.8,
       mpePitchBendRange: 48,
+    },
+  },
+  {
+    name: "Overdriven Lead Guitar",
+    params: {
+      osc1Waveform: "sawtooth",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: "sawtooth",
+      osc2Octave: 0,
+      osc2Semi: 0,
+      osc2Fine: 4,
+      osc2Mix: 0.35,
+
+      pickTransient: true,
+
+      filterCutoff: 2900,
+      filterResonance: 2.2,
+      filterEnvAmount: 0.45,
+      filterKeyTracking: 0.78,
+      filterAttack: 0.003,
+      filterDecay: 0.50,
+      filterSustain: 0.40,
+      filterRelease: 0.38,
+
+      ampAttack: 0.004,
+      ampDecay: 1.8,
+      ampSustain: 0.45,
+      ampRelease: 0.35,
+
+      lfoWaveform: "sine",
+      lfoRate: 5.2,
+      lfoDepth: 0.0,
+      lfoTarget: "pitch",
+
+      distortionEnabled: true,
+      distortionDrive: 35,
+      distortionTone: 3800,
+      distortionMix: 0.75,
+      cabSimEnabled: true,
+
+      delayEnabled: true,
+      delayTime: 0.11,
+      delayFeedback: 0.28,
+      delayMix: 0.22,
+
+      reverbEnabled: true,
+      reverbTime: 1.6,
+      reverbDamp: 3200,
+      reverbMix: 0.25,
+
+      masterVolume: 0.78,
+      mpePitchBendRange: 12,
+    },
+  },
+  {
+    name: "Vintage Strat Clean",
+    params: {
+      osc1Waveform: "sawtooth",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: "square",
+      osc2Octave: 0,
+      osc2Semi: 0,
+      osc2Fine: 3,
+      osc2Mix: 0.28,
+
+      pickTransient: true,
+
+      filterCutoff: 3300,
+      filterResonance: 1.8,
+      filterEnvAmount: 0.50,
+      filterKeyTracking: 0.82,
+      filterAttack: 0.002,
+      filterDecay: 0.30,
+      filterSustain: 0.22,
+      filterRelease: 0.35,
+
+      ampAttack: 0.003,
+      ampDecay: 1.5,
+      ampSustain: 0.3,
+      ampRelease: 0.32,
+
+      lfoWaveform: "sine",
+      lfoRate: 4.5,
+      lfoDepth: 0.0,
+      lfoTarget: "filter",
+
+      distortionEnabled: false,
+      distortionDrive: 12,
+      distortionTone: 4200,
+      distortionMix: 0.0,
+      cabSimEnabled: true,
+
+      delayEnabled: true,
+      delayTime: 0.14,
+      delayFeedback: 0.25,
+      delayMix: 0.18,
+
+      reverbEnabled: true,
+      reverbTime: 2.0,
+      reverbDamp: 3800,
+      reverbMix: 0.3,
+
+      masterVolume: 0.8,
+      mpePitchBendRange: 12,
+    },
+  },
+  {
+    name: "Palm Mute Rock Guitar",
+    params: {
+      osc1Waveform: "sawtooth",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: "sawtooth",
+      osc2Octave: -1,
+      osc2Semi: 0,
+      osc2Fine: 3,
+      osc2Mix: 0.28,
+
+      pickTransient: true,
+
+      filterCutoff: 1500,
+      filterResonance: 2.4,
+      filterEnvAmount: 0.65,
+      filterKeyTracking: 0.65,
+      filterAttack: 0.002,
+      filterDecay: 0.12,
+      filterSustain: 0.05,
+      filterRelease: 0.16,
+
+      ampAttack: 0.003,
+      ampDecay: 0.32,
+      ampSustain: 0.10,
+      ampRelease: 0.14,
+
+      lfoWaveform: "sine",
+      lfoRate: 3.5,
+      lfoDepth: 0.0,
+      lfoTarget: "none",
+
+      distortionEnabled: true,
+      distortionDrive: 46,
+      distortionTone: 3500,
+      distortionMix: 0.90,
+      cabSimEnabled: true,
+
+      delayEnabled: false,
+      delayTime: 0.12,
+      delayFeedback: 0.2,
+      delayMix: 0.15,
+
+      reverbEnabled: true,
+      reverbTime: 1.2,
+      reverbDamp: 2800,
+      reverbMix: 0.18,
+
+      masterVolume: 0.75,
+      mpePitchBendRange: 12,
+    },
+  },
+  {
+    name: "Warm Jazz Archtop",
+    params: {
+      osc1Waveform: "triangle",
+      osc1Octave: 0,
+      osc1Semi: 0,
+      osc1Fine: 0,
+
+      osc2Waveform: "sawtooth",
+      osc2Octave: 0,
+      osc2Semi: 0,
+      osc2Fine: 2,
+      osc2Mix: 0.22,
+
+      pickTransient: true,
+
+      filterCutoff: 1700,
+      filterResonance: 1.2,
+      filterEnvAmount: 0.25,
+      filterKeyTracking: 0.85,
+      filterAttack: 0.006,
+      filterDecay: 0.45,
+      filterSustain: 0.35,
+      filterRelease: 0.42,
+
+      ampAttack: 0.008,
+      ampDecay: 2.0,
+      ampSustain: 0.4,
+      ampRelease: 0.4,
+
+      lfoWaveform: "sine",
+      lfoRate: 4.2,
+      lfoDepth: 0.0,
+      lfoTarget: "pitch",
+
+      distortionEnabled: true,
+      distortionDrive: 12,
+      distortionTone: 3200,
+      distortionMix: 0.35,
+      cabSimEnabled: true,
+
+      delayEnabled: false,
+      delayTime: 0.2,
+      delayFeedback: 0.3,
+      delayMix: 0.15,
+
+      reverbEnabled: true,
+      reverbTime: 2.4,
+      reverbDamp: 3000,
+      reverbMix: 0.28,
+
+      masterVolume: 0.8,
+      mpePitchBendRange: 12,
     },
   },
   {
@@ -86,6 +308,9 @@ export const PRESETS = [
       lfoRate: 2.0,
       lfoDepth: 0.15,
       lfoTarget: "filter",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -139,6 +364,9 @@ export const PRESETS = [
       lfoDepth: 0.25,
       lfoTarget: "filter",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: false,
       distortionDrive: 20,
       distortionTone: 3500,
@@ -190,6 +418,9 @@ export const PRESETS = [
       lfoRate: 4.2,
       lfoDepth: 0.0,
       lfoTarget: "pitch",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: false,
       distortionDrive: 12,
@@ -243,6 +474,9 @@ export const PRESETS = [
       lfoDepth: 0.0,
       lfoTarget: "none",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: true,
       distortionDrive: 18,
       distortionTone: 5500,
@@ -294,6 +528,9 @@ export const PRESETS = [
       lfoRate: 3.8,
       lfoDepth: 0.08,
       lfoTarget: "pitch",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -347,6 +584,9 @@ export const PRESETS = [
       lfoDepth: 0.0,
       lfoTarget: "none",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: true,
       distortionDrive: 35,
       distortionTone: 4500,
@@ -398,6 +638,9 @@ export const PRESETS = [
       lfoRate: 4.5,
       lfoDepth: 0.12,
       lfoTarget: "pitch",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: true,
       distortionDrive: 25,
@@ -451,6 +694,9 @@ export const PRESETS = [
       lfoDepth: 0.0,
       lfoTarget: "none",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: false,
       distortionDrive: 10,
       distortionTone: 5000,
@@ -502,6 +748,9 @@ export const PRESETS = [
       lfoRate: 3.0,
       lfoDepth: 0.0,
       lfoTarget: "none",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -555,6 +804,9 @@ export const PRESETS = [
       lfoDepth: 0.08,
       lfoTarget: "pitch",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: false,
       distortionDrive: 10,
       distortionTone: 4000,
@@ -606,6 +858,9 @@ export const PRESETS = [
       lfoRate: 12.0,
       lfoDepth: 0.0,
       lfoTarget: "none",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: true,
       distortionDrive: 22,
@@ -659,6 +914,9 @@ export const PRESETS = [
       lfoDepth: 0.06,
       lfoTarget: "pitch",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: true,
       distortionDrive: 12,
       distortionTone: 4800,
@@ -710,6 +968,9 @@ export const PRESETS = [
       lfoRate: 5.8,
       lfoDepth: 0.14,
       lfoTarget: "pitch",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: true,
       distortionDrive: 14,
@@ -763,6 +1024,9 @@ export const PRESETS = [
       lfoDepth: 0.42,
       lfoTarget: "filter",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: false,
       distortionDrive: 10,
       distortionTone: 4000,
@@ -814,6 +1078,9 @@ export const PRESETS = [
       lfoRate: 1.2,
       lfoDepth: 0.0,
       lfoTarget: "none",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: true,
       distortionDrive: 58,
@@ -867,6 +1134,9 @@ export const PRESETS = [
       lfoDepth: 0.0,
       lfoTarget: "none",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: false,
       distortionDrive: 10,
       distortionTone: 4000,
@@ -918,6 +1188,9 @@ export const PRESETS = [
       lfoRate: 0.28,
       lfoDepth: 0.45,
       lfoTarget: "filter",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: true,
       distortionDrive: 18,
@@ -971,6 +1244,9 @@ export const PRESETS = [
       lfoDepth: 0.06,
       lfoTarget: "pitch",
 
+      cabSimEnabled: false,
+      pickTransient: false,
+
       distortionEnabled: false,
       distortionDrive: 12,
       distortionTone: 4500,
@@ -1022,6 +1298,9 @@ export const PRESETS = [
       lfoRate: 3.5,
       lfoDepth: 0.0,
       lfoTarget: "none",
+
+      cabSimEnabled: false,
+      pickTransient: false,
 
       distortionEnabled: false,
       distortionDrive: 20,

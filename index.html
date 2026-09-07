@@ -9,7 +9,7 @@
     <title>PM-8</title>
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="assets/icon-pm8.png" />
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css?v=1.0.2" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -777,18 +777,18 @@
         <div class="synth-card" id="oscillators-card">
           <div class="card-title">
             <span>OSCILLATORS</span>
-            <div class="osc-mix-inline">
-              <label for="osc2Mix">OSC 2 MIX</label>
-              <input
-                type="range"
-                id="osc2Mix"
-                min="0"
-                max="1"
-                step="0.01"
-                value="0.5"
-                title="Oscillator 2 Mix Level"
-              />
-              <span class="val-display" id="osc2Mix-val">50%</span>
+            <div
+              class="card-header-toggle"
+              title="Toggle Acoustic Pick Attack Transient & String Tension Detune"
+            >
+              <span class="toggle-label">PLUCK</span>
+              <label
+                class="toggle-switch"
+                title="Toggle Acoustic Pick Attack Transient & String Tension Detune"
+              >
+                <input type="checkbox" id="pickTransient" />
+                <span class="toggle-slider"></span>
+              </label>
             </div>
           </div>
 
@@ -853,13 +853,28 @@
             <div class="osc-sub-block" id="osc2-block">
               <div class="control-row">
                 <span class="sub-label" id="osc2-label">OSC 2</span>
-                <div class="btn-group wave-select" data-param="osc2Waveform">
-                  <button class="btn btn-tab" data-value="sawtooth">SAW</button>
-                  <button class="btn btn-tab active" data-value="square">
-                    SQR
-                  </button>
-                  <button class="btn btn-tab" data-value="triangle">TRI</button>
-                  <button class="btn btn-tab" data-value="sine">SIN</button>
+                <div class="osc2-header-right" style="display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0;">
+                  <div class="osc-mix-inline">
+                    <label for="osc2Mix">MIX</label>
+                    <input
+                      type="range"
+                      id="osc2Mix"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0.5"
+                      title="Oscillator 2 Mix Level (0% = Silent, 100% = Full)"
+                    />
+                    <span class="val-display" id="osc2Mix-val">50%</span>
+                  </div>
+                  <div class="btn-group wave-select" data-param="osc2Waveform">
+                    <button class="btn btn-tab" data-value="sawtooth">SAW</button>
+                    <button class="btn btn-tab active" data-value="square">
+                      SQR
+                    </button>
+                    <button class="btn btn-tab" data-value="triangle">TRI</button>
+                    <button class="btn btn-tab" data-value="sine">SIN</button>
+                  </div>
                 </div>
               </div>
 
@@ -1079,7 +1094,22 @@
 
         <!-- 4. AMPLIFIER & ENVELOPES -->
         <div class="synth-card" id="amp-card">
-          <div class="card-title">AMPLIFIER & VOLUME</div>
+          <div class="card-title">
+            <span>AMPLIFIER & VOLUME</span>
+            <div
+              class="card-header-toggle"
+              title="Toggle 12-inch Guitar Speaker Cabinet Simulation"
+            >
+              <span class="toggle-label">CAB SIM</span>
+              <label
+                class="toggle-switch"
+                title="Toggle 12-inch Guitar Speaker Cabinet Simulation"
+              >
+                <input type="checkbox" id="cabSimEnabled" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
           <div class="card-body">
             <div class="adsr-section">
               <div class="sub-label">AMP ENVELOPE</div>
@@ -1163,7 +1193,10 @@
           <div class="effect-module" id="effect-distortion">
             <div class="effect-module-header">
               <span class="sub-label">DISTORTION</span>
-              <label class="toggle-switch">
+              <label
+                class="toggle-switch"
+                title="Enable Distortion / Overdrive"
+              >
                 <input type="checkbox" id="distortionEnabled" />
                 <span class="toggle-slider"></span>
               </label>

@@ -4,10 +4,11 @@
  * eliminate pop and crackle transients when notes are repeatedly triggered.
  */
 export class SynthVoice {
-  constructor(audioContext, destination, id = 0) {
+  constructor(audioContext, destination, id = 0, engine = null) {
     this.ctx = audioContext;
     this.destination = destination;
     this.id = id;
+    this.engine = engine;
 
     // State
     this.isActive = false;
@@ -30,29 +31,34 @@ export class SynthVoice {
     // Dynamic oscillators (created on noteOn)
     this.osc1 = null;
     this.osc2 = null;
+    this.pickSource = null;
 
     // Pre-allocated static nodes (persists across notes for minimum latency & zero GC)
     this.osc1Gain = this.ctx.createGain();
     this.osc2Gain = this.ctx.createGain();
+    this.pickGain = this.ctx.createGain();
     this.filter = this.ctx.createBiquadFilter();
-    this.filter.type = 'lowpass';
+    this.filter.type = "lowpass";
     this.vca = this.ctx.createGain(); // Dedicated to Amp ADSR Envelope
     this.expressionGain = this.ctx.createGain(); // Dedicated to CC11 Volume & Velocity
 
     // Audio Graph:
     // osc1 -> osc1Gain \
-    //                    -> filter -> vca (ADSR) -> expressionGain (CC11 Volume) -> destination
-    // osc2 -> osc2Gain /
+    // osc2 -> osc2Gain  -> filter -> vca (ADSR) \
+    //                                             -> expressionGain (CC11 Volume) -> destination
+    // pickGain ---------------------------------/
     this.osc1Gain.connect(this.filter);
     this.osc2Gain.connect(this.filter);
     this.filter.connect(this.vca);
     this.vca.connect(this.expressionGain);
+    this.pickGain.connect(this.expressionGain);
     this.expressionGain.connect(this.destination);
 
     // Initial gains
     const now = this.ctx.currentTime;
     this.vca.gain.setValueAtTime(0.0001, now);
     this.expressionGain.gain.setValueAtTime(1.0, now);
+    this.pickGain.gain.setValueAtTime(0.0001, now);
 
     this.releaseTimeout = null;
     this.params = null;
@@ -89,8 +95,8 @@ export class SynthVoice {
     // 1. Instantiate new oscillators
     this.osc1 = this.ctx.createOscillator();
     this.osc2 = this.ctx.createOscillator();
-    this.osc1.type = params.osc1Waveform || 'sawtooth';
-    this.osc2.type = params.osc2Waveform || 'square';
+    this.osc1.type = params.osc1Waveform || "sawtooth";
+    this.osc2.type = params.osc2Waveform || "square";
 
     // Mix balance
     this.updateOscMix(now);
@@ -117,14 +123,83 @@ export class SynthVoice {
     this.osc1.start(startTime);
     this.osc2.start(startTime);
 
+    // 7. Trigger Pick Attack Transient & String Tension Pitch Detune
+    const rawPick = params?.pickTransient;
+    const pickAmt =
+      typeof rawPick === "boolean"
+        ? rawPick
+          ? 0.5
+          : 0
+        : typeof rawPick === "number" && rawPick > 0
+          ? rawPick * 0.75
+          : 0;
+    if (pickAmt > 0) {
+      // Acoustic plectrum friction burst + string release thump
+      if (this.engine?.pickImpulseBuffer) {
+        try {
+          if (this.pickSource) {
+            try {
+              this.pickSource.stop();
+            } catch (_) {}
+            try {
+              this.pickSource.disconnect();
+            } catch (_) {}
+          }
+          const pickNode = this.ctx.createBufferSource();
+          pickNode.buffer = this.engine.pickImpulseBuffer;
+          pickNode.connect(this.pickGain);
+          this.pickSource = pickNode;
+
+          // Tactile snap dialed back 25% for balanced acoustic punch
+          const peakGain = Math.min(
+            1.5,
+            Math.pow(this.velocity, 0.7) * pickAmt * 1.45,
+          );
+          this.pickGain.gain.cancelScheduledValues(startTime);
+          this.pickGain.gain.setValueAtTime(peakGain, startTime);
+          this.pickGain.gain.exponentialRampToValueAtTime(
+            0.0001,
+            startTime + 0.026,
+          );
+
+          pickNode.start(startTime);
+          pickNode.stop(startTime + 0.03);
+        } catch (err) {
+          console.debug("Pick transient trigger error:", err);
+        }
+      }
+
+      // Initial mechanical string tension detune spike (+25 to +70 cents on hard plucking)
+      const detuneSpike = Math.min(
+        72,
+        Math.pow(this.velocity, 0.75) * pickAmt * 70,
+      );
+      if (detuneSpike > 1.0) {
+        try {
+          this.osc1.detune.setValueAtTime(detuneSpike, startTime);
+          this.osc1.detune.linearRampToValueAtTime(0, startTime + 0.03);
+          this.osc2.detune.setValueAtTime(detuneSpike, startTime);
+          this.osc2.detune.linearRampToValueAtTime(0, startTime + 0.03);
+        } catch (_) {}
+      }
+    }
+
     // Cleanly stop and disconnect old oscillators
     if (oldOsc1) {
-      try { oldOsc1.stop(); } catch (_) {}
-      try { oldOsc1.disconnect(); } catch (_) {}
+      try {
+        oldOsc1.stop();
+      } catch (_) {}
+      try {
+        oldOsc1.disconnect();
+      } catch (_) {}
     }
     if (oldOsc2) {
-      try { oldOsc2.stop(); } catch (_) {}
-      try { oldOsc2.disconnect(); } catch (_) {}
+      try {
+        oldOsc2.stop();
+      } catch (_) {}
+      try {
+        oldOsc2.disconnect();
+      } catch (_) {}
     }
   }
 
@@ -142,7 +217,7 @@ export class SynthVoice {
 
     // Release Amp Envelope safely
     try {
-      if (typeof this.vca.gain.cancelAndHoldAtTime === 'function') {
+      if (typeof this.vca.gain.cancelAndHoldAtTime === "function") {
         this.vca.gain.cancelAndHoldAtTime(now);
       } else {
         this.vca.gain.cancelScheduledValues(now);
@@ -159,14 +234,20 @@ export class SynthVoice {
     // Release Filter Envelope safely
     try {
       const baseCutoff = this.calculateTargetCutoff(0);
-      if (typeof this.filter.frequency.cancelAndHoldAtTime === 'function') {
+      if (typeof this.filter.frequency.cancelAndHoldAtTime === "function") {
         this.filter.frequency.cancelAndHoldAtTime(now);
       } else {
         this.filter.frequency.cancelScheduledValues(now);
       }
-      const currentCutoff = Math.max(20, Math.min(20000, this.filter.frequency.value));
+      const currentCutoff = Math.max(
+        20,
+        Math.min(20000, this.filter.frequency.value),
+      );
       this.filter.frequency.setValueAtTime(currentCutoff, now);
-      this.filter.frequency.linearRampToValueAtTime(baseCutoff, now + filterRelease);
+      this.filter.frequency.linearRampToValueAtTime(
+        baseCutoff,
+        now + filterRelease,
+      );
     } catch (err) {
       // Ignore
     }
@@ -175,10 +256,14 @@ export class SynthVoice {
     const stopTime = now + maxRelease + 0.02;
 
     if (this.osc1) {
-      try { this.osc1.stop(stopTime); } catch (e) {}
+      try {
+        this.osc1.stop(stopTime);
+      } catch (e) {}
     }
     if (this.osc2) {
-      try { this.osc2.stop(stopTime); } catch (e) {}
+      try {
+        this.osc2.stop(stopTime);
+      } catch (e) {}
     }
 
     if (this.releaseTimeout) {
@@ -186,14 +271,17 @@ export class SynthVoice {
       this.releaseTimeout = null;
     }
 
-    this.releaseTimeout = setTimeout(() => {
-      this.releaseTimeout = null;
-      if (this.isReleasing) {
-        this.isActive = false;
-        this.isReleasing = false;
-        this.stopOscillators();
-      }
-    }, (maxRelease + 0.05) * 1000);
+    this.releaseTimeout = setTimeout(
+      () => {
+        this.releaseTimeout = null;
+        if (this.isReleasing) {
+          this.isActive = false;
+          this.isReleasing = false;
+          this.stopOscillators();
+        }
+      },
+      (maxRelease + 0.05) * 1000,
+    );
   }
 
   /**
@@ -221,14 +309,31 @@ export class SynthVoice {
 
   stopOscillators() {
     if (this.osc1) {
-      try { this.osc1.stop(); } catch (e) {}
-      try { this.osc1.disconnect(); } catch (e) {}
+      try {
+        this.osc1.stop();
+      } catch (e) {}
+      try {
+        this.osc1.disconnect();
+      } catch (e) {}
       this.osc1 = null;
     }
     if (this.osc2) {
-      try { this.osc2.stop(); } catch (e) {}
-      try { this.osc2.disconnect(); } catch (e) {}
+      try {
+        this.osc2.stop();
+      } catch (e) {}
+      try {
+        this.osc2.disconnect();
+      } catch (e) {}
       this.osc2 = null;
+    }
+    if (this.pickSource) {
+      try {
+        this.pickSource.stop();
+      } catch (e) {}
+      try {
+        this.pickSource.disconnect();
+      } catch (e) {}
+      this.pickSource = null;
     }
   }
 
@@ -241,15 +346,23 @@ export class SynthVoice {
     const osc1Oct = (this.params.osc1Octave || 0) * 12;
     const osc1Semi = this.params.osc1Semi || 0;
     const osc1Fine = (this.params.osc1Fine || 0) / 100;
-    const osc1Semitones = osc1Oct + osc1Semi + osc1Fine + this.pitchBend + lfoPitchSemitones;
-    const osc1Freq = Math.max(10, Math.min(22050, baseFreq * Math.pow(2, osc1Semitones / 12)));
+    const osc1Semitones =
+      osc1Oct + osc1Semi + osc1Fine + this.pitchBend + lfoPitchSemitones;
+    const osc1Freq = Math.max(
+      10,
+      Math.min(22050, baseFreq * Math.pow(2, osc1Semitones / 12)),
+    );
 
     // Osc 2
     const osc2Oct = (this.params.osc2Octave || 0) * 12;
     const osc2Semi = this.params.osc2Semi || 0;
     const osc2Fine = (this.params.osc2Fine || 0) / 100;
-    const osc2Semitones = osc2Oct + osc2Semi + osc2Fine + this.pitchBend + lfoPitchSemitones;
-    const osc2Freq = Math.max(10, Math.min(22050, baseFreq * Math.pow(2, osc2Semitones / 12)));
+    const osc2Semitones =
+      osc2Oct + osc2Semi + osc2Fine + this.pitchBend + lfoPitchSemitones;
+    const osc2Freq = Math.max(
+      10,
+      Math.min(22050, baseFreq * Math.pow(2, osc2Semitones / 12)),
+    );
 
     this.osc1.frequency.setTargetAtTime(osc1Freq, time, 0.003);
     this.osc2.frequency.setTargetAtTime(osc2Freq, time, 0.003);
@@ -257,15 +370,26 @@ export class SynthVoice {
 
   calculateTargetCutoff(envelopeValue = 0) {
     if (!this.params) return 1000;
-    const baseCutoff = Math.max(20, Math.min(20000, this.params.filterCutoff || 2000));
+    const baseCutoff = Math.max(
+      20,
+      Math.min(20000, this.params.filterCutoff || 2000),
+    );
     // In MPE, member channels (2-16) apply per-note CC74/CC73 timbre offset (±3.5 octaves) when target is cutoff
-    const targetMode = this.params.mpeTimbreTarget || 'cutoff';
-    const isCutoffTarget = targetMode === 'cutoff';
-    const mpeTimbreVal = this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
-    const mpeTimbreOctaves = (isCutoffTarget && this.channel > 1) ? ((mpeTimbreVal - 64) / 64) * 3.5 : 0;
-    const keyTracking = (this.params.filterKeyTracking !== undefined ? this.params.filterKeyTracking : 0.4);
+    const targetMode = this.params.mpeTimbreTarget || "cutoff";
+    const isCutoffTarget = targetMode === "cutoff";
+    const mpeTimbreVal =
+      this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
+    const mpeTimbreOctaves =
+      isCutoffTarget && this.channel > 1 ? ((mpeTimbreVal - 64) / 64) * 3.5 : 0;
+    const keyTracking =
+      this.params.filterKeyTracking !== undefined
+        ? this.params.filterKeyTracking
+        : 0.4;
     const keyOctaves = ((this.note - 60) / 12) * keyTracking;
-    const envAmount = this.params.filterEnvAmount !== undefined ? this.params.filterEnvAmount : 0.5;
+    const envAmount =
+      this.params.filterEnvAmount !== undefined
+        ? this.params.filterEnvAmount
+        : 0.5;
     const envOctaves = envelopeValue * envAmount * 5;
 
     const totalOctaves = mpeTimbreOctaves + keyOctaves + envOctaves;
@@ -273,26 +397,46 @@ export class SynthVoice {
     return Math.max(20, Math.min(20000, freq));
   }
 
-  updateFilter(time = this.ctx.currentTime, isNoteOn = false, wasSounding = false, isContinuousCC = false) {
+  updateFilter(
+    time = this.ctx.currentTime,
+    isNoteOn = false,
+    wasSounding = false,
+    isContinuousCC = false,
+  ) {
     if (!this.filter || !this.params) return;
 
     // Resonance Q: base Q + CC1 (when cc1Target is resonance) + MPE Y (when mpeTimbreTarget is resonance)
-    const baseQ = this.params.filterResonance !== undefined ? this.params.filterResonance : 1.0;
-    const isResoTarget = this.params.cc1Target !== 'lforate';
+    const baseQ =
+      this.params.filterResonance !== undefined
+        ? this.params.filterResonance
+        : 1.0;
+    const isResoTarget = this.params.cc1Target !== "lforate";
     const modWheelQ = isResoTarget ? (this.cc1Resonance / 127) * 18 : 0;
 
-    const targetMode = this.params.mpeTimbreTarget || 'cutoff';
-    const mpeTimbreVal = this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
-    const mpeResoQ = (targetMode === 'resonance' && this.channel > 1) ? (mpeTimbreVal / 127) * 18 : 0;
+    const targetMode = this.params.mpeTimbreTarget || "cutoff";
+    const mpeTimbreVal =
+      this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
+    const mpeResoQ =
+      targetMode === "resonance" && this.channel > 1
+        ? (mpeTimbreVal / 127) * 18
+        : 0;
 
     const totalQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ + mpeResoQ));
-    const qTimeConstant = isContinuousCC ? 0.040 : 0.003;
+    const qTimeConstant = isContinuousCC ? 0.04 : 0.003;
     this.filter.Q.setTargetAtTime(totalQ, time, qTimeConstant);
 
     if (isNoteOn) {
       const attack = Math.max(0.005, this.params.filterAttack || 0.04);
       const decay = Math.max(0.005, this.params.filterDecay || 0.35);
-      const sustain = Math.max(0, Math.min(1, this.params.filterSustain !== undefined ? this.params.filterSustain : 0.3));
+      const sustain = Math.max(
+        0,
+        Math.min(
+          1,
+          this.params.filterSustain !== undefined
+            ? this.params.filterSustain
+            : 0.3,
+        ),
+      );
 
       const startFreq = this.calculateTargetCutoff(0);
       const peakFreq = this.calculateTargetCutoff(1.0);
@@ -302,26 +446,50 @@ export class SynthVoice {
 
       if (wasSounding) {
         // Micro-ramp from current cutoff down to startFreq over 2.5ms to avoid filter register pop
-        const currentCutoff = Math.max(20, Math.min(20000, this.filter.frequency.value));
+        const currentCutoff = Math.max(
+          20,
+          Math.min(20000, this.filter.frequency.value),
+        );
         this.filter.frequency.setValueAtTime(currentCutoff, time);
         this.filter.frequency.linearRampToValueAtTime(startFreq, time + 0.0025);
-        this.filter.frequency.exponentialRampToValueAtTime(peakFreq, time + 0.0025 + attack);
-        this.filter.frequency.exponentialRampToValueAtTime(sustainFreq, time + 0.0025 + attack + decay);
+        this.filter.frequency.exponentialRampToValueAtTime(
+          peakFreq,
+          time + 0.0025 + attack,
+        );
+        this.filter.frequency.exponentialRampToValueAtTime(
+          sustainFreq,
+          time + 0.0025 + attack + decay,
+        );
       } else {
         this.filter.frequency.setValueAtTime(startFreq, time);
-        this.filter.frequency.exponentialRampToValueAtTime(peakFreq, time + attack);
-        this.filter.frequency.exponentialRampToValueAtTime(sustainFreq, time + attack + decay);
+        this.filter.frequency.exponentialRampToValueAtTime(
+          peakFreq,
+          time + attack,
+        );
+        this.filter.frequency.exponentialRampToValueAtTime(
+          sustainFreq,
+          time + attack + decay,
+        );
       }
     } else if (!this.isReleasing) {
-      const sustain = Math.max(0, Math.min(1, this.params.filterSustain !== undefined ? this.params.filterSustain : 0.3));
+      const sustain = Math.max(
+        0,
+        Math.min(
+          1,
+          this.params.filterSustain !== undefined
+            ? this.params.filterSustain
+            : 0.3,
+        ),
+      );
       let targetCutoff = this.calculateTargetCutoff(sustain);
-      const pressureTarget = this.params?.mpePressureTarget || 'both';
-      if (pressureTarget === 'both' || pressureTarget === 'filter') {
-        const pressureNorm = Math.max(0, Math.min(127, this.pressure || 0)) / 127;
+      const pressureTarget = this.params?.mpePressureTarget || "both";
+      if (pressureTarget === "both" || pressureTarget === "filter") {
+        const pressureNorm =
+          Math.max(0, Math.min(127, this.pressure || 0)) / 127;
         targetCutoff = Math.min(20000, targetCutoff + pressureNorm * 1800);
       }
       // Analog RC slew on live CC changes: 40ms eliminates 60Hz stepping zipper noise
-      const timeConstant = isContinuousCC ? 0.040 : 0.005;
+      const timeConstant = isContinuousCC ? 0.04 : 0.005;
       this.filter.frequency.setTargetAtTime(targetCutoff, time, timeConstant);
     }
   }
@@ -336,7 +504,13 @@ export class SynthVoice {
 
     const attack = Math.max(0.005, this.params.ampAttack || 0.02);
     const decay = Math.max(0.005, this.params.ampDecay || 0.25);
-    const sustain = Math.max(0.0001, Math.min(1.0, this.params.ampSustain !== undefined ? this.params.ampSustain : 0.7));
+    const sustain = Math.max(
+      0.0001,
+      Math.min(
+        1.0,
+        this.params.ampSustain !== undefined ? this.params.ampSustain : 0.7,
+      ),
+    );
 
     this.vca.gain.cancelScheduledValues(time);
 
@@ -347,11 +521,17 @@ export class SynthVoice {
       this.vca.gain.linearRampToValueAtTime(0.0001, time + 0.0025);
       // Clean attack start from zero
       this.vca.gain.linearRampToValueAtTime(1.0, time + 0.0025 + attack);
-      this.vca.gain.exponentialRampToValueAtTime(sustain, time + 0.0025 + attack + decay);
+      this.vca.gain.exponentialRampToValueAtTime(
+        sustain,
+        time + 0.0025 + attack + decay,
+      );
     } else {
       this.vca.gain.setValueAtTime(0.0001, time);
       this.vca.gain.linearRampToValueAtTime(1.0, time + attack);
-      this.vca.gain.exponentialRampToValueAtTime(sustain, time + attack + decay);
+      this.vca.gain.exponentialRampToValueAtTime(
+        sustain,
+        time + attack + decay,
+      );
     }
   }
 
@@ -367,9 +547,11 @@ export class SynthVoice {
     const velGain = Math.pow(this.velocity, 1.1);
 
     // MPE Pressure modulation of dynamics
-    const targetMode = this.params?.mpePressureTarget || 'both';
-    const pressureActive = (targetMode === 'both' || targetMode === 'dynamics');
-    const pressureNorm = pressureActive ? (Math.max(0, Math.min(127, this.pressure || 0)) / 127) : 0;
+    const targetMode = this.params?.mpePressureTarget || "both";
+    const pressureActive = targetMode === "both" || targetMode === "dynamics";
+    const pressureNorm = pressureActive
+      ? Math.max(0, Math.min(127, this.pressure || 0)) / 127
+      : 0;
     // Smooth dynamic swell up to +80% gain with pressure
     const pressureFactor = 1.0 + pressureNorm * 0.8;
 
@@ -387,9 +569,10 @@ export class SynthVoice {
   updateOscMix(time = this.ctx.currentTime) {
     if (!this.osc1Gain || !this.osc2Gain || !this.params) return;
     let osc2Mix = this.params.osc2Mix !== undefined ? this.params.osc2Mix : 0.5;
-    const targetMode = this.params.mpeTimbreTarget || 'cutoff';
-    if (targetMode === 'osc2mix' && this.channel > 1) {
-      const mpeTimbreVal = this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
+    const targetMode = this.params.mpeTimbreTarget || "cutoff";
+    if (targetMode === "osc2mix" && this.channel > 1) {
+      const mpeTimbreVal =
+        this.cc74Timbre !== 64 ? this.cc74Timbre : this.cc73Cutoff;
       osc2Mix = Math.max(0, Math.min(1.0, mpeTimbreVal / 127));
     }
     this.osc1Gain.gain.setTargetAtTime(1.0 - osc2Mix * 0.5, time, 0.015);
@@ -400,10 +583,10 @@ export class SynthVoice {
     if (controller === 73 || controller === 74) {
       this.cc73Cutoff = value;
       this.cc74Timbre = value;
-      const targetMode = this.params?.mpeTimbreTarget || 'cutoff';
-      if (targetMode === 'cutoff' || targetMode === 'resonance') {
+      const targetMode = this.params?.mpeTimbreTarget || "cutoff";
+      if (targetMode === "cutoff" || targetMode === "resonance") {
         this.updateFilter(this.ctx.currentTime, false, false, true);
-      } else if (targetMode === 'osc2mix') {
+      } else if (targetMode === "osc2mix") {
         this.updateOscMix(this.ctx.currentTime);
       }
     } else if (controller === 1) {
@@ -417,22 +600,26 @@ export class SynthVoice {
 
   setPressure(val) {
     this.pressure = val;
-    const targetMode = this.params?.mpePressureTarget || 'both';
-    if (targetMode === 'off') return;
+    const targetMode = this.params?.mpePressureTarget || "both";
+    if (targetMode === "off") return;
 
     const now = this.ctx.currentTime;
 
     // 1. Modulate Dynamics (Volume / Amplitude)
-    if (targetMode === 'both' || targetMode === 'dynamics') {
+    if (targetMode === "both" || targetMode === "dynamics") {
       this.updateExpression(now);
     }
 
     // 2. Modulate Filter (Brightness / Cutoff)
-    if (targetMode === 'both' || targetMode === 'filter') {
+    if (targetMode === "both" || targetMode === "filter") {
       if (this.filter && this.params && !this.isReleasing) {
         const pressureNorm = Math.max(0, Math.min(127, val)) / 127;
         const extraCutoff = pressureNorm * 1800; // Opens up filter up to +1800 Hz
-        const base = this.calculateTargetCutoff(this.params.filterSustain !== undefined ? this.params.filterSustain : 0.3);
+        const base = this.calculateTargetCutoff(
+          this.params.filterSustain !== undefined
+            ? this.params.filterSustain
+            : 0.3,
+        );
         const target = Math.min(20000, base + extraCutoff);
         this.filter.frequency.setTargetAtTime(target, now, 0.015);
       }
@@ -445,8 +632,16 @@ export class SynthVoice {
     if (this.osc2 && params.osc2Waveform) this.osc2.type = params.osc2Waveform;
 
     if (this.osc1Gain && this.osc2Gain && params.osc2Mix !== undefined) {
-      this.osc1Gain.gain.setTargetAtTime(1.0 - params.osc2Mix * 0.5, this.ctx.currentTime, 0.005);
-      this.osc2Gain.gain.setTargetAtTime(params.osc2Mix, this.ctx.currentTime, 0.005);
+      this.osc1Gain.gain.setTargetAtTime(
+        1.0 - params.osc2Mix * 0.5,
+        this.ctx.currentTime,
+        0.005,
+      );
+      this.osc2Gain.gain.setTargetAtTime(
+        params.osc2Mix,
+        this.ctx.currentTime,
+        0.005,
+      );
     }
 
     this.updateFrequencies();

@@ -1035,6 +1035,18 @@ class SynthUI {
       this.updatePresetDisplayName(currentPreset.name, isModified);
     }
     this.updatePresetButtonsState();
+
+    // Reset option texts in dropdown to clear any stale asterisks from previous patches
+    select.querySelectorAll('option').forEach(opt => {
+      const p = this.presetManager.getPresetById(opt.value);
+      if (p) {
+        const isOptModified = (opt.value === targetId && isModified);
+        const expectedText = isOptModified ? `${p.name} *` : p.name;
+        if (opt.textContent !== expectedText) {
+          opt.textContent = expectedText;
+        }
+      }
+    });
   }
 
   updatePresetDisplayName(name, isModified = false) {
@@ -1395,6 +1407,8 @@ class SynthUI {
     this.updateSliderUI('osc2Semi', params.osc2Semi, params.osc2Semi);
     this.updateSliderUI('osc2Fine', params.osc2Fine, (params.osc2Fine > 0 ? '+' : '') + params.osc2Fine);
     this.updateSliderUI('osc2Mix', params.osc2Mix, `${Math.round(params.osc2Mix * 100)}%`);
+    const pickCheck = document.getElementById('pickTransient');
+    if (pickCheck) pickCheck.checked = Boolean(params.pickTransient);
 
     // Filter
     this.updateSliderUI('filterCutoff', params.filterCutoff, `${Math.round(params.filterCutoff)} Hz`);
@@ -1422,9 +1436,11 @@ class SynthUI {
     this.updateSliderUI('lfoRate', params.lfoRate, `${params.lfoRate} Hz`);
     this.updateSliderUI('lfoDepth', params.lfoDepth, `${Math.round(params.lfoDepth * 100)}%`);
 
-    // Distortion
+    // Distortion & Cab Sim
     const distCheck = document.getElementById('distortionEnabled');
     if (distCheck) distCheck.checked = Boolean(params.distortionEnabled);
+    const cabCheck = document.getElementById('cabSimEnabled');
+    if (cabCheck) cabCheck.checked = Boolean(params.cabSimEnabled);
     this.updateSliderUI('distortionDrive', params.distortionDrive ?? 20, params.distortionDrive ?? 20);
     const distTone = params.distortionTone ?? 4000;
     this.updateSliderUI('distortionTone', distTone, distTone >= 1000 ? `${(distTone / 1000).toFixed(1)} kHz` : `${distTone} Hz`);
@@ -1838,6 +1854,12 @@ class SynthUI {
     bindSlider('osc2Semi', 'osc2Semi', v => v);
     bindSlider('osc2Fine', 'osc2Fine', v => (v > 0 ? '+' : '') + v);
     bindSlider('osc2Mix', 'osc2Mix', v => `${Math.round(v * 100)}%`);
+    const pickCheck = document.getElementById('pickTransient');
+    if (pickCheck) {
+      pickCheck.addEventListener('change', (e) => {
+        this.synth.updateParam('pickTransient', e.target.checked);
+      });
+    }
 
     // Filter - Cutoff with 20Hz resolution and smooth logarithmic response
     const filterCutoffEl = document.getElementById('filterCutoff');
@@ -1877,11 +1899,17 @@ class SynthUI {
     bindSlider('lfoRate', 'lfoRate', v => `${v} Hz`);
     bindSlider('lfoDepth', 'lfoDepth', v => `${Math.round(v * 100)}%`);
 
-    // Distortion
+    // Distortion & Cab Sim
     const distCheck = document.getElementById('distortionEnabled');
     if (distCheck) {
       distCheck.addEventListener('change', (e) => {
         this.synth.updateParam('distortionEnabled', e.target.checked);
+      });
+    }
+    const cabCheck = document.getElementById('cabSimEnabled');
+    if (cabCheck) {
+      cabCheck.addEventListener('change', (e) => {
+        this.synth.updateParam('cabSimEnabled', e.target.checked);
       });
     }
     bindSlider('distortionDrive', 'distortionDrive', v => `${v}`);

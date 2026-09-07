@@ -1467,10 +1467,17 @@ button {
   box-shadow: 0 0 8px rgba(6, 182, 212, 0.15);
 }
 
+.osc2-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .osc-mix-inline {
   display: flex;
   align-items: center;
   gap: 6px;
+  line-height: 1;
 }
 .osc-mix-inline label {
   font-family: var(--font-mono);
@@ -1478,6 +1485,11 @@ button {
   font-weight: 600;
   color: var(--osc-mix-color, var(--text-dim));
   transition: color 0.1s ease;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  top: 1.5px;
 }
 
 .osc-mix-inline .val-display {
@@ -1486,6 +1498,11 @@ button {
   color: var(--osc-mix-color, var(--accent-cyan));
   text-shadow: 0 0 6px var(--osc-mix-glow, transparent);
   transition: color 0.1s ease, text-shadow 0.1s ease;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  top: 1.5px;
 }
 
 .osc-mix-inline input[type="range"] {
@@ -1527,6 +1544,27 @@ button {
   color: #fff;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding-bottom: 6px;
+}
+
+.card-header-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.card-header-toggle .toggle-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+  position: relative;
+  top: 1.5px;
 }
 
 .card-body {
@@ -1746,10 +1784,12 @@ input[type="range"]::-webkit-slider-thumb {
 /* Toggle Switch */
 .toggle-switch {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   width: 32px;
   height: 18px;
   flex-shrink: 0;
+  vertical-align: middle;
 }
 
 .toggle-switch input {
