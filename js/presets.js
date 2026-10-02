@@ -48,6 +48,7 @@ export const PRESETS = [
       distortionTone: 4000,
       distortionMix: 0.0,
       cabSimEnabled: true,
+      cabSimType: "1x15",
       pickTransient: 0.5,
 
       delayEnabled: true,
@@ -112,6 +113,7 @@ export const PRESETS = [
       distortionTone: 3800,
       distortionMix: 0.75,
       cabSimEnabled: true,
+      cabSimType: "4x12",
 
       delayEnabled: true,
       delayTime: 0.11,
@@ -175,6 +177,7 @@ export const PRESETS = [
       distortionTone: 4200,
       distortionMix: 0.0,
       cabSimEnabled: true,
+      cabSimType: "1x12",
 
       delayEnabled: true,
       delayTime: 0.14,
@@ -238,6 +241,7 @@ export const PRESETS = [
       distortionTone: 3500,
       distortionMix: 0.90,
       cabSimEnabled: true,
+      cabSimType: "4x12",
 
       delayEnabled: false,
       delayTime: 0.12,
@@ -301,6 +305,7 @@ export const PRESETS = [
       distortionTone: 2800,
       distortionMix: 0.20,
       cabSimEnabled: true,
+      cabSimType: "1x15",
 
       delayEnabled: false,
       delayTime: 0.2,

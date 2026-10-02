@@ -1,4 +1,4 @@
-import { SynthVoice } from './synth-voice.js';
+import { SynthVoice } from "./synth-voice.js";
 
 /**
  * SynthEngine: Orchestrates the 8-voice polyphonic synthesizer,
@@ -7,21 +7,37 @@ import { SynthVoice } from './synth-voice.js';
 export class SynthEngine {
   constructor() {
     this.ctx = null;
-    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
-    const savedBuffer = typeof localStorage !== 'undefined' ? localStorage.getItem('synth_buffer_mode') : null;
+    const isAndroid =
+      typeof navigator !== "undefined" &&
+      /Android/i.test(navigator.userAgent || "");
+    const savedBuffer =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("synth_buffer_mode")
+        : null;
     // On Android, default to 'interactive' (10ms buffer) for crisp response
     if (isAndroid) {
-      if (!savedBuffer || savedBuffer === 'ultralow' || savedBuffer === 'balanced') {
-        this.bufferMode = 'interactive';
-        try { localStorage.setItem('synth_buffer_mode', 'interactive'); } catch (_) {}
+      if (
+        !savedBuffer ||
+        savedBuffer === "ultralow" ||
+        savedBuffer === "balanced"
+      ) {
+        this.bufferMode = "interactive";
+        try {
+          localStorage.setItem("synth_buffer_mode", "interactive");
+        } catch (_) {}
       } else {
         this.bufferMode = savedBuffer;
       }
     } else {
-      this.bufferMode = savedBuffer || 'ultralow';
+      this.bufferMode = savedBuffer || "ultralow";
     }
 
-    this.voiceCount = parseInt((typeof localStorage !== 'undefined' && localStorage.getItem('synth_voice_count')) || '8', 10);
+    this.voiceCount = parseInt(
+      (typeof localStorage !== "undefined" &&
+        localStorage.getItem("synth_voice_count")) ||
+        "8",
+      10,
+    );
     this.voices = [];
     this.hasSmoothCutoff = false; // Set to true by UI when ballistic animation handles cutoff
     this.ui = null;
@@ -31,12 +47,12 @@ export class SynthEngine {
     // Global / Active synth parameters
     this.params = {
       // Oscillators
-      osc1Waveform: 'sawtooth',
+      osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
       osc1Fine: 0,
 
-      osc2Waveform: 'sawtooth',
+      osc2Waveform: "sawtooth",
       osc2Octave: 0,
       osc2Semi: 0,
       osc2Fine: 7, // slight detune default
@@ -59,10 +75,10 @@ export class SynthEngine {
       ampRelease: 0.35,
 
       // LFO
-      lfoWaveform: 'sine',
+      lfoWaveform: "sine",
       lfoRate: 3.5, // Hz
       lfoDepth: 0.0, // 0 to 1
-      lfoTarget: 'filter', // 'filter', 'pitch', 'amp', 'none'
+      lfoTarget: "filter", // 'filter', 'pitch', 'amp', 'none'
 
       // Pluck / Pick Transient
       pickTransient: 0.0, // Pluck Level (0.0 to 1.0)
@@ -71,8 +87,8 @@ export class SynthEngine {
       distortionEnabled: false,
       distortionDrive: 20, // 1 to 80
       distortionTone: 4000, // 500 Hz to 12000 Hz
-      distortionMix: 0.5,
-      cabSimEnabled: false, // 12" Guitar Speaker Cabinet Emulation
+      cabSimEnabled: false, // Guitar Speaker Cabinet Emulation
+      cabSimType: "1x12", // '1x12', '2x12', '4x12', '1x15'
 
       // Delay Effect
       delayEnabled: true,
@@ -90,21 +106,21 @@ export class SynthEngine {
       masterVolume: 0.75,
       mpePitchBendRange: 48, // Default 48 semitones for MPE
       mpeMasterChannel: 1,
-      cc1Target: 'resonance', // 'resonance' (Filter Q) or 'lforate' (LFO Rate)
+      cc1Target: "resonance", // 'resonance' (Filter Q) or 'lforate' (LFO Rate)
       volumeCC: 11, // 11 (Expression - Default) or 7 (Channel Volume)
-      mpePressureTarget: 'both', // 'both' (Dynamics & Filter), 'dynamics', 'filter', 'off'
-      mpeTimbreTarget: 'cutoff', // 'cutoff' (Default), 'resonance', 'osc2mix', 'lforate', 'lfodepth', 'off'
+      mpePressureTarget: "both", // 'both' (Dynamics & Filter), 'dynamics', 'filter', 'off'
+      mpeTimbreTarget: "cutoff", // 'cutoff' (Default), 'resonance', 'osc2mix', 'lforate', 'lfodepth', 'off'
 
       // Voice Engine Mode: 'analog' (Subtractive Dual Osc) or 'guitar' (Extended Karplus-Strong Physical Model)
-      voiceMode: 'analog',
+      voiceMode: "analog",
 
       // Physical Modeling Guitar Parameters
-      guitarDecay: 0.9750,      // String Sustain / Feedback (0.90 to 0.9998 -> 0.35s to 15.0s)
-      guitarDamping: 0.70,      // String Brightness / High-frequency dissipation (0.05 to 0.95)
-      guitarPluckPos: 0.18,     // Pluck position along string (0.05 = near bridge, 0.5 = 12th fret)
-      guitarPickupPos: 0.12,    // Magnetic pickup position (0.08 = bridge, 0.35 = neck)
-      guitarPickBite: 0.70,     // Pick snap / transient brightness (0.0 to 1.0)
-      guitarStiffness: 0.08     // String stiffness inharmonicity / dispersion (0.0 to 0.70)
+      guitarDecay: 0.975, // String Sustain / Feedback (0.90 to 0.9998 -> 0.35s to 15.0s)
+      guitarDamping: 0.7, // String Brightness / High-frequency dissipation (0.05 to 0.95)
+      guitarPluckPos: 0.18, // Pluck position along string (0.05 = near bridge, 0.5 = 12th fret)
+      guitarPickupPos: 0.12, // Magnetic pickup position (0.08 = bridge, 0.35 = neck)
+      guitarPickBite: 0.7, // Pick snap / transient brightness (0.0 to 1.0)
+      guitarStiffness: 0.08, // String stiffness inharmonicity / dispersion (0.0 to 0.70)
     };
 
     // AudioWorklet state
@@ -124,33 +140,39 @@ export class SynthEngine {
    */
   configureIosAudioSession() {
     // 1. Modern iOS WebKit standard (iOS 17+)
-    if (typeof navigator !== 'undefined' && navigator.audioSession) {
+    if (typeof navigator !== "undefined" && navigator.audioSession) {
       try {
-        navigator.audioSession.type = 'playback';
+        navigator.audioSession.type = "playback";
       } catch (err) {
-        console.warn('Failed to set navigator.audioSession.type:', err);
+        console.warn("Failed to set navigator.audioSession.type:", err);
       }
     }
 
     // 2. Trigger native iOS CoreMidiPlugin audio session configuration
-    if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.CoreMidiPlugin?.configureAudioSession) {
-      window.Capacitor.Plugins.CoreMidiPlugin.configureAudioSession().catch(() => {});
+    if (
+      typeof window !== "undefined" &&
+      window.Capacitor?.Plugins?.CoreMidiPlugin?.configureAudioSession
+    ) {
+      window.Capacitor.Plugins.CoreMidiPlugin.configureAudioSession().catch(
+        () => {},
+      );
     }
 
     // 3. Universal WebKit silent audio loop (forces iOS WebAudio into media playback category)
-    if (!this.silentAudioElement && typeof document !== 'undefined') {
+    if (!this.silentAudioElement && typeof document !== "undefined") {
       try {
-        const audio = document.createElement('audio');
-        audio.setAttribute('x-webkit-airplay', 'deny');
-        audio.setAttribute('playsinline', 'true');
+        const audio = document.createElement("audio");
+        audio.setAttribute("x-webkit-airplay", "deny");
+        audio.setAttribute("playsinline", "true");
         audio.loop = true;
         audio.volume = 0.001;
-        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        audio.src =
+          "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
         const playPromise = audio.play();
         if (playPromise) playPromise.catch(() => {});
         this.silentAudioElement = audio;
       } catch (e) {
-        console.warn('Could not start silent audio element:', e);
+        console.warn("Could not start silent audio element:", e);
       }
     } else if (this.silentAudioElement && this.silentAudioElement.paused) {
       this.silentAudioElement.play().catch(() => {});
@@ -164,7 +186,7 @@ export class SynthEngine {
     this.configureIosAudioSession();
 
     if (this.isAudioStarted && this.ctx) {
-      if (this.ctx.state === 'suspended') {
+      if (this.ctx.state === "suspended") {
         await this.ctx.resume();
       }
       return;
@@ -178,18 +200,18 @@ export class SynthEngine {
     // 'ultralow' (0): raw hardware minimum (<5ms)
     // 'safe' (50ms): maximum safety buffer for heavy load
     let latencyOption = 0.025;
-    if (this.bufferMode === 'ultralow') {
+    if (this.bufferMode === "ultralow") {
       latencyOption = 0;
-    } else if (this.bufferMode === 'interactive') {
-      latencyOption = 'interactive';
-    } else if (this.bufferMode === 'balanced') {
+    } else if (this.bufferMode === "interactive") {
+      latencyOption = "interactive";
+    } else if (this.bufferMode === "balanced") {
       latencyOption = 0.025;
-    } else if (this.bufferMode === 'safe') {
+    } else if (this.bufferMode === "safe") {
       latencyOption = 0.05;
     }
 
     this.ctx = new AudioContextClass({ latencyHint: latencyOption });
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx.state === "suspended") {
       await this.ctx.resume();
     }
 
@@ -221,12 +243,15 @@ export class SynthEngine {
 
     // 4. Master Volume Gain (scaled with safe headroom)
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(this.params.masterVolume * this.masterHeadroomGain, this.ctx.currentTime);
+    this.masterGain.gain.setValueAtTime(
+      this.params.masterVolume * this.masterHeadroomGain,
+      this.ctx.currentTime,
+    );
 
     // 5. Soft-Clipper Stage (musical saturation safety ceiling before DAC)
     this.masterClipper = this.ctx.createWaveShaper();
     this.masterClipper.curve = this.createSoftClipCurve(512);
-    this.masterClipper.oversample = '2x';
+    this.masterClipper.oversample = "2x";
 
     // 6. Analyser Node for Visualizer
     this.analyser = this.ctx.createAnalyser();
@@ -250,7 +275,9 @@ export class SynthEngine {
 
     // Report measured hardware buffer latency
     if (this.onBufferStatChange) {
-      const ms = this.ctx.baseLatency ? (this.ctx.baseLatency * 1000).toFixed(1) : (latencyOption * 1000).toFixed(0);
+      const ms = this.ctx.baseLatency
+        ? (this.ctx.baseLatency * 1000).toFixed(1)
+        : (latencyOption * 1000).toFixed(0);
       this.onBufferStatChange(ms);
     }
   }
@@ -261,11 +288,11 @@ export class SynthEngine {
   async reconfigureAudio(bufferMode = null, voiceCount = null) {
     if (bufferMode) {
       this.bufferMode = bufferMode;
-      localStorage.setItem('synth_buffer_mode', bufferMode);
+      localStorage.setItem("synth_buffer_mode", bufferMode);
     }
     if (voiceCount) {
       this.voiceCount = parseInt(voiceCount, 10);
-      localStorage.setItem('synth_voice_count', this.voiceCount.toString());
+      localStorage.setItem("synth_voice_count", this.voiceCount.toString());
     }
 
     if (this.isAudioStarted && this.ctx) {
@@ -288,12 +315,17 @@ export class SynthEngine {
     this.distOut = this.ctx.createGain();
 
     this.distWaveShaper = this.ctx.createWaveShaper();
-    this.distWaveShaper.curve = this.makeDistortionCurve(this.params.distortionDrive);
-    this.distWaveShaper.oversample = '2x';
+    this.distWaveShaper.curve = this.makeDistortionCurve(
+      this.params.distortionDrive,
+    );
+    this.distWaveShaper.oversample = "2x";
 
     this.distFilter = this.ctx.createBiquadFilter();
-    this.distFilter.type = 'lowpass';
-    this.distFilter.frequency.setValueAtTime(this.params.distortionTone, this.ctx.currentTime);
+    this.distFilter.type = "lowpass";
+    this.distFilter.frequency.setValueAtTime(
+      this.params.distortionTone,
+      this.ctx.currentTime,
+    );
 
     // Wet chain: distIn -> distWaveShaper -> distFilter -> distWet
     this.distIn.connect(this.distWaveShaper);
@@ -308,27 +340,32 @@ export class SynthEngine {
 
   async loadKarplusStrongWorklet() {
     if (!this.ctx || !this.ctx.audioWorklet) {
-      console.warn('Web Audio AudioWorklet is not supported in this browser/environment');
+      console.warn(
+        "Web Audio AudioWorklet is not supported in this browser/environment",
+      );
       this.isWorkletLoaded = false;
       return false;
     }
     try {
-      await this.ctx.audioWorklet.addModule('js/karplus-strong-processor.js');
+      await this.ctx.audioWorklet.addModule("js/karplus-strong-processor.js");
       this.isWorkletLoaded = true;
       return true;
     } catch (err) {
-      console.warn('Direct AudioWorklet addModule failed, trying Blob fallback:', err);
+      console.warn(
+        "Direct AudioWorklet addModule failed, trying Blob fallback:",
+        err,
+      );
       try {
-        const response = await fetch('js/karplus-strong-processor.js');
+        const response = await fetch("js/karplus-strong-processor.js");
         const text = await response.text();
-        const blob = new Blob([text], { type: 'application/javascript' });
+        const blob = new Blob([text], { type: "application/javascript" });
         const blobUrl = URL.createObjectURL(blob);
         await this.ctx.audioWorklet.addModule(blobUrl);
         URL.revokeObjectURL(blobUrl);
         this.isWorkletLoaded = true;
         return true;
       } catch (fallbackErr) {
-        console.error('All AudioWorklet loading methods failed:', fallbackErr);
+        console.error("All AudioWorklet loading methods failed:", fallbackErr);
         this.isWorkletLoaded = false;
         return false;
       }
@@ -347,14 +384,16 @@ export class SynthEngine {
     for (let i = 0; i < length; i++) {
       const t = i / length;
       const decayFast = Math.exp(-t * 12.0); // 10ms snap decay
-      const decayBody = Math.exp(-t * 6.0);  // 20ms string thump decay
+      const decayBody = Math.exp(-t * 6.0); // 20ms string thump decay
       // 1. High-frequency plectrum snap, wire scrape (3.5 kHz & 5 kHz) + broadband attack bite
       const snapNoise = (Math.random() * 2 - 1) * 1.1;
       const scrapeTone1 = Math.sin(2 * Math.PI * 3600 * (i / rate)) * 0.6;
       const scrapeTone2 = Math.sin(2 * Math.PI * 5200 * (i / rate)) * 0.4;
       // 2. Mechanical string release thump (190 Hz deep attack transient)
       const stringThump = Math.sin(2 * Math.PI * 190 * (i / rate)) * 0.9;
-      data[i] = (snapNoise + scrapeTone1 + scrapeTone2) * decayFast + stringThump * decayBody;
+      data[i] =
+        (snapNoise + scrapeTone1 + scrapeTone2) * decayFast +
+        stringThump * decayBody;
     }
     return buffer;
   }
@@ -370,13 +409,104 @@ export class SynthEngine {
         curve[i] = x;
       } else {
         // Asymmetric bias: introduces rich 2nd/4th order even tube harmonics
-        const asym = x > 0 ? x * (1.0 + 0.20 * x) : x;
-        const shaped = ((3 + k) * asym * 20 * deg) / (Math.PI + k * Math.abs(asym));
+        const asym = x > 0 ? x * (1.0 + 0.2 * x) : x;
+        const shaped =
+          ((3 + k) * asym * 20 * deg) / (Math.PI + k * Math.abs(asym));
         curve[i] = Math.tanh(shaped * 1.15);
       }
     }
     return curve;
   }
+
+  // --------------------------------------------------------------------------
+  // Guitar Speaker Cabinet Simulation Presets & Filter Curves
+  // --------------------------------------------------------------------------
+  static CAB_PROFILES = {
+    "1x12": {
+      name: "1x12 Deluxe",
+      description:
+        "American open-back combo with sparkling chime, scooped mids, and airy top",
+      hpFreq: 95,
+      hpQ: 0.707,
+      thumpFreq: 140,
+      thumpGain: 1.5,
+      thumpQ: 1.0,
+      scoopFreq: 500,
+      scoopGain: -9.0,
+      scoopQ: 1.1,
+      presenceFreq: 3800,
+      presenceGain: 6.5,
+      presenceQ: 1.8,
+      lp1Freq: 6800,
+      lp1Q: 1.1,
+      lp2Freq: 8200,
+      lp2Q: 0.8,
+      levelTrim: 1.2,
+    },
+    "2x12": {
+      name: "2x12 AC",
+      description:
+        "British Class-A open-back with vocal mid-forward bark and biting Alnico chime",
+      hpFreq: 95,
+      hpQ: 0.85,
+      thumpFreq: 160,
+      thumpGain: 2.0,
+      thumpQ: 1.4,
+      scoopFreq: 1100, // Mid-forward vocal boost
+      scoopGain: 5.0,
+      scoopQ: 1.2,
+      presenceFreq: 2650,
+      presenceGain: 9.5,
+      presenceQ: 2.8,
+      lp1Freq: 4600,
+      lp1Q: 1.3,
+      lp2Freq: 5600,
+      lp2Q: 0.9,
+      levelTrim: 0.82,
+    },
+    "4x12": {
+      name: "4x12 British Stack",
+      description:
+        "Closed-back 4x12 stack with massive gut-punch thump, scooped body, and dark heavy crunch",
+      hpFreq: 62,
+      hpQ: 0.9,
+      thumpFreq: 105,
+      thumpGain: 7.5,
+      thumpQ: 1.8,
+      scoopFreq: 680,
+      scoopGain: -8.0,
+      scoopQ: 1.4,
+      presenceFreq: 2900,
+      presenceGain: 8.5,
+      presenceQ: 2.4,
+      lp1Freq: 3800,
+      lp1Q: 1.4,
+      lp2Freq: 4700,
+      lp2Q: 0.95,
+      levelTrim: 0.88,
+    },
+    "1x15": {
+      name: "1x15 Steel Combo",
+      description:
+        "Vintage 15-inch pedal steel combo with deep sub-bass body, velvety warmth, and sweet mellow highs",
+      hpFreq: 40,
+      hpQ: 0.707,
+      thumpFreq: 75,
+      thumpGain: 6.5,
+      thumpQ: 1.3,
+      scoopFreq: 400,
+      scoopGain: -2.5,
+      scoopQ: 0.8,
+      presenceFreq: 1850,
+      presenceGain: 4.5,
+      presenceQ: 1.4,
+      lp1Freq: 3100,
+      lp1Q: 1.0,
+      lp2Freq: 4000,
+      lp2Q: 0.75,
+      levelTrim: 1.12,
+    },
+  };
 
   setupCabSimEffect() {
     this.cabIn = this.ctx.createGain();
@@ -384,45 +514,29 @@ export class SynthEngine {
     this.cabWet = this.ctx.createGain();
     this.cabOut = this.ctx.createGain();
 
-    // 12" Guitar Speaker Cabinet Filter Chain (Authentic Celestion / Amp Stack Profile):
-    // 1. Sub-bass rumble cut (70 Hz Highpass)
+    // Guitar Speaker Cabinet Filter Chain:
+    // 1. Sub-bass rumble highpass
     this.cabHp = this.ctx.createBiquadFilter();
-    this.cabHp.type = 'highpass';
-    this.cabHp.frequency.setValueAtTime(70, this.ctx.currentTime);
-    this.cabHp.Q.setValueAtTime(0.8, this.ctx.currentTime);
+    this.cabHp.type = "highpass";
 
-    // 2. Cabinet Wood Resonance / Low-End Thump (+1.8 dB @ 115 Hz)
+    // 2. Cabinet Wood Resonance / Low-End Thump
     this.cabThump = this.ctx.createBiquadFilter();
-    this.cabThump.type = 'peaking';
-    this.cabThump.frequency.setValueAtTime(115, this.ctx.currentTime);
-    this.cabThump.gain.setValueAtTime(1.8, this.ctx.currentTime);
-    this.cabThump.Q.setValueAtTime(1.4, this.ctx.currentTime);
+    this.cabThump.type = "peaking";
 
-    // 3. Tone Stack Mid-Scoop (-5.5 dB @ 680 Hz) - eliminates boxy nasal mud
+    // 3. Tone Stack Mid-Scoop / Body Contour
     this.cabScoop = this.ctx.createBiquadFilter();
-    this.cabScoop.type = 'peaking';
-    this.cabScoop.frequency.setValueAtTime(680, this.ctx.currentTime);
-    this.cabScoop.gain.setValueAtTime(-5.5, this.ctx.currentTime);
-    this.cabScoop.Q.setValueAtTime(1.3, this.ctx.currentTime);
+    this.cabScoop.type = "peaking";
 
-    // 4. Speaker Cone Breakup & Presence Bite (+7.5 dB @ 2900 Hz, Q=2.4)
+    // 4. Speaker Cone Breakup & Presence Bite
     this.cabPresence = this.ctx.createBiquadFilter();
-    this.cabPresence.type = 'peaking';
-    this.cabPresence.frequency.setValueAtTime(2900, this.ctx.currentTime);
-    this.cabPresence.gain.setValueAtTime(7.5, this.ctx.currentTime);
-    this.cabPresence.Q.setValueAtTime(2.4, this.ctx.currentTime);
+    this.cabPresence.type = "peaking";
 
-    // 5. Steep 4-Pole Lowpass Rolloff (Two cascaded 2nd-order stages: 4200 Hz & 5200 Hz)
-    // Eliminates harsh direct-in digital fizz, creating unmistakable miked 12" speaker warmth
+    // 5. Steep 4-Pole Lowpass Rolloff (Two cascaded 2nd-order stages)
     this.cabLp1 = this.ctx.createBiquadFilter();
-    this.cabLp1.type = 'lowpass';
-    this.cabLp1.frequency.setValueAtTime(4200, this.ctx.currentTime);
-    this.cabLp1.Q.setValueAtTime(1.3, this.ctx.currentTime);
+    this.cabLp1.type = "lowpass";
 
     this.cabLp2 = this.ctx.createBiquadFilter();
-    this.cabLp2.type = 'lowpass';
-    this.cabLp2.frequency.setValueAtTime(5200, this.ctx.currentTime);
-    this.cabLp2.Q.setValueAtTime(0.9, this.ctx.currentTime);
+    this.cabLp2.type = "lowpass";
 
     // Wet chain: cabIn -> cabHp -> cabThump -> cabScoop -> cabPresence -> cabLp1 -> cabLp2 -> cabWet
     this.cabIn.connect(this.cabHp);
@@ -436,16 +550,97 @@ export class SynthEngine {
     this.cabDry.connect(this.cabOut);
     this.cabWet.connect(this.cabOut);
 
+    this.updateCabSimProfile(this.params.cabSimType || "1x12", 0);
     this.updateCabSimMix();
+  }
+
+  updateCabSimProfile(type, transitionTime = 0.03) {
+    const profile =
+      SynthEngine.CAB_PROFILES[type] || SynthEngine.CAB_PROFILES["1x12"];
+    if (!this.ctx || !this.cabHp) return;
+    const now = this.ctx.currentTime;
+    if (transitionTime === 0) {
+      this.cabHp.frequency.setValueAtTime(profile.hpFreq, now);
+      this.cabHp.Q.setValueAtTime(profile.hpQ, now);
+      this.cabThump.frequency.setValueAtTime(profile.thumpFreq, now);
+      this.cabThump.gain.setValueAtTime(profile.thumpGain, now);
+      this.cabThump.Q.setValueAtTime(profile.thumpQ, now);
+      this.cabScoop.frequency.setValueAtTime(profile.scoopFreq, now);
+      this.cabScoop.gain.setValueAtTime(profile.scoopGain, now);
+      this.cabScoop.Q.setValueAtTime(profile.scoopQ, now);
+      this.cabPresence.frequency.setValueAtTime(profile.presenceFreq, now);
+      this.cabPresence.gain.setValueAtTime(profile.presenceGain, now);
+      this.cabPresence.Q.setValueAtTime(profile.presenceQ, now);
+      this.cabLp1.frequency.setValueAtTime(profile.lp1Freq, now);
+      this.cabLp1.Q.setValueAtTime(profile.lp1Q, now);
+      this.cabLp2.frequency.setValueAtTime(profile.lp2Freq, now);
+      this.cabLp2.Q.setValueAtTime(profile.lp2Q, now);
+    } else {
+      this.cabHp.frequency.setTargetAtTime(profile.hpFreq, now, transitionTime);
+      this.cabHp.Q.setTargetAtTime(profile.hpQ, now, transitionTime);
+      this.cabThump.frequency.setTargetAtTime(
+        profile.thumpFreq,
+        now,
+        transitionTime,
+      );
+      this.cabThump.gain.setTargetAtTime(
+        profile.thumpGain,
+        now,
+        transitionTime,
+      );
+      this.cabThump.Q.setTargetAtTime(profile.thumpQ, now, transitionTime);
+      this.cabScoop.frequency.setTargetAtTime(
+        profile.scoopFreq,
+        now,
+        transitionTime,
+      );
+      this.cabScoop.gain.setTargetAtTime(
+        profile.scoopGain,
+        now,
+        transitionTime,
+      );
+      this.cabScoop.Q.setTargetAtTime(profile.scoopQ, now, transitionTime);
+      this.cabPresence.frequency.setTargetAtTime(
+        profile.presenceFreq,
+        now,
+        transitionTime,
+      );
+      this.cabPresence.gain.setTargetAtTime(
+        profile.presenceGain,
+        now,
+        transitionTime,
+      );
+      this.cabPresence.Q.setTargetAtTime(
+        profile.presenceQ,
+        now,
+        transitionTime,
+      );
+      this.cabLp1.frequency.setTargetAtTime(
+        profile.lp1Freq,
+        now,
+        transitionTime,
+      );
+      this.cabLp1.Q.setTargetAtTime(profile.lp1Q, now, transitionTime);
+      this.cabLp2.frequency.setTargetAtTime(
+        profile.lp2Freq,
+        now,
+        transitionTime,
+      );
+      this.cabLp2.Q.setTargetAtTime(profile.lp2Q, now, transitionTime);
+    }
   }
 
   updateCabSimMix() {
     if (!this.ctx || !this.cabDry || !this.cabIn || !this.cabWet) return;
     const now = this.ctx.currentTime;
     if (this.params.cabSimEnabled) {
+      const profile =
+        SynthEngine.CAB_PROFILES[this.params.cabSimType] ||
+        SynthEngine.CAB_PROFILES["1x12"];
+      const wetGain = profile.levelTrim !== undefined ? profile.levelTrim : 1.0;
       this.cabIn.gain.setTargetAtTime(1.0, now, 0.02);
       this.cabDry.gain.setTargetAtTime(0.0, now, 0.02);
-      this.cabWet.gain.setTargetAtTime(1.0, now, 0.02);
+      this.cabWet.gain.setTargetAtTime(wetGain, now, 0.02);
     } else {
       this.cabIn.gain.setTargetAtTime(0.0, now, 0.02);
       this.cabDry.gain.setTargetAtTime(1.0, now, 0.02);
@@ -476,17 +671,29 @@ export class SynthEngine {
 
     // Left delay
     this.delayNodeL = this.ctx.createDelay(2.0);
-    this.delayNodeL.delayTime.setValueAtTime(this.params.delayTime, this.ctx.currentTime);
+    this.delayNodeL.delayTime.setValueAtTime(
+      this.params.delayTime,
+      this.ctx.currentTime,
+    );
 
     // Right delay (offset slightly for stereo field)
     this.delayNodeR = this.ctx.createDelay(2.0);
-    this.delayNodeR.delayTime.setValueAtTime(this.params.delayTime * 1.33, this.ctx.currentTime);
+    this.delayNodeR.delayTime.setValueAtTime(
+      this.params.delayTime * 1.33,
+      this.ctx.currentTime,
+    );
 
     // Feedback gains
     this.delayFeedbackGainL = this.ctx.createGain();
     this.delayFeedbackGainR = this.ctx.createGain();
-    this.delayFeedbackGainL.gain.setValueAtTime(this.params.delayFeedback, this.ctx.currentTime);
-    this.delayFeedbackGainR.gain.setValueAtTime(this.params.delayFeedback, this.ctx.currentTime);
+    this.delayFeedbackGainL.gain.setValueAtTime(
+      this.params.delayFeedback,
+      this.ctx.currentTime,
+    );
+    this.delayFeedbackGainR.gain.setValueAtTime(
+      this.params.delayFeedback,
+      this.ctx.currentTime,
+    );
 
     // Channel merger/splitter for true stereo delay
     this.delaySplitter = this.ctx.createChannelSplitter(2);
@@ -502,7 +709,10 @@ export class SynthEngine {
     this.delayNodeL.connect(this.delayMerger, 0, 0);
 
     // Right line
-    this.delaySplitter.connect(this.delayNodeR, 1 % this.delaySplitter.numberOfOutputs);
+    this.delaySplitter.connect(
+      this.delayNodeR,
+      1 % this.delaySplitter.numberOfOutputs,
+    );
     this.delayNodeR.connect(this.delayFeedbackGainR);
     this.delayFeedbackGainR.connect(this.delayNodeR);
     this.delayNodeR.connect(this.delayMerger, 0, 1);
@@ -538,8 +748,11 @@ export class SynthEngine {
     this.reverbOut = this.ctx.createGain();
 
     this.reverbFilter = this.ctx.createBiquadFilter();
-    this.reverbFilter.type = 'lowpass';
-    this.reverbFilter.frequency.setValueAtTime(this.params.reverbDamp, this.ctx.currentTime);
+    this.reverbFilter.type = "lowpass";
+    this.reverbFilter.frequency.setValueAtTime(
+      this.params.reverbDamp,
+      this.ctx.currentTime,
+    );
     this.reverbFilter.connect(this.reverbWet);
 
     this.updateReverbImpulse(this.params.reverbTime);
@@ -570,7 +783,7 @@ export class SynthEngine {
       this.reverbIn.connect(this.reverbConvolver);
       this.reverbConvolver.connect(this.reverbFilter);
     } catch (e) {
-      console.warn('Reverb buffer setup error:', e);
+      console.warn("Reverb buffer setup error:", e);
     }
   }
 
@@ -657,7 +870,7 @@ export class SynthEngine {
   }
 
   checkLFORunning() {
-    if (this.params.lfoDepth > 0.005 && this.params.lfoTarget !== 'none') {
+    if (this.params.lfoDepth > 0.005 && this.params.lfoTarget !== "none") {
       if (!this.lfoRunning) {
         this.lfoRunning = true;
         this.lfoLastTime = performance.now();
@@ -679,32 +892,41 @@ export class SynthEngine {
     if (this.lfoPhase > Math.PI * 2) this.lfoPhase -= Math.PI * 2;
 
     let val = 0;
-    if (this.params.lfoWaveform === 'sine') {
+    if (this.params.lfoWaveform === "sine") {
       val = Math.sin(this.lfoPhase);
-    } else if (this.params.lfoWaveform === 'triangle') {
+    } else if (this.params.lfoWaveform === "triangle") {
       val = Math.asin(Math.sin(this.lfoPhase)) / (Math.PI / 2);
-    } else if (this.params.lfoWaveform === 'square') {
+    } else if (this.params.lfoWaveform === "square") {
       val = Math.sin(this.lfoPhase) >= 0 ? 1 : -1;
-    } else if (this.params.lfoWaveform === 'sawtooth') {
+    } else if (this.params.lfoWaveform === "sawtooth") {
       val = 1 - 2 * (this.lfoPhase / (Math.PI * 2));
     }
 
     const modValue = val * this.params.lfoDepth;
 
-    if (this.params.lfoTarget === 'pitch') {
+    if (this.params.lfoTarget === "pitch") {
       const semitones = modValue * 1.2;
       for (const voice of this.voices) {
         if (voice.isActive) {
           voice.updateFrequencies(this.ctx.currentTime, semitones);
         }
       }
-    } else if (this.params.lfoTarget === 'filter') {
+    } else if (this.params.lfoTarget === "filter") {
       const octaveMod = modValue * 2.0;
       for (const voice of this.voices) {
         if (voice.isActive && voice.filter) {
-          const base = voice.calculateTargetCutoff(this.params.filterSustain || 0.3);
-          const target = Math.max(20, Math.min(20000, base * Math.pow(2, octaveMod)));
-          voice.filter.frequency.setTargetAtTime(target, this.ctx.currentTime, 0.005);
+          const base = voice.calculateTargetCutoff(
+            this.params.filterSustain || 0.3,
+          );
+          const target = Math.max(
+            20,
+            Math.min(20000, base * Math.pow(2, octaveMod)),
+          );
+          voice.filter.frequency.setTargetAtTime(
+            target,
+            this.ctx.currentTime,
+            0.005,
+          );
         }
       }
     }
@@ -721,7 +943,7 @@ export class SynthEngine {
    * 3. Oldest active voice (Voice Stealing / LRU)
    */
   allocateVoice(note, channel) {
-    const isGuitar = this.params?.voiceMode === 'guitar';
+    const isGuitar = this.params?.voiceMode === "guitar";
 
     // 1. In guitar mode, a string is physically unique per pitch.
     // If a voice is already actively sounding or releasing this note (on this channel or any channel),
@@ -729,7 +951,11 @@ export class SynthEngine {
     // from causing phase cancellations and volume fluctuations!
     if (isGuitar) {
       for (const voice of this.voices) {
-        if (voice.isActive && voice.note === note && voice.channel === channel) {
+        if (
+          voice.isActive &&
+          voice.note === note &&
+          voice.channel === channel
+        ) {
           return voice;
         }
       }
@@ -741,7 +967,12 @@ export class SynthEngine {
     } else {
       // Analog mode: re-use voice only if actively held (not in release)
       for (const voice of this.voices) {
-        if (voice.isActive && !voice.isReleasing && voice.note === note && voice.channel === channel) {
+        if (
+          voice.isActive &&
+          !voice.isReleasing &&
+          voice.note === note &&
+          voice.channel === channel
+        ) {
           return voice;
         }
       }
@@ -781,9 +1012,9 @@ export class SynthEngine {
 
   noteOn(note, velocity = 0.8, channel = 1) {
     if (!this.ctx) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === "suspended") this.ctx.resume();
 
-    const isGuitar = this.params?.voiceMode === 'guitar';
+    const isGuitar = this.params?.voiceMode === "guitar";
     const voice = this.allocateVoice(note, channel);
 
     // In guitar mode, guarantee that no other voice is simultaneously sounding this exact note pitch.
@@ -797,7 +1028,8 @@ export class SynthEngine {
     }
     // Inherit current CC state for this voice
     const activeVolumeCC = Number(this.params.volumeCC) || 11;
-    const initialVolume = activeVolumeCC === 7 ? (this.globalCC7 ?? 127) : (this.globalCC11 ?? 127);
+    const initialVolume =
+      activeVolumeCC === 7 ? (this.globalCC7 ?? 127) : (this.globalCC11 ?? 127);
     voice.cc73Cutoff = this.globalCC73;
     voice.cc74Timbre = this.globalCC74;
     voice.cc1Resonance = this.globalCC1;
@@ -882,24 +1114,30 @@ export class SynthEngine {
       // CC73 & CC74: Filter Cutoff / MPE Timbre (Y-Axis)
       this.globalCC73 = value;
       this.globalCC74 = value;
-      const targetMode = this.params.mpeTimbreTarget || 'cutoff';
+      const targetMode = this.params.mpeTimbreTarget || "cutoff";
 
-      if (isMaster && targetMode === 'cutoff') {
+      if (isMaster && targetMode === "cutoff") {
         const minLog = Math.log(20);
         const maxLog = Math.log(20000);
-        const targetCutoff = Math.exp(minLog + (value / 127) * (maxLog - minLog));
+        const targetCutoff = Math.exp(
+          minLog + (value / 127) * (maxLog - minLog),
+        );
         // If UI ballistic slew is active, let UI smoothly interpolate params.filterCutoff
         // to avoid race-condition jitter between raw MIDI stepping and visualizer
         if (!this.hasSmoothCutoff) {
           this.params.filterCutoff = targetCutoff;
         }
-      } else if (targetMode === 'lforate') {
+      } else if (targetMode === "lforate") {
         const minLog = Math.log(0.1);
         const maxLog = Math.log(20.0);
-        const rate = +(Math.exp(minLog + (value / 127) * (maxLog - minLog))).toFixed(1);
+        const rate = +Math.exp(
+          minLog + (value / 127) * (maxLog - minLog),
+        ).toFixed(1);
         this.params.lfoRate = rate;
-      } else if (targetMode === 'lfodepth') {
-        this.params.lfoDepth = +(Math.max(0, Math.min(1.0, value / 127))).toFixed(2);
+      } else if (targetMode === "lfodepth") {
+        this.params.lfoDepth = +Math.max(0, Math.min(1.0, value / 127)).toFixed(
+          2,
+        );
       }
 
       for (const voice of this.voices) {
@@ -910,13 +1148,19 @@ export class SynthEngine {
     } else if (ccNumber === 1) {
       // CC1: Mod Wheel -> Filter Resonance OR LFO Rate based on cc1Target setting
       this.globalCC1 = value;
-      if (this.params.cc1Target === 'lforate') {
+      if (this.params.cc1Target === "lforate") {
         const minLog = Math.log(0.1);
         const maxLog = Math.log(20.0);
-        const rate = +(Math.exp(minLog + (value / 127) * (maxLog - minLog))).toFixed(1);
+        const rate = +Math.exp(
+          minLog + (value / 127) * (maxLog - minLog),
+        ).toFixed(1);
         this.params.lfoRate = rate;
         if (this.lfoOsc) {
-          this.lfoOsc.frequency.setTargetAtTime(rate, this.ctx.currentTime, 0.02);
+          this.lfoOsc.frequency.setTargetAtTime(
+            rate,
+            this.ctx.currentTime,
+            0.02,
+          );
         }
       } else {
         const targetQ = +(0.1 + (value / 127) * 19.9).toFixed(1);
@@ -961,22 +1205,25 @@ export class SynthEngine {
    */
   setPolyPressure(channel, note, value) {
     for (const voice of this.voices) {
-      if (voice.isActive && voice.note === note && (voice.channel === channel || channel === 1 || voice.channel === 1)) {
+      if (
+        voice.isActive &&
+        voice.note === note &&
+        (voice.channel === channel || channel === 1 || voice.channel === 1)
+      ) {
         voice.setPressure(value);
       }
     }
   }
 
-
   notifyVoiceState() {
-    if (typeof this.onVoiceStateChange === 'function') {
-      const states = this.voices.map(v => ({
+    if (typeof this.onVoiceStateChange === "function") {
+      const states = this.voices.map((v) => ({
         id: v.id,
         isActive: v.isActive,
         isReleasing: v.isReleasing,
         note: v.note,
         channel: v.channel,
-        velocity: v.velocity
+        velocity: v.velocity,
       }));
       this.onVoiceStateChange(states);
     }
@@ -987,34 +1234,65 @@ export class SynthEngine {
   updateParam(key, value) {
     this.params[key] = value;
 
-    if (key === 'masterVolume' && this.masterGain) {
+    if (key === "masterVolume" && this.masterGain) {
       const scaledVol = value * (this.masterHeadroomGain || 0.82);
-      this.masterGain.gain.setTargetAtTime(scaledVol, this.ctx.currentTime, 0.01);
-    } else if (key === 'distortionEnabled' || key === 'distortionMix') {
+      this.masterGain.gain.setTargetAtTime(
+        scaledVol,
+        this.ctx.currentTime,
+        0.01,
+      );
+    } else if (key === "distortionEnabled" || key === "distortionMix") {
       this.updateDistortionMix();
-    } else if (key === 'cabSimEnabled') {
+    } else if (key === "cabSimEnabled") {
       this.updateCabSimMix();
-    } else if (key === 'distortionDrive' && this.distWaveShaper) {
+    } else if (key === "cabSimType") {
+      this.updateCabSimProfile(value);
+      this.updateCabSimMix();
+    } else if (key === "distortionDrive" && this.distWaveShaper) {
       this.distWaveShaper.curve = this.makeDistortionCurve(value);
-    } else if (key === 'distortionTone' && this.distFilter) {
-      this.distFilter.frequency.setTargetAtTime(value, this.ctx.currentTime, 0.02);
-    } else if (key === 'delayEnabled' || key === 'delayMix') {
+    } else if (key === "distortionTone" && this.distFilter) {
+      this.distFilter.frequency.setTargetAtTime(
+        value,
+        this.ctx.currentTime,
+        0.02,
+      );
+    } else if (key === "delayEnabled" || key === "delayMix") {
       this.updateDelayMix();
-    } else if (key === 'delayTime' && this.delayNodeL) {
-      this.delayNodeL.delayTime.setTargetAtTime(value, this.ctx.currentTime, 0.02);
-      this.delayNodeR.delayTime.setTargetAtTime(value * 1.33, this.ctx.currentTime, 0.02);
-    } else if (key === 'delayFeedback' && this.delayFeedbackGainL) {
-      this.delayFeedbackGainL.gain.setTargetAtTime(value, this.ctx.currentTime, 0.02);
-      this.delayFeedbackGainR.gain.setTargetAtTime(value, this.ctx.currentTime, 0.02);
-    } else if (key === 'reverbEnabled' || key === 'reverbMix') {
+    } else if (key === "delayTime" && this.delayNodeL) {
+      this.delayNodeL.delayTime.setTargetAtTime(
+        value,
+        this.ctx.currentTime,
+        0.02,
+      );
+      this.delayNodeR.delayTime.setTargetAtTime(
+        value * 1.33,
+        this.ctx.currentTime,
+        0.02,
+      );
+    } else if (key === "delayFeedback" && this.delayFeedbackGainL) {
+      this.delayFeedbackGainL.gain.setTargetAtTime(
+        value,
+        this.ctx.currentTime,
+        0.02,
+      );
+      this.delayFeedbackGainR.gain.setTargetAtTime(
+        value,
+        this.ctx.currentTime,
+        0.02,
+      );
+    } else if (key === "reverbEnabled" || key === "reverbMix") {
       this.updateReverbMix();
-    } else if (key === 'reverbTime') {
+    } else if (key === "reverbTime") {
       this.updateReverbImpulse(value);
-    } else if (key === 'reverbDamp' && this.reverbFilter) {
-      this.reverbFilter.frequency.setTargetAtTime(value, this.ctx.currentTime, 0.02);
-    } else if (key === 'lfoRate' && this.lfoOsc) {
+    } else if (key === "reverbDamp" && this.reverbFilter) {
+      this.reverbFilter.frequency.setTargetAtTime(
+        value,
+        this.ctx.currentTime,
+        0.02,
+      );
+    } else if (key === "lfoRate" && this.lfoOsc) {
       this.lfoOsc.frequency.setTargetAtTime(value, this.ctx.currentTime, 0.02);
-    } else if (key === 'lfoDepth' || key === 'lfoTarget') {
+    } else if (key === "lfoDepth" || key === "lfoTarget") {
       this.checkLFORunning();
     }
 
@@ -1031,23 +1309,33 @@ export class SynthEngine {
   }
 
   applyPreset(preset) {
-    // Read cabSimEnabled, pickTransient, and voiceMode explicitly from preset definition
+    // Read cabSimEnabled, cabSimType, pickTransient, and voiceMode explicitly from preset definition
     this.params.cabSimEnabled = Boolean(preset.params?.cabSimEnabled);
-    this.params.pickTransient = typeof preset.params?.pickTransient === 'number'
-      ? preset.params.pickTransient
-      : (preset.params?.pickTransient ? 0.75 : 0.0);
-    this.params.voiceMode = preset.params?.voiceMode || 'analog';
+    this.params.cabSimType = preset.params?.cabSimType || "1x12";
+    this.params.pickTransient =
+      typeof preset.params?.pickTransient === "number"
+        ? preset.params.pickTransient
+        : preset.params?.pickTransient
+          ? 0.75
+          : 0.0;
+    this.params.voiceMode = preset.params?.voiceMode || "analog";
 
     Object.assign(this.params, preset.params);
     this.checkLFORunning();
 
     if (this.masterGain) {
-      const scaledVol = (this.params.masterVolume ?? 0.75) * (this.masterHeadroomGain || 0.82);
-      this.masterGain.gain.setTargetAtTime(scaledVol, this.ctx.currentTime, 0.02);
+      const scaledVol =
+        (this.params.masterVolume ?? 0.75) * (this.masterHeadroomGain || 0.82);
+      this.masterGain.gain.setTargetAtTime(
+        scaledVol,
+        this.ctx.currentTime,
+        0.02,
+      );
     }
 
     this.updateDistortionMix();
     this.updateCabSimMix();
+    this.updateCabSimProfile(this.params.cabSimType);
     if (this.distWaveShaper) {
       const drive = this.params.distortionDrive ?? 20;
       if (this._currentDistDrive !== drive) {
@@ -1056,15 +1344,35 @@ export class SynthEngine {
       }
     }
     if (this.distFilter) {
-      this.distFilter.frequency.setTargetAtTime(this.params.distortionTone ?? 4000, this.ctx.currentTime, 0.02);
+      this.distFilter.frequency.setTargetAtTime(
+        this.params.distortionTone ?? 4000,
+        this.ctx.currentTime,
+        0.02,
+      );
     }
 
     this.updateDelayMix();
     if (this.delayNodeL) {
-      this.delayNodeL.delayTime.setTargetAtTime(this.params.delayTime, this.ctx.currentTime, 0.02);
-      this.delayNodeR.delayTime.setTargetAtTime(this.params.delayTime * 1.33, this.ctx.currentTime, 0.02);
-      this.delayFeedbackGainL.gain.setTargetAtTime(this.params.delayFeedback, this.ctx.currentTime, 0.02);
-      this.delayFeedbackGainR.gain.setTargetAtTime(this.params.delayFeedback, this.ctx.currentTime, 0.02);
+      this.delayNodeL.delayTime.setTargetAtTime(
+        this.params.delayTime,
+        this.ctx.currentTime,
+        0.02,
+      );
+      this.delayNodeR.delayTime.setTargetAtTime(
+        this.params.delayTime * 1.33,
+        this.ctx.currentTime,
+        0.02,
+      );
+      this.delayFeedbackGainL.gain.setTargetAtTime(
+        this.params.delayFeedback,
+        this.ctx.currentTime,
+        0.02,
+      );
+      this.delayFeedbackGainR.gain.setTargetAtTime(
+        this.params.delayFeedback,
+        this.ctx.currentTime,
+        0.02,
+      );
     }
 
     this.updateReverbMix();
@@ -1075,7 +1383,11 @@ export class SynthEngine {
       }, 120);
     }
     if (this.reverbFilter && this.params.reverbDamp) {
-      this.reverbFilter.frequency.setTargetAtTime(this.params.reverbDamp, this.ctx.currentTime, 0.02);
+      this.reverbFilter.frequency.setTargetAtTime(
+        this.params.reverbDamp,
+        this.ctx.currentTime,
+        0.02,
+      );
     }
 
     for (const voice of this.voices) {

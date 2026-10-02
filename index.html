@@ -80,7 +80,13 @@
                 </svg>
               </button>
             </div>
-            <div class="preset-select-wrapper" id="preset-select-wrapper">
+            <div
+              class="preset-select-wrapper"
+              id="preset-select-wrapper"
+              role="button"
+              tabindex="0"
+              aria-label="Select Preset"
+            >
               <div class="preset-display" id="preset-display">
                 <span class="preset-name-text" id="preset-display-text"
                   >Init Patch</span
@@ -88,6 +94,19 @@
               </div>
               <select id="preset-select" aria-label="Select Preset"></select>
             </div>
+            <button
+              id="btn-open-preset-grid"
+              class="btn btn-icon btn-preset-grid-open"
+              title="Browse Presets Grid"
+              aria-label="Browse Presets Grid"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -776,17 +795,34 @@
         <!-- 1. OSCILLATORS CONTAINER (Directly under Oscilloscope, Both Stacked) -->
         <div class="synth-card" id="oscillators-card">
           <div class="card-title">
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px">
               <span id="osc-card-title-text">SYNTHESIS</span>
               <div class="btn-group engine-mode-select" data-param="voiceMode">
-                <button class="btn btn-tab active" data-value="analog" title="Subtractive Analog Dual Oscillators">ANALOG</button>
-                <button class="btn btn-tab" data-value="guitar" title="Extended Karplus-Strong Physical Modeling Electric Guitar">E-GUITAR</button>
+                <button
+                  class="btn btn-tab active"
+                  data-value="analog"
+                  title="Subtractive Analog Dual Oscillators"
+                >
+                  ANALOG
+                </button>
+                <button
+                  class="btn btn-tab"
+                  data-value="guitar"
+                  title="Extended Karplus-Strong Physical Modeling Electric Guitar"
+                >
+                  E-GUITAR
+                </button>
               </div>
             </div>
             <div
               class="pick-pluck-inline"
               id="analog-pluck-wrap"
-              style="display: flex; align-items: center; gap: 6px; line-height: 1;"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                line-height: 1;
+              "
               title="Acoustic Pick Attack Transient & String Tension Detune Level (0% = Off, 100% = Full)"
             >
               <label for="pickTransient">PLUCK</label>
@@ -805,7 +841,16 @@
 
           <div class="card-body osc-stacked-body">
             <!-- ANALOG DUAL OSCILLATORS VIEW -->
-            <div id="analog-controls-block" style="display: flex; flex-direction: column; width: 100%; height: 100%; justify-content: space-between;">
+            <div
+              id="analog-controls-block"
+              style="
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                height: 100%;
+                justify-content: space-between;
+              "
+            >
               <!-- OSCILLATOR 1 -->
               <div class="osc-sub-block" id="osc1-block">
                 <div class="control-row">
@@ -815,7 +860,9 @@
                       SAW
                     </button>
                     <button class="btn btn-tab" data-value="square">SQR</button>
-                    <button class="btn btn-tab" data-value="triangle">TRI</button>
+                    <button class="btn btn-tab" data-value="triangle">
+                      TRI
+                    </button>
                     <button class="btn btn-tab" data-value="sine">SIN</button>
                   </div>
                 </div>
@@ -866,7 +913,16 @@
               <div class="osc-sub-block" id="osc2-block">
                 <div class="control-row">
                   <span class="sub-label" id="osc2-label">OSC 2</span>
-                  <div class="osc2-header-right" style="display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0;">
+                  <div
+                    class="osc2-header-right"
+                    style="
+                      display: flex;
+                      flex-direction: row;
+                      align-items: center;
+                      gap: 10px;
+                      flex-shrink: 0;
+                    "
+                  >
                     <div class="osc-mix-inline">
                       <label for="osc2Mix">MIX</label>
                       <input
@@ -880,12 +936,19 @@
                       />
                       <span class="val-display" id="osc2Mix-val">50%</span>
                     </div>
-                    <div class="btn-group wave-select" data-param="osc2Waveform">
-                      <button class="btn btn-tab" data-value="sawtooth">SAW</button>
+                    <div
+                      class="btn-group wave-select"
+                      data-param="osc2Waveform"
+                    >
+                      <button class="btn btn-tab" data-value="sawtooth">
+                        SAW
+                      </button>
                       <button class="btn btn-tab active" data-value="square">
                         SQR
                       </button>
-                      <button class="btn btn-tab" data-value="triangle">TRI</button>
+                      <button class="btn btn-tab" data-value="triangle">
+                        TRI
+                      </button>
                       <button class="btn btn-tab" data-value="sine">SIN</button>
                     </div>
                   </div>
@@ -933,15 +996,39 @@
             </div>
 
             <!-- EXTENDED KARPLUS-STRONG GUITAR STRING MODEL VIEW -->
-            <div class="guitar-controls-block" id="guitar-controls-block" style="display: none; flex-direction: column; width: 100%; height: 100%; justify-content: space-between;">
+            <div
+              class="guitar-controls-block"
+              id="guitar-controls-block"
+              style="
+                display: none;
+                flex-direction: column;
+                width: 100%;
+                height: 100%;
+                justify-content: space-between;
+              "
+            >
               <div class="osc-sub-block" id="guitar-string-block">
                 <div class="control-row">
                   <span class="sub-label">STRING MODEL</span>
-                  <span class="badge" style="background: rgba(0, 240, 255, 0.15); color: var(--accent-cyan); font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.5px;">EKS WAVEGUIDE</span>
+                  <span
+                    class="badge"
+                    style="
+                      background: rgba(0, 240, 255, 0.15);
+                      color: var(--accent-cyan);
+                      font-size: 9px;
+                      padding: 2px 6px;
+                      border-radius: 4px;
+                      font-weight: 700;
+                      letter-spacing: 0.5px;
+                    "
+                    >EKS WAVEGUIDE</span
+                  >
                 </div>
                 <div class="knob-grid">
                   <div class="control-unit">
-                    <label title="String Sustain / Loop Decay Multiplier">Decay</label>
+                    <label title="String Sustain / Loop Decay Multiplier"
+                      >Decay</label
+                    >
                     <input
                       type="range"
                       id="guitarDecay"
@@ -953,7 +1040,9 @@
                     <span class="val-display" id="guitarDecay-val">8s</span>
                   </div>
                   <div class="control-unit">
-                    <label title="String High-Frequency Damping / Brightness">Tone (Damp)</label>
+                    <label title="String High-Frequency Damping / Brightness"
+                      >Tone (Damp)</label
+                    >
                     <input
                       type="range"
                       id="guitarDamping"
@@ -965,7 +1054,9 @@
                     <span class="val-display" id="guitarDamping-val">70%</span>
                   </div>
                   <div class="control-unit">
-                    <label title="String Stiffness / Metal Twang Inharmonicity">Stiffness</label>
+                    <label title="String Stiffness / Metal Twang Inharmonicity"
+                      >Stiffness</label
+                    >
                     <input
                       type="range"
                       id="guitarStiffness"
@@ -987,7 +1078,10 @@
                 </div>
                 <div class="knob-grid">
                   <div class="control-unit">
-                    <label title="Pluck Position along string (Bridge vs 12th Fret)">Pluck Pos</label>
+                    <label
+                      title="Pluck Position along string (Bridge vs 12th Fret)"
+                      >Pluck Pos</label
+                    >
                     <input
                       type="range"
                       id="guitarPluckPos"
@@ -999,7 +1093,10 @@
                     <span class="val-display" id="guitarPluckPos-val">18%</span>
                   </div>
                   <div class="control-unit">
-                    <label title="Magnetic Pickup Position (Bridge vs Neck Pickup)">Pickup Pos</label>
+                    <label
+                      title="Magnetic Pickup Position (Bridge vs Neck Pickup)"
+                      >Pickup Pos</label
+                    >
                     <input
                       type="range"
                       id="guitarPickupPos"
@@ -1008,10 +1105,14 @@
                       step="0.01"
                       value="0.12"
                     />
-                    <span class="val-display" id="guitarPickupPos-val">Bridge</span>
+                    <span class="val-display" id="guitarPickupPos-val"
+                      >Bridge</span
+                    >
                   </div>
                   <div class="control-unit">
-                    <label title="Pick Transient Bite & Attack Brightness">Pick Bite</label>
+                    <label title="Pick Transient Bite & Attack Brightness"
+                      >Pick Bite</label
+                    >
                     <input
                       type="range"
                       id="guitarPickBite"
@@ -1206,16 +1307,40 @@
             <span>AMPLIFIER & VOLUME</span>
             <div
               class="card-header-toggle"
-              title="Toggle 12-inch Guitar Speaker Cabinet Simulation"
+              title="Guitar Speaker Cabinet Simulation"
             >
               <span class="toggle-label">CAB SIM</span>
               <label
                 class="toggle-switch"
-                title="Toggle 12-inch Guitar Speaker Cabinet Simulation"
+                title="Toggle Guitar Speaker Cabinet Simulation"
               >
                 <input type="checkbox" id="cabSimEnabled" />
                 <span class="toggle-slider"></span>
               </label>
+              <select
+                id="cabSimType"
+                class="cab-select"
+                title="Select Guitar Speaker Cabinet Simulation Type"
+              >
+                <option
+                  value="1x12"
+                  title="American Open-Back 1x12 Deluxe Combo"
+                >
+                  1x12 Deluxe
+                </option>
+                <option value="2x12" title="British Class-A 2x12 AC Chime">
+                  2x12 AC
+                </option>
+                <option
+                  value="4x12"
+                  title="Closed-Back 4x12 British Rock Stack"
+                >
+                  4x12 British
+                </option>
+                <option value="1x15" title="Vintage 1x15 Pedal Steel Combo">
+                  1x15 Steel
+                </option>
+              </select>
             </div>
           </div>
           <div class="card-body">
@@ -1504,6 +1629,86 @@
           </div>
         </div>
       </section>
+      <!-- Full Screen Mobile Preset Browser Modal -->
+      <div
+        id="preset-browser-modal"
+        class="preset-browser-modal"
+        style="display: none"
+        aria-modal="true"
+        role="dialog"
+      >
+        <div class="preset-browser-container">
+          <!-- Header with Integrated Search Box -->
+          <div class="preset-browser-header">
+            <div class="preset-browser-title-group">
+              <h2 class="preset-browser-title">PRESETS</h2>
+              <span class="preset-browser-count" id="preset-browser-count">24</span>
+            </div>
+
+            <!-- Integrated Search Box in Title Bar -->
+            <div class="preset-browser-search-wrapper">
+              <svg
+                class="search-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                type="text"
+                id="preset-browser-search"
+                placeholder="Search..."
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <button
+                id="preset-browser-search-clear"
+                class="btn-search-clear"
+                style="display: none"
+                aria-label="Clear Search"
+              >
+                ✕
+              </button>
+            </div>
+
+            <button
+              id="btn-close-preset-browser"
+              class="btn-preset-browser-close"
+              title="Close Preset Browser"
+              aria-label="Close Preset Browser"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Scrollable Presets Grid -->
+          <div class="preset-browser-body" id="preset-browser-grid">
+            <!-- Dynamically populated by SynthUI -->
+          </div>
+        </div>
+      </div>
+
       <!-- Save / Edit Preset Modal -->
       <div id="save-preset-modal" class="modal-overlay" style="display: none">
         <div class="modal-card modal-sm">

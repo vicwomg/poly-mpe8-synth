@@ -914,8 +914,57 @@ class SynthUI {
     await this.presetManager.init();
 
     const select = document.getElementById('preset-select');
+    const presetWrapper = document.getElementById('preset-select-wrapper');
+    const btnOpenGrid = document.getElementById('btn-open-preset-grid');
+
     select?.addEventListener('change', (e) => {
       this.loadPreset(e.target.value);
+    });
+
+    this.updateMobilePresetSelect();
+    window.addEventListener('resize', () => this.updateMobilePresetSelect());
+    window.addEventListener('orientationchange', () => this.updateMobilePresetSelect());
+
+    let lastOpenTime = 0;
+    const openGridModal = (e) => {
+      const now = Date.now();
+      if (now - lastOpenTime < 350) {
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        return;
+      }
+      lastOpenTime = now;
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      this.openPresetGridModal();
+    };
+
+    presetWrapper?.addEventListener('click', (e) => {
+      if (this.isMobileOrTouch()) {
+        openGridModal(e);
+      }
+    });
+
+    presetWrapper?.addEventListener('touchend', (e) => {
+      if (this.isMobileOrTouch()) {
+        openGridModal(e);
+      }
+    }, { passive: false });
+
+    presetWrapper?.addEventListener('keydown', (e) => {
+      if (this.isMobileOrTouch() && (e.key === 'Enter' || e.key === ' ')) {
+        openGridModal(e);
+      }
+    });
+
+    select?.addEventListener('click', (e) => {
+      if (this.isMobileOrTouch()) {
+        openGridModal(e);
+      }
+    });
+
+    btnOpenGrid?.addEventListener('click', (e) => {
+      openGridModal(e);
     });
 
     const btnSave = document.getElementById('btn-save-preset');
@@ -1035,6 +1084,7 @@ class SynthUI {
       this.updatePresetDisplayName(currentPreset.name, isModified);
     }
     this.updatePresetButtonsState();
+    this.updateMobilePresetSelect();
 
     // Reset option texts in dropdown to clear any stale asterisks from previous patches
     select.querySelectorAll('option').forEach(opt => {
@@ -1047,6 +1097,14 @@ class SynthUI {
         }
       }
     });
+
+    // Update active highlight in preset grid modal if open
+    const gridModal = document.getElementById('preset-browser-modal');
+    if (gridModal && gridModal.style.display !== 'none') {
+      gridModal.querySelectorAll('.preset-card-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.presetId === targetId);
+      });
+    }
   }
 
   updatePresetDisplayName(name, isModified = false) {
@@ -1306,6 +1364,8 @@ class SynthUI {
     btnConfirmDelete?.addEventListener('click', async () => {
       await this.handleDeletePreset();
     });
+
+    this.setupPresetBrowserModal();
   }
 
   openSavePresetModal() {
@@ -1395,6 +1455,240 @@ class SynthUI {
     }
   }
 
+  // --- Mobile Full-Screen Preset Browser Modal ---
+
+  isMobileOrTouch() {
+    const isTouch = ('ontouchstart' in window) ||
+                    (navigator.maxTouchPoints > 0) ||
+                    window.matchMedia('(pointer: coarse)').matches;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isSmallScreen = window.innerWidth <= 900 || window.matchMedia('(max-width: 900px)').matches;
+    const isCapacitor = Boolean(window.Capacitor?.isNativePlatform?.());
+
+    return isMobileUA || isCapacitor || (isTouch && window.innerWidth <= 1024) || isSmallScreen;
+  }
+
+  updateMobilePresetSelect() {
+    const isMobile = this.isMobileOrTouch();
+    const select = document.getElementById('preset-select');
+    const wrapper = document.getElementById('preset-select-wrapper');
+
+    if (wrapper) {
+      wrapper.classList.toggle('is-mobile-preset', isMobile);
+      if (isMobile) {
+        wrapper.setAttribute('role', 'button');
+        wrapper.setAttribute('tabindex', '0');
+        wrapper.setAttribute('aria-haspopup', 'dialog');
+      } else {
+        wrapper.removeAttribute('role');
+        wrapper.removeAttribute('tabindex');
+        wrapper.removeAttribute('aria-haspopup');
+      }
+    }
+
+    if (select) {
+      if (isMobile) {
+        select.disabled = true;
+        select.style.display = 'none';
+        select.setAttribute('tabindex', '-1');
+        select.setAttribute('aria-hidden', 'true');
+      } else {
+        select.disabled = false;
+        select.style.display = '';
+        select.removeAttribute('tabindex');
+        select.removeAttribute('aria-hidden');
+      }
+    }
+
+    const btnOpenGrid = document.getElementById('btn-open-preset-grid');
+    if (btnOpenGrid) {
+      btnOpenGrid.style.display = isMobile ? 'none' : '';
+    }
+  }
+
+  setupPresetBrowserModal() {
+    this.presetBrowserSearch = '';
+
+    const modal = document.getElementById('preset-browser-modal');
+    const btnClose = document.getElementById('btn-close-preset-browser');
+    const searchInput = document.getElementById('preset-browser-search');
+    const searchClear = document.getElementById('preset-browser-search-clear');
+
+    btnClose?.addEventListener('click', () => {
+      this.closePresetGridModal();
+    });
+
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        this.closePresetGridModal();
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && modal.style.display !== 'none') {
+        this.closePresetGridModal();
+      }
+    });
+
+    searchInput?.addEventListener('input', (e) => {
+      this.presetBrowserSearch = e.target.value;
+      if (searchClear) {
+        searchClear.style.display = this.presetBrowserSearch ? 'flex' : 'none';
+      }
+      this.renderPresetGrid();
+    });
+
+    searchClear?.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      this.presetBrowserSearch = '';
+      if (searchClear) searchClear.style.display = 'none';
+      this.renderPresetGrid();
+    });
+  }
+
+  openPresetGridModal() {
+    const modal = document.getElementById('preset-browser-modal');
+    if (!modal) return;
+
+    this.presetBrowserSearch = '';
+
+    const searchInput = document.getElementById('preset-browser-search');
+    const searchClear = document.getElementById('preset-browser-search-clear');
+    if (searchInput) searchInput.value = '';
+    if (searchClear) searchClear.style.display = 'none';
+
+    this.renderPresetGrid();
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    requestAnimationFrame(() => {
+      const activeCard = modal.querySelector('.preset-card-btn.active');
+      if (activeCard) {
+        activeCard.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    });
+  }
+
+  closePresetGridModal() {
+    const modal = document.getElementById('preset-browser-modal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+    document.body.style.overflow = '';
+  }
+
+  renderPresetGrid() {
+    const grid = document.getElementById('preset-browser-grid');
+    const countEl = document.getElementById('preset-browser-count');
+    if (!grid) return;
+
+    const allPresets = this.presetManager.getAllPresets();
+    let filtered = allPresets;
+
+    if (this.presetBrowserSearch && this.presetBrowserSearch.trim()) {
+      const q = this.presetBrowserSearch.trim().toLowerCase();
+      filtered = filtered.filter(p => {
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const cabMatch = p.params?.cabSimType?.toLowerCase().includes(q);
+        const modeMatch = p.params?.voiceMode?.toLowerCase().includes(q);
+        return nameMatch || cabMatch || modeMatch;
+      });
+    }
+
+    if (countEl) {
+      countEl.textContent = `${filtered.length}`;
+    }
+
+    grid.innerHTML = '';
+
+    if (filtered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'preset-browser-empty';
+      empty.textContent = `No presets found matching "${this.presetBrowserSearch}"`;
+      grid.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'preset-card-btn';
+      btn.dataset.presetId = p.id;
+      const isGuitar = p.params?.voiceMode === 'guitar';
+      if (isGuitar) btn.classList.add('guitar-card');
+      if (p.id === this.currentPresetId) btn.classList.add('active');
+
+      let badgeText = 'SYNTH';
+      let badgeClass = 'badge-synth';
+      let metaText = 'Dual Osc';
+
+      if (!p.isFactory) {
+        badgeText = 'USER';
+        badgeClass = 'badge-user';
+        metaText = isGuitar ? 'Custom Gtr' : 'Custom';
+      } else if (isGuitar) {
+        badgeText = 'GUITAR';
+        badgeClass = 'badge-guitar';
+        const cabNames = {
+          '1x12': '1x12 Deluxe',
+          '2x12': '2x12 AC',
+          '4x12': '4x12 British',
+          '1x15': '1x15 Steel'
+        };
+        metaText = cabNames[p.params?.cabSimType] || (p.params?.cabSimType ? `${p.params.cabSimType}` : 'Guitar');
+      } else {
+        const osc1 = (p.params?.osc1Waveform || 'saw').toUpperCase().slice(0, 3);
+        const osc2 = (p.params?.osc2Waveform || 'sqr').toUpperCase().slice(0, 3);
+        metaText = `${osc1}+${osc2}`;
+      }
+
+      // Header row
+      const cardHeader = document.createElement('div');
+      cardHeader.className = 'preset-card-header';
+
+      const badge = document.createElement('span');
+      badge.className = `preset-card-badge ${badgeClass}`;
+      badge.textContent = badgeText;
+      cardHeader.appendChild(badge);
+
+      const check = document.createElement('span');
+      check.className = 'preset-card-check';
+      check.textContent = '✓';
+      cardHeader.appendChild(check);
+
+      btn.appendChild(cardHeader);
+
+      // Name row
+      const nameEl = document.createElement('div');
+      nameEl.className = 'preset-card-name';
+      nameEl.textContent = p.name;
+      nameEl.title = p.name;
+      btn.appendChild(nameEl);
+
+      // Footer meta
+      const footer = document.createElement('div');
+      footer.className = 'preset-card-footer';
+
+      const meta = document.createElement('span');
+      meta.className = 'preset-card-meta';
+      meta.textContent = metaText;
+      meta.title = metaText;
+      footer.appendChild(meta);
+
+      btn.appendChild(footer);
+
+      btn.addEventListener('click', () => {
+        this.loadPreset(p.id);
+        this.closePresetGridModal();
+      });
+
+      grid.appendChild(btn);
+    });
+  }
+
   formatGuitarDecay(v) {
     if (v > 1.0) {
       const sec = Math.max(0.35, Math.min(15.0, v));
@@ -1468,6 +1762,11 @@ class SynthUI {
     if (distCheck) distCheck.checked = Boolean(params.distortionEnabled);
     const cabCheck = document.getElementById('cabSimEnabled');
     if (cabCheck) cabCheck.checked = Boolean(params.cabSimEnabled);
+    const cabSelect = document.getElementById('cabSimType');
+    if (cabSelect) {
+      cabSelect.value = params.cabSimType || '1x12';
+      cabSelect.classList.toggle('active', Boolean(params.cabSimEnabled));
+    }
     this.updateSliderUI('distortionDrive', params.distortionDrive ?? 20, params.distortionDrive ?? 20);
     const distTone = params.distortionTone ?? 4000;
     this.updateSliderUI('distortionTone', distTone, distTone >= 1000 ? `${(distTone / 1000).toFixed(1)} kHz` : `${distTone} Hz`);
@@ -1955,7 +2254,26 @@ class SynthUI {
     const cabCheck = document.getElementById('cabSimEnabled');
     if (cabCheck) {
       cabCheck.addEventListener('change', (e) => {
-        this.synth.updateParam('cabSimEnabled', e.target.checked);
+        const isEnabled = e.target.checked;
+        this.synth.updateParam('cabSimEnabled', isEnabled);
+        const cabSelect = document.getElementById('cabSimType');
+        if (cabSelect) {
+          cabSelect.classList.toggle('active', isEnabled);
+        }
+      });
+    }
+    const cabSelect = document.getElementById('cabSimType');
+    if (cabSelect) {
+      cabSelect.addEventListener('change', (e) => {
+        const newType = e.target.value;
+        this.synth.updateParam('cabSimType', newType);
+        // If cab sim was toggled off, auto-enable it when user actively picks a cabinet model
+        const cabCheck = document.getElementById('cabSimEnabled');
+        if (cabCheck && !cabCheck.checked) {
+          cabCheck.checked = true;
+          this.synth.updateParam('cabSimEnabled', true);
+        }
+        cabSelect.classList.toggle('active', Boolean(this.synth.params.cabSimEnabled));
       });
     }
     bindSlider('distortionDrive', 'distortionDrive', v => `${v}`);
