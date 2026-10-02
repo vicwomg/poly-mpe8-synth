@@ -190,13 +190,11 @@ export class Visualizer {
       : (this.synth.params.filterCutoff || 2000);
     const effectiveCutoff = Math.max(20, Math.min(20000, baseCutoff));
 
-    // Resonance Q considering base + CC1 (when cc1Target is resonance)
+    // Resonance Q considering base and live UI interpolation
     const baseQ = (this.synth.ui && this.synth.ui.currentDisplayResonance !== undefined)
       ? this.synth.ui.currentDisplayResonance
       : (this.synth.params.filterResonance !== undefined ? this.synth.params.filterResonance : 1.0);
-    const isResoTarget = this.synth.params.cc1Target !== 'lforate';
-    const modWheelQ = isResoTarget ? (this.synth.globalCC1 / 127) * 18 : 0;
-    const effectiveQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ));
+    const effectiveQ = Math.max(0.1, Math.min(25, baseQ));
 
     this.mockFilter.frequency.setValueAtTime(effectiveCutoff, this.synth.ctx.currentTime);
     this.mockFilter.Q.setValueAtTime(effectiveQ, this.synth.ctx.currentTime);

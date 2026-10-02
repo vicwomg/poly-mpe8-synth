@@ -1395,7 +1395,32 @@ class SynthUI {
     }
   }
 
+  formatGuitarDecay(v) {
+    if (v > 1.0) {
+      const sec = Math.max(0.35, Math.min(15.0, v));
+      return sec < 1.0 ? `${sec.toFixed(1)}s` : `${Math.round(sec)}s`;
+    }
+    const u = Math.max(0, Math.min(1.0, (v - 0.90) / (0.9998 - 0.90)));
+    const sec = 0.35 + 14.65 * Math.pow(u, 2.2);
+    return sec < 1.0 ? `${sec.toFixed(1)}s` : `${Math.round(sec)}s`;
+  }
+
   syncUIFromParams(params) {
+    // Voice Mode & Panel View
+    const mode = params.voiceMode || 'analog';
+    this.setButtonGroup('voiceMode', mode);
+    this.setVoiceModeUI(mode);
+
+    // Guitar Physical Modeling Controls
+    const decayVal = params.guitarDecay ?? 0.9750;
+    this.updateSliderUI('guitarDecay', decayVal, this.formatGuitarDecay(decayVal));
+    this.updateSliderUI('guitarDamping', params.guitarDamping ?? 0.70, `${Math.round((params.guitarDamping ?? 0.70) * 100)}%`);
+    this.updateSliderUI('guitarStiffness', params.guitarStiffness ?? 0.08, `${Math.round((params.guitarStiffness ?? 0.08) * 100)}%`);
+    this.updateSliderUI('guitarPluckPos', params.guitarPluckPos ?? 0.18, `${Math.round((params.guitarPluckPos ?? 0.18) * 100)}%`);
+    const pu = params.guitarPickupPos ?? 0.12;
+    this.updateSliderUI('guitarPickupPos', pu, pu <= 0.14 ? 'Bridge' : pu >= 0.25 ? 'Neck' : 'Middle');
+    this.updateSliderUI('guitarPickBite', params.guitarPickBite ?? 0.70, `${Math.round((params.guitarPickBite ?? 0.70) * 100)}%`);
+
     // Oscillators
     this.setButtonGroup('osc1Waveform', params.osc1Waveform);
     this.updateSliderUI('osc1Octave', params.osc1Octave, params.osc1Octave);
@@ -1407,8 +1432,10 @@ class SynthUI {
     this.updateSliderUI('osc2Semi', params.osc2Semi, params.osc2Semi);
     this.updateSliderUI('osc2Fine', params.osc2Fine, (params.osc2Fine > 0 ? '+' : '') + params.osc2Fine);
     this.updateSliderUI('osc2Mix', params.osc2Mix, `${Math.round(params.osc2Mix * 100)}%`);
-    const pickCheck = document.getElementById('pickTransient');
-    if (pickCheck) pickCheck.checked = Boolean(params.pickTransient);
+    const pickVal = typeof params.pickTransient === 'number'
+      ? params.pickTransient
+      : (params.pickTransient ? 0.75 : 0);
+    this.updateSliderUI('pickTransient', pickVal, `${Math.round(pickVal * 100)}%`);
 
     // Filter
     this.updateSliderUI('filterCutoff', params.filterCutoff, `${Math.round(params.filterCutoff)} Hz`);
@@ -1573,6 +1600,19 @@ class SynthUI {
     });
   }
 
+  setVoiceModeUI(mode) {
+    const isGuitar = (mode === 'guitar');
+    const analogBlock = document.getElementById('analog-controls-block');
+    const guitarBlock = document.getElementById('guitar-controls-block');
+    const titleText = document.getElementById('osc-card-title-text');
+    const pluckWrap = document.getElementById('analog-pluck-wrap');
+
+    if (analogBlock) analogBlock.style.display = isGuitar ? 'none' : 'flex';
+    if (guitarBlock) guitarBlock.style.display = isGuitar ? 'flex' : 'none';
+    if (titleText) titleText.textContent = 'SYNTHESIS';
+    if (pluckWrap) pluckWrap.style.display = isGuitar ? 'none' : 'flex';
+  }
+
   /**
    * Smooth continuous analog slew interpolation for incoming MIDI CC73/CC74.
    * Glides the UI slider, readout, and engine cutoff smoothly at 60fps
@@ -1600,8 +1640,8 @@ class SynthUI {
         return;
       }
 
-      // Analog ballistic exponential tracking towards incoming MIDI CC frequency
-      const next = current + diff * 0.28;
+      // Analog ballistic exponential tracking towards incoming MIDI CC frequency (0.55 fast response)
+      const next = current + diff * 0.55;
       this.currentDisplayCutoff = next;
       this.synth.params.filterCutoff = next;
       const displayHz = Math.round(next);
@@ -1639,8 +1679,8 @@ class SynthUI {
         return;
       }
 
-      // Smooth ballistic tracking
-      const next = current + diff * 0.28;
+      // Smooth ballistic tracking (0.55 fast response)
+      const next = current + diff * 0.55;
       this.currentDisplayResonance = next;
       this.synth.params.filterResonance = next;
       this.updateSliderUI('filterResonance', next, next.toFixed(1));
@@ -1674,8 +1714,8 @@ class SynthUI {
         return;
       }
 
-      // Smooth ballistic tracking
-      const next = current + diff * 0.28;
+      // Smooth ballistic tracking (0.55 fast response)
+      const next = current + diff * 0.55;
       this.currentDisplayLfoRate = next;
       this.synth.params.lfoRate = next;
       this.updateSliderUI('lfoRate', next, `${next.toFixed(1)} Hz`);
@@ -1840,6 +1880,9 @@ class SynthUI {
           group.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           this.synth.updateParam(param, btn.dataset.value);
+          if (param === 'voiceMode') {
+            this.setVoiceModeUI(btn.dataset.value);
+          }
         });
       });
     });
@@ -1854,12 +1897,15 @@ class SynthUI {
     bindSlider('osc2Semi', 'osc2Semi', v => v);
     bindSlider('osc2Fine', 'osc2Fine', v => (v > 0 ? '+' : '') + v);
     bindSlider('osc2Mix', 'osc2Mix', v => `${Math.round(v * 100)}%`);
-    const pickCheck = document.getElementById('pickTransient');
-    if (pickCheck) {
-      pickCheck.addEventListener('change', (e) => {
-        this.synth.updateParam('pickTransient', e.target.checked);
-      });
-    }
+    bindSlider('pickTransient', 'pickTransient', v => `${Math.round(v * 100)}%`);
+
+    // Physical Modeling Guitar String Controls
+    bindSlider('guitarDecay', 'guitarDecay', v => this.formatGuitarDecay(v));
+    bindSlider('guitarDamping', 'guitarDamping', v => `${Math.round(v * 100)}%`);
+    bindSlider('guitarStiffness', 'guitarStiffness', v => `${Math.round(v * 100)}%`);
+    bindSlider('guitarPluckPos', 'guitarPluckPos', v => `${Math.round(v * 100)}%`);
+    bindSlider('guitarPickupPos', 'guitarPickupPos', v => v <= 0.14 ? 'Bridge' : v >= 0.25 ? 'Neck' : 'Middle');
+    bindSlider('guitarPickBite', 'guitarPickBite', v => `${Math.round(v * 100)}%`);
 
     // Filter - Cutoff with 20Hz resolution and smooth logarithmic response
     const filterCutoffEl = document.getElementById('filterCutoff');

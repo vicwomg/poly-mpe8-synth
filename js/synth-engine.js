@@ -65,7 +65,7 @@ export class SynthEngine {
       lfoTarget: 'filter', // 'filter', 'pitch', 'amp', 'none'
 
       // Pluck / Pick Transient
-      pickTransient: false, // On/off toggle (Plectrum attack burst & displacement detune)
+      pickTransient: 0.0, // Pluck Level (0.0 to 1.0)
 
       // Distortion & Amp Effect
       distortionEnabled: false,
@@ -93,8 +93,22 @@ export class SynthEngine {
       cc1Target: 'resonance', // 'resonance' (Filter Q) or 'lforate' (LFO Rate)
       volumeCC: 11, // 11 (Expression - Default) or 7 (Channel Volume)
       mpePressureTarget: 'both', // 'both' (Dynamics & Filter), 'dynamics', 'filter', 'off'
-      mpeTimbreTarget: 'cutoff' // 'cutoff' (Default), 'resonance', 'osc2mix', 'lforate', 'lfodepth', 'off'
+      mpeTimbreTarget: 'cutoff', // 'cutoff' (Default), 'resonance', 'osc2mix', 'lforate', 'lfodepth', 'off'
+
+      // Voice Engine Mode: 'analog' (Subtractive Dual Osc) or 'guitar' (Extended Karplus-Strong Physical Model)
+      voiceMode: 'analog',
+
+      // Physical Modeling Guitar Parameters
+      guitarDecay: 0.9750,      // String Sustain / Feedback (0.90 to 0.9998 -> 0.35s to 15.0s)
+      guitarDamping: 0.70,      // String Brightness / High-frequency dissipation (0.05 to 0.95)
+      guitarPluckPos: 0.18,     // Pluck position along string (0.05 = near bridge, 0.5 = 12th fret)
+      guitarPickupPos: 0.12,    // Magnetic pickup position (0.08 = bridge, 0.35 = neck)
+      guitarPickBite: 0.70,     // Pick snap / transient brightness (0.0 to 1.0)
+      guitarStiffness: 0.08     // String stiffness inharmonicity / dispersion (0.0 to 0.70)
     };
+
+    // AudioWorklet state
+    this.isWorkletLoaded = false;
 
     // Controller states
     this.globalCC73 = 64;
@@ -187,6 +201,9 @@ export class SynthEngine {
 
     // Pre-render acoustic plectrum snap buffer for pick transients
     this.pickImpulseBuffer = this.createPickImpulseBuffer();
+
+    // Load Extended Karplus-Strong AudioWorklet Processor for physical modeling guitar
+    await this.loadKarplusStrongWorklet();
 
     // 2. Effects Processing Chain (Distortion -> Cab Sim -> Stereo Delay -> Reverb)
     this.setupDistortionEffect();
@@ -289,6 +306,35 @@ export class SynthEngine {
     this.distWet.connect(this.distOut);
   }
 
+  async loadKarplusStrongWorklet() {
+    if (!this.ctx || !this.ctx.audioWorklet) {
+      console.warn('Web Audio AudioWorklet is not supported in this browser/environment');
+      this.isWorkletLoaded = false;
+      return false;
+    }
+    try {
+      await this.ctx.audioWorklet.addModule('js/karplus-strong-processor.js');
+      this.isWorkletLoaded = true;
+      return true;
+    } catch (err) {
+      console.warn('Direct AudioWorklet addModule failed, trying Blob fallback:', err);
+      try {
+        const response = await fetch('js/karplus-strong-processor.js');
+        const text = await response.text();
+        const blob = new Blob([text], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        await this.ctx.audioWorklet.addModule(blobUrl);
+        URL.revokeObjectURL(blobUrl);
+        this.isWorkletLoaded = true;
+        return true;
+      } catch (fallbackErr) {
+        console.error('All AudioWorklet loading methods failed:', fallbackErr);
+        this.isWorkletLoaded = false;
+        return false;
+      }
+    }
+  }
+
   createPickImpulseBuffer() {
     if (!this.ctx) return null;
     const rate = this.ctx.sampleRate;
@@ -345,11 +391,11 @@ export class SynthEngine {
     this.cabHp.frequency.setValueAtTime(70, this.ctx.currentTime);
     this.cabHp.Q.setValueAtTime(0.8, this.ctx.currentTime);
 
-    // 2. Cabinet Wood Resonance / Low-End Thump (+4.0 dB @ 115 Hz)
+    // 2. Cabinet Wood Resonance / Low-End Thump (+1.8 dB @ 115 Hz)
     this.cabThump = this.ctx.createBiquadFilter();
     this.cabThump.type = 'peaking';
     this.cabThump.frequency.setValueAtTime(115, this.ctx.currentTime);
-    this.cabThump.gain.setValueAtTime(4.0, this.ctx.currentTime);
+    this.cabThump.gain.setValueAtTime(1.8, this.ctx.currentTime);
     this.cabThump.Q.setValueAtTime(1.4, this.ctx.currentTime);
 
     // 3. Tone Stack Mid-Scoop (-5.5 dB @ 680 Hz) - eliminates boxy nasal mud
@@ -675,11 +721,29 @@ export class SynthEngine {
    * 3. Oldest active voice (Voice Stealing / LRU)
    */
   allocateVoice(note, channel) {
-    // 1. If a voice is already actively held playing this note on this channel (not in release),
-    // re-trigger that same voice instead of consuming another polyphony slot.
-    for (const voice of this.voices) {
-      if (voice.isActive && !voice.isReleasing && voice.note === note && voice.channel === channel) {
-        return voice;
+    const isGuitar = this.params?.voiceMode === 'guitar';
+
+    // 1. In guitar mode, a string is physically unique per pitch.
+    // If a voice is already actively sounding or releasing this note (on this channel or any channel),
+    // re-trigger the same voice. This prevents overlapping out-of-phase copies of the same pitch
+    // from causing phase cancellations and volume fluctuations!
+    if (isGuitar) {
+      for (const voice of this.voices) {
+        if (voice.isActive && voice.note === note && voice.channel === channel) {
+          return voice;
+        }
+      }
+      for (const voice of this.voices) {
+        if (voice.isActive && voice.note === note) {
+          return voice;
+        }
+      }
+    } else {
+      // Analog mode: re-use voice only if actively held (not in release)
+      for (const voice of this.voices) {
+        if (voice.isActive && !voice.isReleasing && voice.note === note && voice.channel === channel) {
+          return voice;
+        }
       }
     }
 
@@ -719,7 +783,18 @@ export class SynthEngine {
     if (!this.ctx) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
 
+    const isGuitar = this.params?.voiceMode === 'guitar';
     const voice = this.allocateVoice(note, channel);
+
+    // In guitar mode, guarantee that no other voice is simultaneously sounding this exact note pitch.
+    // Overlapping copies of the same note with phase offsets cause destructive comb filtering (thin, muted plucks).
+    if (isGuitar) {
+      for (const v of this.voices) {
+        if (v !== voice && v.isActive && v.note === note) {
+          v.stopImmediate();
+        }
+      }
+    }
     // Inherit current CC state for this voice
     const activeVolumeCC = Number(this.params.volumeCC) || 11;
     const initialVolume = activeVolumeCC === 7 ? (this.globalCC7 ?? 127) : (this.globalCC11 ?? 127);
@@ -844,6 +919,8 @@ export class SynthEngine {
           this.lfoOsc.frequency.setTargetAtTime(rate, this.ctx.currentTime, 0.02);
         }
       } else {
+        const targetQ = +(0.1 + (value / 127) * 19.9).toFixed(1);
+        this.params.filterResonance = targetQ;
         for (const voice of this.voices) {
           if (isMaster || voice.channel === channel) {
             voice.setCC(1, value);
@@ -954,9 +1031,12 @@ export class SynthEngine {
   }
 
   applyPreset(preset) {
-    // Read cabSimEnabled and pickTransient explicitly from preset definition (default to false if omitted)
+    // Read cabSimEnabled, pickTransient, and voiceMode explicitly from preset definition
     this.params.cabSimEnabled = Boolean(preset.params?.cabSimEnabled);
-    this.params.pickTransient = Boolean(preset.params?.pickTransient);
+    this.params.pickTransient = typeof preset.params?.pickTransient === 'number'
+      ? preset.params.pickTransient
+      : (preset.params?.pickTransient ? 0.75 : 0.0);
+    this.params.voiceMode = preset.params?.voiceMode || 'analog';
 
     Object.assign(this.params, preset.params);
     this.checkLFORunning();

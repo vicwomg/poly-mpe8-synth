@@ -73,8 +73,11 @@ export class PresetManager {
       displayName: p.name,
       isFactory: true,
       params: {
+        voiceMode: p.params?.voiceMode || 'analog',
         cabSimEnabled: Boolean(p.params?.cabSimEnabled),
-        pickTransient: Boolean(p.params?.pickTransient),
+        pickTransient: typeof p.params?.pickTransient === 'number'
+          ? p.params.pickTransient
+          : (p.params?.pickTransient ? 0.75 : 0.0),
         ...p.params
       }
     }));

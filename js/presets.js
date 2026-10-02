@@ -5,6 +5,14 @@ export const PRESETS = [
   {
     name: "Clean Pedal Steel Guitar",
     params: {
+      voiceMode: "guitar",
+      guitarDecay: 0.9750,
+      guitarDamping: 0.70,
+      guitarPluckPos: 0.16,
+      guitarPickupPos: 0.22,
+      guitarStiffness: 0.05,
+      guitarPickBite: 0.65,
+
       osc1Waveform: "triangle",
       osc1Octave: 0,
       osc1Semi: 0,
@@ -16,19 +24,19 @@ export const PRESETS = [
       osc2Fine: 2,
       osc2Mix: 0.28,
 
-      filterCutoff: 3600,
-      filterResonance: 1.6,
-      filterEnvAmount: 0.28,
-      filterKeyTracking: 0.75,
+      filterCutoff: 16000,
+      filterResonance: 1.0,
+      filterEnvAmount: 0.0,
+      filterKeyTracking: 0.0,
       filterAttack: 0.005,
       filterDecay: 0.35,
-      filterSustain: 0.7,
-      filterRelease: 0.4,
+      filterSustain: 1.0,
+      filterRelease: 0.8,
 
       ampAttack: 0.008,
       ampDecay: 0.8,
       ampSustain: 0.75,
-      ampRelease: 0.45,
+      ampRelease: 1.1,
 
       lfoWaveform: "sine",
       lfoRate: 4.8,
@@ -40,7 +48,7 @@ export const PRESETS = [
       distortionTone: 4000,
       distortionMix: 0.0,
       cabSimEnabled: true,
-      pickTransient: true,
+      pickTransient: 0.5,
 
       delayEnabled: true,
       delayTime: 0.22,
@@ -59,6 +67,14 @@ export const PRESETS = [
   {
     name: "Overdriven Lead Guitar",
     params: {
+      voiceMode: "guitar",
+      guitarDecay: 0.9880,
+      guitarDamping: 0.75,
+      guitarPluckPos: 0.12,
+      guitarPickupPos: 0.10,
+      guitarStiffness: 0.10,
+      guitarPickBite: 0.85,
+
       osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
@@ -70,21 +86,21 @@ export const PRESETS = [
       osc2Fine: 4,
       osc2Mix: 0.35,
 
-      pickTransient: true,
+      pickTransient: 0.7,
 
-      filterCutoff: 2900,
-      filterResonance: 2.2,
-      filterEnvAmount: 0.45,
-      filterKeyTracking: 0.78,
+      filterCutoff: 18000,
+      filterResonance: 1.0,
+      filterEnvAmount: 0.0,
+      filterKeyTracking: 0.0,
       filterAttack: 0.003,
       filterDecay: 0.50,
-      filterSustain: 0.40,
+      filterSustain: 1.0,
       filterRelease: 0.38,
 
       ampAttack: 0.004,
       ampDecay: 1.8,
-      ampSustain: 0.45,
-      ampRelease: 0.35,
+      ampSustain: 0.8,
+      ampRelease: 1.0,
 
       lfoWaveform: "sine",
       lfoRate: 5.2,
@@ -114,6 +130,14 @@ export const PRESETS = [
   {
     name: "Vintage Strat Clean",
     params: {
+      voiceMode: "guitar",
+      guitarDecay: 0.9650,
+      guitarDamping: 0.65,
+      guitarPluckPos: 0.20,
+      guitarPickupPos: 0.30,
+      guitarStiffness: 0.07,
+      guitarPickBite: 0.72,
+
       osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
@@ -125,21 +149,21 @@ export const PRESETS = [
       osc2Fine: 3,
       osc2Mix: 0.28,
 
-      pickTransient: true,
+      pickTransient: 0.8,
 
-      filterCutoff: 3300,
-      filterResonance: 1.8,
-      filterEnvAmount: 0.50,
-      filterKeyTracking: 0.82,
+      filterCutoff: 18000,
+      filterResonance: 1.0,
+      filterEnvAmount: 0.0,
+      filterKeyTracking: 0.0,
       filterAttack: 0.002,
       filterDecay: 0.30,
-      filterSustain: 0.22,
+      filterSustain: 1.0,
       filterRelease: 0.35,
 
       ampAttack: 0.003,
       ampDecay: 1.5,
-      ampSustain: 0.3,
-      ampRelease: 0.32,
+      ampSustain: 0.6,
+      ampRelease: 0.9,
 
       lfoWaveform: "sine",
       lfoRate: 4.5,
@@ -169,6 +193,14 @@ export const PRESETS = [
   {
     name: "Palm Mute Rock Guitar",
     params: {
+      voiceMode: "guitar",
+      guitarDecay: 0.9200,
+      guitarDamping: 0.50,
+      guitarPluckPos: 0.10,
+      guitarPickupPos: 0.08,
+      guitarStiffness: 0.14,
+      guitarPickBite: 0.95,
+
       osc1Waveform: "sawtooth",
       osc1Octave: 0,
       osc1Semi: 0,
@@ -180,21 +212,21 @@ export const PRESETS = [
       osc2Fine: 3,
       osc2Mix: 0.28,
 
-      pickTransient: true,
+      pickTransient: 0.9,
 
-      filterCutoff: 1500,
-      filterResonance: 2.4,
-      filterEnvAmount: 0.65,
-      filterKeyTracking: 0.65,
+      filterCutoff: 8000,
+      filterResonance: 1.2,
+      filterEnvAmount: 0.0,
+      filterKeyTracking: 0.0,
       filterAttack: 0.002,
       filterDecay: 0.12,
-      filterSustain: 0.05,
+      filterSustain: 1.0,
       filterRelease: 0.16,
 
       ampAttack: 0.003,
-      ampDecay: 0.32,
-      ampSustain: 0.10,
-      ampRelease: 0.14,
+      ampDecay: 0.40,
+      ampSustain: 0.20,
+      ampRelease: 0.45,
 
       lfoWaveform: "sine",
       lfoRate: 3.5,
@@ -224,6 +256,14 @@ export const PRESETS = [
   {
     name: "Warm Jazz Archtop",
     params: {
+      voiceMode: "guitar",
+      guitarDecay: 0.9680,
+      guitarDamping: 0.48,
+      guitarPluckPos: 0.28,
+      guitarPickupPos: 0.38,
+      guitarStiffness: 0.04,
+      guitarPickBite: 0.45,
+
       osc1Waveform: "triangle",
       osc1Octave: 0,
       osc1Semi: 0,
@@ -235,21 +275,21 @@ export const PRESETS = [
       osc2Fine: 2,
       osc2Mix: 0.22,
 
-      pickTransient: true,
+      pickTransient: 0.45,
 
-      filterCutoff: 1700,
+      filterCutoff: 3200,
       filterResonance: 1.2,
-      filterEnvAmount: 0.25,
-      filterKeyTracking: 0.85,
+      filterEnvAmount: 0.15,
+      filterKeyTracking: 0.70,
       filterAttack: 0.006,
       filterDecay: 0.45,
-      filterSustain: 0.35,
-      filterRelease: 0.42,
+      filterSustain: 0.65,
+      filterRelease: 0.65,
 
       ampAttack: 0.008,
-      ampDecay: 2.0,
-      ampSustain: 0.4,
-      ampRelease: 0.4,
+      ampDecay: 1.8,
+      ampSustain: 0.6,
+      ampRelease: 0.85,
 
       lfoWaveform: "sine",
       lfoRate: 4.2,
@@ -257,9 +297,9 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       distortionEnabled: true,
-      distortionDrive: 12,
-      distortionTone: 3200,
-      distortionMix: 0.35,
+      distortionDrive: 8,
+      distortionTone: 2800,
+      distortionMix: 0.20,
       cabSimEnabled: true,
 
       delayEnabled: false,
@@ -310,7 +350,7 @@ export const PRESETS = [
       lfoTarget: "filter",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -365,7 +405,7 @@ export const PRESETS = [
       lfoTarget: "filter",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 20,
@@ -420,7 +460,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 12,
@@ -475,7 +515,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 18,
@@ -530,7 +570,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -585,7 +625,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 35,
@@ -640,7 +680,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 25,
@@ -695,7 +735,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -750,7 +790,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.5,
 
       distortionEnabled: false,
       distortionDrive: 15,
@@ -805,7 +845,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -860,7 +900,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 22,
@@ -915,7 +955,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 12,
@@ -970,7 +1010,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 14,
@@ -1025,7 +1065,7 @@ export const PRESETS = [
       lfoTarget: "filter",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -1080,7 +1120,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 58,
@@ -1135,7 +1175,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.25,
 
       distortionEnabled: false,
       distortionDrive: 10,
@@ -1190,7 +1230,7 @@ export const PRESETS = [
       lfoTarget: "filter",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: true,
       distortionDrive: 18,
@@ -1245,7 +1285,7 @@ export const PRESETS = [
       lfoTarget: "pitch",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 12,
@@ -1300,7 +1340,7 @@ export const PRESETS = [
       lfoTarget: "none",
 
       cabSimEnabled: false,
-      pickTransient: false,
+      pickTransient: 0.0,
 
       distortionEnabled: false,
       distortionDrive: 20,

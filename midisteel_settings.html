@@ -42,13 +42,15 @@
         padding: 10px;
       }
 
-      body.tab-log-active {
+      body.tab-log-active,
+      body.tab-debug-active {
         height: 100vh;
         height: 100dvh;
         overflow: hidden;
       }
 
-      body.tab-log-active .nav-tabs {
+      body.tab-log-active .nav-tabs,
+      body.tab-debug-active .nav-tabs {
         margin-bottom: 8px;
       }
 
@@ -355,8 +357,7 @@
       }
 
       .name-wrap .name-input,
-      .name-wrap .preset-select,
-      .name-wrap .save-btn {
+      .name-wrap .preset-select {
         width: 100% !important;
         box-sizing: border-box !important;
         margin: 0;
@@ -364,8 +365,31 @@
         font-family: inherit;
       }
 
-      .name-wrap .save-btn {
-        margin-top: 12px !important;
+      .row-save-status {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-align: center;
+        min-height: 18px;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        margin-top: 4px;
+        border-radius: 4px;
+        padding: 1px 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row-save-status.saving {
+        opacity: 1;
+        color: var(--accent2);
+      }
+      .row-save-status.saved {
+        opacity: 1;
+        color: var(--success);
+      }
+      .row-save-status.err {
+        opacity: 1;
+        color: var(--error);
       }
 
       .name-wrap .name-input {
@@ -403,6 +427,7 @@
       }
       input[type="text"].saved {
         border-color: var(--success);
+        box-shadow: 0 0 7px rgba(52, 211, 153, 0.45);
       }
       input[type="text"].error {
         border-color: var(--error);
@@ -538,6 +563,7 @@
       }
       .bend-input.saved {
         border-color: var(--success);
+        box-shadow: 0 0 7px rgba(52, 211, 153, 0.45);
       }
       .bend-input:hover,
       .bender-wrap:hover .bend-input {
@@ -590,12 +616,690 @@
         flex-direction: column;
       }
 
-      /* Log */
+      /* Debug & Log Tab */
+      #tabDebug,
       #tabLog {
         flex: 1 1 0;
         min-height: 0;
         display: none;
         flex-direction: column;
+        overflow-y: auto;
+        gap: 6px;
+      }
+
+      .debug-monitor-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        flex-shrink: 0;
+      }
+
+      .debug-monitor-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .debug-monitor-title-group {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .debug-monitor-title-group h3 {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: 0.02em;
+        margin-bottom: 0;
+      }
+
+      .debug-monitor-subtitle {
+        font-size: 0.7rem;
+        color: var(--muted);
+      }
+
+      .debug-monitor-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .debug-stream-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.74rem;
+        color: var(--text);
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .debug-stream-toggle input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+        accent-color: var(--accent);
+      }
+
+      .btn-clear-log {
+        background: var(--surface2);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        padding: 4px 10px;
+        font-size: 0.72rem;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .btn-clear-log:hover {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .debug-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      @media (max-width: 820px) {
+        .debug-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .debug-card {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .debug-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 4px;
+      }
+
+      .debug-card-header h4 {
+        font-size: 0.74rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--accent2);
+        margin: 0;
+      }
+
+      .debug-badge {
+        font-size: 0.62rem;
+        color: var(--muted);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      .debug-subgroup {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .debug-subgroup-label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      /* Strings row */
+      .debug-strings-row {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 5px;
+      }
+
+      .debug-string-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 4px 2px;
+        transition: all 0.1s ease;
+        user-select: none;
+      }
+
+      .debug-string-btn .str-num {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.1;
+      }
+
+      .debug-string-btn .str-note {
+        font-size: 0.62rem;
+        color: var(--muted);
+        margin-top: 1px;
+        font-weight: 500;
+      }
+
+      .debug-string-btn .str-status {
+        font-size: 0.55rem;
+        color: var(--muted);
+        margin-top: 2px;
+        font-weight: 600;
+      }
+
+      /* Per-string color coding: Treble (Str 1) to Bass (Str 8) */
+      .debug-str-s1 {
+        border-bottom: 2px solid #e2e8f0;
+      } /* White */
+      .debug-str-s2 {
+        border-bottom: 2px solid #eab308;
+      } /* Yellow */
+      .debug-str-s3 {
+        border-bottom: 2px solid #f97316;
+      } /* Orange */
+      .debug-str-s4 {
+        border-bottom: 2px solid #22c55e;
+      } /* Green */
+      .debug-str-s5 {
+        border-bottom: 2px solid #3b82f6;
+      } /* Blue */
+      .debug-str-s6 {
+        border-bottom: 2px solid #a855f7;
+      } /* Purple */
+      .debug-str-s7 {
+        border-bottom: 2px solid #94a3b8;
+      } /* Grey */
+      .debug-str-s8 {
+        border-bottom: 2px solid #8b5a2b;
+      } /* Brown */
+
+      .debug-string-btn.active {
+        transform: scale(1.04);
+      }
+
+      /* Str 1 (Treble): White */
+      .debug-str-s1.active {
+        background: #f8fafc !important;
+        border-color: #ffffff !important;
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.85);
+      }
+      .debug-str-s1.active .str-num,
+      .debug-str-s1.active .str-status {
+        color: #0f172a !important;
+      }
+      .debug-str-s1.active .str-note {
+        color: #334155 !important;
+        font-weight: 700;
+      }
+
+      /* Str 2: Yellow */
+      .debug-str-s2.active {
+        background: #eab308 !important;
+        border-color: #fef08a !important;
+        box-shadow: 0 0 11px rgba(234, 179, 8, 0.8);
+      }
+      .debug-str-s2.active .str-num,
+      .debug-str-s2.active .str-status {
+        color: #1c1917 !important;
+      }
+      .debug-str-s2.active .str-note {
+        color: #451a03 !important;
+        font-weight: 700;
+      }
+
+      /* Str 3: Orange */
+      .debug-str-s3.active {
+        background: #f97316 !important;
+        border-color: #fed7aa !important;
+        box-shadow: 0 0 10px rgba(249, 115, 22, 0.75);
+      }
+      .debug-str-s3.active .str-num,
+      .debug-str-s3.active .str-status {
+        color: #ffffff !important;
+      }
+      .debug-str-s3.active .str-note {
+        color: #ffedd5 !important;
+        font-weight: 700;
+      }
+
+      /* Str 4: Green */
+      .debug-str-s4.active {
+        background: #22c55e !important;
+        border-color: #bbf7d0 !important;
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.75);
+      }
+      .debug-str-s4.active .str-num,
+      .debug-str-s4.active .str-status {
+        color: #ffffff !important;
+      }
+      .debug-str-s4.active .str-note {
+        color: #dcfce7 !important;
+        font-weight: 700;
+      }
+
+      /* Str 5: Blue */
+      .debug-str-s5.active {
+        background: #3b82f6 !important;
+        border-color: #bfdbfe !important;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.75);
+      }
+      .debug-str-s5.active .str-num,
+      .debug-str-s5.active .str-status {
+        color: #ffffff !important;
+      }
+      .debug-str-s5.active .str-note {
+        color: #dbeafe !important;
+        font-weight: 700;
+      }
+
+      /* Str 6: Purple */
+      .debug-str-s6.active {
+        background: #a855f7 !important;
+        border-color: #e9d5ff !important;
+        box-shadow: 0 0 10px rgba(168, 85, 247, 0.75);
+      }
+      .debug-str-s6.active .str-num,
+      .debug-str-s6.active .str-status {
+        color: #ffffff !important;
+      }
+      .debug-str-s6.active .str-note {
+        color: #f3e8ff !important;
+        font-weight: 700;
+      }
+
+      /* Str 7: Grey */
+      .debug-str-s7.active {
+        background: #64748b !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 0 10px rgba(100, 116, 139, 0.75);
+      }
+      .debug-str-s7.active .str-num,
+      .debug-str-s7.active .str-status {
+        color: #ffffff !important;
+      }
+      .debug-str-s7.active .str-note {
+        color: #f1f5f9 !important;
+        font-weight: 700;
+      }
+
+      /* Str 8 (Bass): Brown */
+      .debug-str-s8.active {
+        background: #8b5a2b !important;
+        border-color: #d7b594 !important;
+        box-shadow: 0 0 10px rgba(139, 90, 43, 0.75);
+      }
+      .debug-str-s8.active .str-num,
+      .debug-str-s8.active .str-status {
+        color: #ffffff !important;
+      }
+      .debug-str-s8.active .str-note {
+        color: #fbeee0 !important;
+        font-weight: 700;
+      }
+
+      /* Pedals grid */
+      .debug-pedals-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 5px;
+      }
+
+      @media (max-width: 550px) {
+        .debug-pedals-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+
+      /* 6-String Mode in Real-Time Debug UI */
+      #debugMonitorPanel.six-string-mode .debug-strings-row {
+        grid-template-columns: repeat(6, 1fr);
+      }
+      #debugMonitorPanel.six-string-mode #dbgStr6,
+      #debugMonitorPanel.six-string-mode #dbgStr7 {
+        display: none !important;
+      }
+
+      /* 4-Bender Mode in Real-Time Debug UI */
+      #debugMonitorPanel.four-bender-mode .debug-pedals-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      #debugMonitorPanel.four-bender-mode #dbgPedal5,
+      #debugMonitorPanel.four-bender-mode #dbgPedal6,
+      #debugMonitorPanel.four-bender-mode #dbgPedal7,
+      #debugMonitorPanel.four-bender-mode #dbgPedal8 {
+        display: none !important;
+      }
+
+      @media (max-width: 550px) {
+        #debugMonitorPanel.six-string-mode .debug-strings-row {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+
+      .live-tracking-badge {
+        font-size: 0.65rem;
+        padding: 2px 8px;
+        border-radius: 999px;
+        transition: all 0.2s ease;
+        background: rgba(148, 163, 184, 0.12);
+        color: var(--muted);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .live-tracking-badge.active {
+        background: rgba(34, 197, 94, 0.15);
+        color: #4ade80;
+        border-color: rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.25);
+      }
+
+      #debugMonitorPanel .debug-grid {
+        transition:
+          opacity 0.25s ease,
+          filter 0.25s ease;
+      }
+      #debugMonitorPanel.live-paused .debug-grid {
+        opacity: 0.42;
+        filter: grayscale(0.85);
+        user-select: none;
+      }
+      #debugMonitorPanel.live-active .debug-grid {
+        opacity: 1;
+        filter: none;
+      }
+
+      .debug-pedal-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 4px 2px;
+        transition: all 0.1s ease;
+        user-select: none;
+      }
+
+      .debug-pedal-btn .pedal-name {
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      .debug-pedal-btn .pedal-status {
+        font-size: 0.55rem;
+        color: var(--muted);
+        margin-top: 2px;
+        font-weight: 600;
+      }
+
+      /* Per-pedal colored indicators */
+      .debug-pedal-p1 {
+        border-bottom: 2px solid #3b82f6;
+      }
+      .debug-pedal-p2 {
+        border-bottom: 2px solid #8b5cf6;
+      }
+      .debug-pedal-p3 {
+        border-bottom: 2px solid #10b981;
+      }
+      .debug-pedal-p4 {
+        border-bottom: 2px solid #f59e0b;
+      }
+      .debug-pedal-p5 {
+        border-bottom: 2px solid #ec4899;
+      }
+      .debug-pedal-p6 {
+        border-bottom: 2px solid #06b6d4;
+      }
+      .debug-pedal-p7 {
+        border-bottom: 2px solid #14b8a6;
+      }
+      .debug-pedal-p8 {
+        border-bottom: 2px solid #6366f1;
+      }
+
+      .debug-pedal-p1.active {
+        background: #3b82f6 !important;
+        border-color: #93c5fd !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p2.active {
+        background: #8b5cf6 !important;
+        border-color: #c4b5fd !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(139, 92, 246, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p3.active {
+        background: #10b981 !important;
+        border-color: #6ee7b7 !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p4.active {
+        background: #f59e0b !important;
+        border-color: #fde68a !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p5.active {
+        background: #ec4899 !important;
+        border-color: #fbcfe8 !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(236, 72, 153, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p6.active {
+        background: #06b6d4 !important;
+        border-color: #a5f3fc !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(6, 182, 212, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p7.active {
+        background: #14b8a6 !important;
+        border-color: #99f6e4 !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(20, 184, 166, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-p8.active {
+        background: #6366f1 !important;
+        border-color: #c7d2fe !important;
+        color: #fff;
+        box-shadow: 0 0 10px rgba(99, 102, 241, 0.7);
+        transform: scale(1.04);
+      }
+      .debug-pedal-btn.active .pedal-status {
+        color: #fff !important;
+      }
+
+      /* Palm Mute badge */
+      .debug-switches-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .debug-switch-badge {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 5px 12px;
+        transition: all 0.15s ease;
+      }
+
+      .switch-info {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .switch-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .switch-sub {
+        font-size: 0.62rem;
+        color: var(--muted);
+      }
+
+      .switch-state {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--muted);
+        background: var(--surface2);
+        padding: 3px 8px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+      }
+
+      #debugPalmMute.active {
+        background: rgba(248, 113, 113, 0.15);
+        border-color: var(--error);
+        box-shadow: 0 0 10px rgba(248, 113, 113, 0.35);
+      }
+
+      #debugPalmMute.active .switch-name {
+        color: var(--error);
+      }
+
+      #debugPalmMute.active .switch-state {
+        background: var(--error);
+        color: #fff;
+        border-color: var(--error);
+      }
+
+      #debugModeBtn.active {
+        background: rgba(108, 99, 255, 0.2);
+        border-color: var(--accent);
+        box-shadow: 0 0 10px rgba(108, 99, 255, 0.4);
+      }
+
+      #debugModeBtn.active .switch-name {
+        color: var(--accent2);
+      }
+
+      #debugModeBtn.active .switch-state {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent2);
+      }
+
+      /* Sliders list */
+      .debug-sliders-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .debug-slider-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .debug-slider-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.72rem;
+      }
+
+      .slider-name {
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .slider-val {
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 0.68rem;
+        color: var(--accent2);
+        font-weight: 600;
+      }
+
+      .debug-bar-wrap {
+        position: relative;
+        height: 12px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .debug-bar-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 5px;
+        transition: width 0.08s ease-out;
+      }
+
+      .bass-fill {
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      }
+      .treble-fill {
+        background: linear-gradient(90deg, #06b6d4, #67e8f9);
+      }
+      .expr-fill {
+        background: linear-gradient(90deg, #6c63ff, #a78bfa);
+      }
+      .pot1-fill {
+        background: linear-gradient(90deg, #10b981, #34d399);
+      }
+      .pot2-fill {
+        background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      }
+
+      .debug-log-section {
+        flex: 1 1 0;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .debug-log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 2px;
+        margin-bottom: 4px;
+        flex-shrink: 0;
+      }
+
+      .debug-log-header h3 {
+        font-size: 0.78rem;
+        color: var(--muted);
+        font-weight: 500;
+        margin: 0;
       }
 
       .log-section {
@@ -1034,10 +1738,13 @@
           font-size: 0.78rem;
           min-height: 40px;
         }
-        body.tab-log-active .nav-tabs {
+        body.tab-log-active .nav-tabs,
+        body.tab-debug-active .nav-tabs {
           margin-bottom: 6px;
         }
-        body.tab-log-active .log-section {
+        body.tab-log-active .log-section,
+        body.tab-debug-active .log-section,
+        body.tab-debug-active .debug-log-header {
           margin-top: 2px;
           margin-bottom: 4px;
         }
@@ -1464,6 +2171,62 @@
         }
       }
 
+      /* Saved Confirmation Toast */
+      .saved-toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(12px);
+        z-index: 960;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(16, 36, 26, 0.95);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid var(--success);
+        color: #34d399;
+        padding: 9px 18px;
+        border-radius: 24px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        box-shadow:
+          0 4px 20px rgba(0, 0, 0, 0.6),
+          0 0 14px rgba(52, 211, 153, 0.3);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+          opacity 0.25s ease,
+          visibility 0.25s ease,
+          transform 0.25s ease;
+      }
+      .saved-toast.visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+      }
+      .saved-toast.err {
+        background: rgba(36, 16, 16, 0.95);
+        border-color: var(--error);
+        color: #f87171;
+        box-shadow:
+          0 4px 20px rgba(0, 0, 0, 0.6),
+          0 0 14px rgba(248, 113, 113, 0.3);
+      }
+      .saved-toast .toast-icon {
+        font-size: 1rem;
+        line-height: 1;
+      }
+      @media (max-width: 768px) {
+        .saved-toast {
+          bottom: 16px;
+          padding: 8px 14px;
+          font-size: 0.8rem;
+        }
+      }
+
       .semitone-modal-body {
         display: flex;
         flex-direction: column;
@@ -1695,7 +2458,7 @@
       </button>
       <button class="nav-tab-btn" data-tab="tabTunings">Tunings</button>
       <button class="nav-tab-btn" data-tab="tabAdvanced">Advanced</button>
-      <button class="nav-tab-btn" data-tab="tabLog">Logs</button>
+      <button class="nav-tab-btn" data-tab="tabDebug">Debug</button>
     </nav>
 
     <div id="notConnectedNotice" class="not-connected-notice">
@@ -1840,6 +2603,27 @@
             <div class="hint">
               Pedal bend transition time. (Hotkey: Hold Mode + turn CC Pot 2,
               this adjusts from 0–2000ms).
+            </div>
+          </div>
+
+          <div class="ctrl-field">
+            <label>String Button Debounce (ms)</label>
+            <div class="ctrl-row">
+              <input
+                type="number"
+                id="stringDebounceInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="1"
+                max="100"
+                step="1"
+                value="25"
+              />
+            </div>
+            <div class="hint">
+              Lockout window for string pluck buttons (1–100ms, default 25ms).
+              Eager edge triggers immediately on contact (0ms onset latency)
+              while eliminating release & switch bounce.
             </div>
           </div>
         </div>
@@ -2213,37 +2997,285 @@
     </div>
     <!-- /settingsBlocks -->
 
-    <!-- Tab 4: Serial log -->
-    <div id="tabLog" class="tab-panel" style="display: none">
-      <div class="log-section">
-        <div style="display: flex; justify-content: space-between; width: 100%">
-          <div>
-            <h3>Serial logs</h3>
-          </div>
-          <div>
-            <label
+    <!-- Tab 4: Debug -->
+    <div id="tabDebug" class="tab-panel" style="display: none">
+      <!-- Real-Time Hardware Input Monitor -->
+      <div
+        class="debug-monitor-panel live-paused"
+        id="debugMonitorPanel"
+        style="display: none"
+      >
+        <div class="debug-monitor-header">
+          <div class="debug-monitor-title-group">
+            <div
               style="
                 display: flex;
                 align-items: center;
-                gap: 6px;
-                font-size: 0.75rem;
-                color: var(--muted);
-                cursor: pointer;
-                margin-bottom: 8px;
+                gap: 8px;
+                flex-wrap: wrap;
               "
             >
-              <input
-                type="checkbox"
-                id="chkDebug"
-                style="width: 14px; height: 14px; cursor: pointer"
-                disabled
-              />
-              Debug-level output
+              <h3 style="margin: 0">Real-Time Hardware Inputs</h3>
+              <span
+                class="debug-badge live-tracking-badge"
+                id="liveTrackingBadge"
+                >○ Live Tracking Paused</span
+              >
+            </div>
+            <span class="debug-monitor-subtitle" id="liveTrackingSubtitle"
+              >Live tracking paused. Enable <b>Stream Debug Data</b> to monitor
+              all inputs in real time, or click <b>↻ Refresh Inputs</b>.</span
+            >
+          </div>
+          <div class="debug-monitor-actions">
+            <button
+              id="btnPollInputs"
+              class="btn-clear-log"
+              disabled
+              title="Query current input values from hardware"
+            >
+              &#8635; Refresh Inputs
+            </button>
+            <label
+              class="debug-stream-toggle"
+              title="Streams 10 Hz sensor snapshots over USB for real-time fretboard tracking (<0.05% CPU impact). When unchecked, use ↻ Refresh Inputs for snapshots."
+            >
+              <input type="checkbox" id="chkDebug" disabled />
+              Stream Debug Data
             </label>
+            <button
+              id="btnClearLog"
+              class="btn-clear-log"
+              title="Clear console log"
+            >
+              Clear Log
+            </button>
+          </div>
+        </div>
+
+        <div class="debug-grid">
+          <!-- Digital Inputs Column -->
+          <div class="debug-card">
+            <div class="debug-card-header">
+              <h4>Digital Inputs</h4>
+              <span class="debug-badge" id="digitalInputsCount"
+                >8 Strings • 8 Pedals • Palm Mute</span
+              >
+            </div>
+
+            <!-- Strings -->
+            <div class="debug-subgroup">
+              <div class="debug-subgroup-label">Strings</div>
+              <div class="debug-strings-row" id="debugStringsRow">
+                <div class="debug-string-btn debug-str-s1" id="dbgStr0">
+                  <span class="str-num">Str 1</span>
+                  <span class="str-note" id="dbgStrNote0">E4</span>
+                  <span class="str-status" id="dbgStrStatus0">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s2" id="dbgStr1">
+                  <span class="str-num">Str 2</span>
+                  <span class="str-note" id="dbgStrNote1">C#4</span>
+                  <span class="str-status" id="dbgStrStatus1">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s3" id="dbgStr2">
+                  <span class="str-num">Str 3</span>
+                  <span class="str-note" id="dbgStrNote2">A3</span>
+                  <span class="str-status" id="dbgStrStatus2">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s4" id="dbgStr3">
+                  <span class="str-num">Str 4</span>
+                  <span class="str-note" id="dbgStrNote3">F#3</span>
+                  <span class="str-status" id="dbgStrStatus3">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s5" id="dbgStr4">
+                  <span class="str-num">Str 5</span>
+                  <span class="str-note" id="dbgStrNote4">E3</span>
+                  <span class="str-status" id="dbgStrStatus4">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s6" id="dbgStr5">
+                  <span class="str-num">Str 6</span>
+                  <span class="str-note" id="dbgStrNote5">C#3</span>
+                  <span class="str-status" id="dbgStrStatus5">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s7" id="dbgStr6">
+                  <span class="str-num">Str 7</span>
+                  <span class="str-note" id="dbgStrNote6">A2</span>
+                  <span class="str-status" id="dbgStrStatus6">OFF</span>
+                </div>
+                <div class="debug-string-btn debug-str-s8" id="dbgStr7">
+                  <span class="str-num">Str 8</span>
+                  <span class="str-note" id="dbgStrNote7">F#2</span>
+                  <span class="str-status" id="dbgStrStatus7">OFF</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pedals -->
+            <div class="debug-subgroup">
+              <div class="debug-subgroup-label">Pedal Benders</div>
+              <div class="debug-pedals-grid" id="debugPedalsGrid">
+                <div class="debug-pedal-btn debug-pedal-p1" id="dbgPedal1">
+                  <span class="pedal-name">P1</span>
+                  <span class="pedal-status" id="dbgPedalStatus1">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p2" id="dbgPedal2">
+                  <span class="pedal-name">P2</span>
+                  <span class="pedal-status" id="dbgPedalStatus2">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p3" id="dbgPedal3">
+                  <span class="pedal-name">P3</span>
+                  <span class="pedal-status" id="dbgPedalStatus3">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p4" id="dbgPedal4">
+                  <span class="pedal-name">P4</span>
+                  <span class="pedal-status" id="dbgPedalStatus4">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p5" id="dbgPedal5">
+                  <span class="pedal-name">P5</span>
+                  <span class="pedal-status" id="dbgPedalStatus5">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p6" id="dbgPedal6">
+                  <span class="pedal-name">P6</span>
+                  <span class="pedal-status" id="dbgPedalStatus6">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p7" id="dbgPedal7">
+                  <span class="pedal-name">P7</span>
+                  <span class="pedal-status" id="dbgPedalStatus7">OFF</span>
+                </div>
+                <div class="debug-pedal-btn debug-pedal-p8" id="dbgPedal8">
+                  <span class="pedal-name">P8</span>
+                  <span class="pedal-status" id="dbgPedalStatus8">OFF</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Palm Mute & Mode Button Switches -->
+            <div class="debug-subgroup">
+              <div class="debug-subgroup-label">Mute & System Switches</div>
+              <div class="debug-switches-row">
+                <div class="debug-switch-badge" id="debugPalmMute">
+                  <div class="switch-info">
+                    <span class="switch-name">Palm Mute</span>
+                    <span class="switch-sub" id="debugPalmMuteSub"
+                      >Touch Sensor (Pin 23)</span
+                    >
+                  </div>
+                  <span class="switch-state" id="debugPalmMuteState">OPEN</span>
+                </div>
+
+                <div class="debug-switch-badge" id="debugModeBtn">
+                  <div class="switch-info">
+                    <span class="switch-name">Mode Button</span>
+                    <span class="switch-sub" id="debugModeBtnSub"
+                      >Tuning / Hotkeys (Pin 0)</span
+                    >
+                  </div>
+                  <span class="switch-state" id="debugModeBtnState">OFF</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Analog Inputs Column (Sliders) -->
+          <div class="debug-card">
+            <div class="debug-card-header">
+              <h4>Analog Inputs</h4>
+              <span class="debug-badge">Fretboard • Expression • CC Pots</span>
+            </div>
+
+            <div class="debug-sliders-list">
+              <!-- Softpot 1 (Bass) -->
+              <div class="debug-slider-item" id="sliderWrapBass">
+                <div class="debug-slider-header">
+                  <span class="slider-name">Softpot 1 (Bass Fretboard)</span>
+                  <span class="slider-val" id="valSoftpot1">Lifted</span>
+                </div>
+                <div class="debug-bar-wrap">
+                  <div
+                    class="debug-bar-fill bass-fill"
+                    id="fillSoftpot1"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Softpot 2 (Treble) -->
+              <div class="debug-slider-item" id="sliderWrapTreble">
+                <div class="debug-slider-header">
+                  <span class="slider-name">Softpot 2 (Treble Fretboard)</span>
+                  <span class="slider-val" id="valSoftpot2">Lifted</span>
+                </div>
+                <div class="debug-bar-wrap">
+                  <div
+                    class="debug-bar-fill treble-fill"
+                    id="fillSoftpot2"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Expression Pedal -->
+              <div class="debug-slider-item">
+                <div class="debug-slider-header">
+                  <span class="slider-name" id="labelExprPedal"
+                    >Expression Pedal (CC 11)</span
+                  >
+                  <span class="slider-val" id="valExpr">0 (0%)</span>
+                </div>
+                <div class="debug-bar-wrap">
+                  <div
+                    class="debug-bar-fill expr-fill"
+                    id="fillExpr"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- MIDI Pot 1 -->
+              <div class="debug-slider-item">
+                <div class="debug-slider-header">
+                  <span class="slider-name" id="labelPot1"
+                    >MIDI Pot 1 (CC 1 - Modulation)</span
+                  >
+                  <span class="slider-val" id="valPot1">0 (0%)</span>
+                </div>
+                <div class="debug-bar-wrap">
+                  <div
+                    class="debug-bar-fill pot1-fill"
+                    id="fillPot1"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- MIDI Pot 2 -->
+              <div class="debug-slider-item">
+                <div class="debug-slider-header">
+                  <span class="slider-name" id="labelPot2"
+                    >MIDI Pot 2 (CC 73 - Attack)</span
+                  >
+                  <span class="slider-val" id="valPot2">0 (0%)</span>
+                </div>
+                <div class="debug-bar-wrap">
+                  <div
+                    class="debug-bar-fill pot2-fill"
+                    id="fillPot2"
+                    style="width: 0%"
+                  ></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div id="log"></div>
+
+      <!-- Console / Terminal log -->
+      <div class="debug-log-section">
+        <div class="debug-log-header">
+          <h3>Console & Serial Logs</h3>
+        </div>
+        <div id="log"></div>
+      </div>
     </div>
 
     <!-- Note Picker Modal -->
@@ -2582,9 +3614,10 @@
           }
         });
 
-        // Generate note data for full 88-key piano range: A0 (21) to C8 (108)
+        // Generate note data for full 88-key piano range: High to Low (C8 down to A0)
+        // Scrolling down moves toward lower notes
         const notesByOctave = {};
-        for (let oct = 0; oct <= 8; oct++) {
+        for (let oct = 8; oct >= 0; oct--) {
           notesByOctave[oct] = [];
         }
 
@@ -2596,7 +3629,7 @@
           "A#": "Bb",
         };
 
-        for (let midi = 21; midi <= 108; midi++) {
+        for (let midi = 108; midi >= 21; midi--) {
           const oct = Math.floor(midi / 12) - 1;
           const noteNameOnly = NOTE_NAMES[midi % 12];
           const fullName = noteNameOnly + oct;
@@ -2614,7 +3647,7 @@
         }
 
         body.innerHTML = "";
-        for (let oct = 0; oct <= 8; oct++) {
+        for (let oct = 8; oct >= 0; oct--) {
           const list = notesByOctave[oct];
           if (!list || list.length === 0) continue;
 
@@ -2625,7 +3658,7 @@
           const title = document.createElement("div");
           title.className = "note-octave-section-title";
           let desc = `Octave ${oct}`;
-          if (oct === 0) desc += " (Sub-bass • A0–B0)";
+          if (oct === 0) desc += " (Sub-bass • B0–A0)";
           else if (oct === 1) desc += " (Bass)";
           else if (oct === 4) desc += " (Middle C)";
           else if (oct === 8) desc += " (High • C8)";
@@ -2933,32 +3966,7 @@
       let pendingReject = null;
       let pendingTimeoutId = null;
 
-      // ── Log ─────────────────────────────────────────────────────────────────
-      const logEl = document.getElementById("log");
-
-      function appendLog(text, cls) {
-        const span = document.createElement("span");
-        if (cls) span.className = cls;
-        span.textContent = text + "\n";
-        logEl.appendChild(span);
-        logEl.scrollTop = logEl.scrollHeight;
-
-        // Show an alert for frontend-generated errors (but not for raw serial input)
-        if (cls === "log-err" && !text.startsWith("\u2190")) {
-          // Delay very slightly so the UI can paint the log text before blocking
-          setTimeout(() => alert(text), 10);
-        }
-      }
-
-      // ── Serial connect / disconnect ──────────────────────────────────────────
-      const btnConnect = document.getElementById("btnConnect");
-      const btnLoad = document.getElementById("btnLoad");
-      const btnReset = document.getElementById("btnReset");
-      const statusDot = document.getElementById("statusDot");
-      const ctrlPanel = document.getElementById("ctrlPanel");
-
-      // ── Controller Settings helpers ──────────────────────────────────────────
-      // Common CC name table for hint display
+      // ── Common CC name table for hint display ────────────────────────────────
       const CC_NAMES = {
         1: "Modulation",
         2: "Breath",
@@ -2984,6 +3992,341 @@
         if (isNaN(n) || n < 0 || n > 127) return "";
         return CC_NAMES[n] ? `CC ${n} \u2014 ${CC_NAMES[n]}` : `CC ${n}`;
       }
+
+      // ── Real-Time Hardware Input Monitor Helpers ─────────────────────────────
+      function updateDebugStringNotes() {
+        if (!window.lastTunings || window.lastActiveTuning === undefined)
+          return;
+        const tuning = window.lastTunings[window.lastActiveTuning];
+        if (!tuning || !tuning.notes) return;
+        for (let i = 0; i < 8; i++) {
+          const noteEl = document.getElementById(`dbgStrNote${i}`);
+          if (noteEl && tuning.notes[i] !== undefined) {
+            noteEl.textContent = midiToName(tuning.notes[i]);
+          }
+        }
+      }
+
+      function setDebugString(strIdx, isDown) {
+        const el = document.getElementById(`dbgStr${strIdx}`);
+        const statusEl = document.getElementById(`dbgStrStatus${strIdx}`);
+        if (!el) return;
+        if (isDown) {
+          el.classList.add("active");
+          if (statusEl) statusEl.textContent = "ON";
+        } else {
+          el.classList.remove("active");
+          if (statusEl) statusEl.textContent = "OFF";
+        }
+      }
+
+      function setDebugPedal(pedalNum, isDown) {
+        const el = document.getElementById(`dbgPedal${pedalNum}`);
+        const statusEl = document.getElementById(`dbgPedalStatus${pedalNum}`);
+        if (!el) return;
+        if (isDown) {
+          el.classList.add("active");
+          if (statusEl) statusEl.textContent = "ON";
+        } else {
+          el.classList.remove("active");
+          if (statusEl) statusEl.textContent = "OFF";
+        }
+      }
+
+      function setDebugPalmMute(isMuted, rawVal = null) {
+        const el = document.getElementById("debugPalmMute");
+        const statusEl = document.getElementById("debugPalmMuteState");
+        const subEl = document.getElementById("debugPalmMuteSub");
+        if (!el) return;
+        if (isMuted) {
+          el.classList.add("active");
+          if (statusEl) statusEl.textContent = "MUTED";
+        } else {
+          el.classList.remove("active");
+          if (statusEl) statusEl.textContent = "OPEN";
+        }
+        if (subEl && rawVal !== null) {
+          subEl.textContent = `Touch Sensor (Pin 23: ${rawVal === 1 ? "HIGH" : "LOW"})`;
+        }
+      }
+
+      function setDebugModeBtn(isDown, rawVal = null) {
+        const el = document.getElementById("debugModeBtn");
+        const statusEl = document.getElementById("debugModeBtnState");
+        const subEl = document.getElementById("debugModeBtnSub");
+        if (!el) return;
+        if (isDown) {
+          el.classList.add("active");
+          if (statusEl) statusEl.textContent = "HELD";
+        } else {
+          el.classList.remove("active");
+          if (statusEl) statusEl.textContent = "OFF";
+        }
+        if (subEl && rawVal !== null) {
+          subEl.textContent = `Tuning / Hotkeys (Pin 0: ${rawVal === 0 ? "LOW/GND" : "HIGH"})`;
+        }
+      }
+
+      function setDebugSoftpot1(raw, frac, st) {
+        const valEl = document.getElementById("valSoftpot1");
+        const fillEl = document.getElementById("fillSoftpot1");
+        if (!valEl || !fillEl) return;
+        const isPressed =
+          raw > 0 &&
+          ((st !== undefined && st >= 0.0) ||
+            (frac !== undefined && frac >= 0.0));
+        if (isPressed) {
+          const stStr =
+            st !== undefined && st >= 0 ? `+${st.toFixed(2)} st` : "";
+          valEl.textContent = `raw: ${raw}  ${stStr}`.trim();
+          const maxFret =
+            parseInt(
+              document.getElementById("maxFretInput")?.value || "20",
+              10,
+            ) || 20;
+          const pct = Math.min(
+            100,
+            Math.max(
+              0,
+              st !== undefined && st >= 0
+                ? (st / maxFret) * 100
+                : frac !== undefined && frac >= 0
+                  ? frac * 100
+                  : 0,
+            ),
+          );
+          fillEl.style.width = pct.toFixed(1) + "%";
+          fillEl.style.opacity = "1";
+        } else {
+          valEl.textContent = "Lifted";
+          fillEl.style.width = "0%";
+          fillEl.style.opacity = "0.4";
+        }
+      }
+
+      function setDebugSoftpot2(raw, frac, st) {
+        const valEl = document.getElementById("valSoftpot2");
+        const fillEl = document.getElementById("fillSoftpot2");
+        if (!valEl || !fillEl) return;
+        const isPressed =
+          raw > 0 &&
+          ((st !== undefined && st >= 0.0) ||
+            (frac !== undefined && frac >= 0.0));
+        if (isPressed) {
+          const stStr =
+            st !== undefined && st >= 0 ? `+${st.toFixed(2)} st` : "";
+          valEl.textContent = `raw: ${raw}  ${stStr}`.trim();
+          const maxFret =
+            parseInt(
+              document.getElementById("maxFretInput")?.value || "20",
+              10,
+            ) || 20;
+          const pct = Math.min(
+            100,
+            Math.max(
+              0,
+              st !== undefined && st >= 0
+                ? (st / maxFret) * 100
+                : frac !== undefined && frac >= 0
+                  ? frac * 100
+                  : 0,
+            ),
+          );
+          fillEl.style.width = pct.toFixed(1) + "%";
+          fillEl.style.opacity = "1";
+        } else {
+          valEl.textContent = "Lifted";
+          fillEl.style.width = "0%";
+          fillEl.style.opacity = "0.4";
+        }
+      }
+
+      function setDebugExpr(raw, cc) {
+        const valEl = document.getElementById("valExpr");
+        const fillEl = document.getElementById("fillExpr");
+        const labelEl = document.getElementById("labelExprPedal");
+        if (!valEl || !fillEl) return;
+        const ccVal = Math.min(127, Math.max(0, cc));
+        const pct = Math.round((ccVal / 127) * 100);
+        const rawStr = raw >= 0 ? ` (raw: ${raw})` : "";
+        valEl.textContent = `${ccVal} (${pct}%)${rawStr}`;
+        fillEl.style.width = pct + "%";
+        if (labelEl) {
+          const epCC =
+            document.getElementById("exprPedalCCInput")?.value || "11";
+          labelEl.textContent = `Expression Pedal (${ccHint(epCC)})`;
+        }
+      }
+
+      function setDebugPot1(raw, ccNum, ccVal) {
+        const valEl = document.getElementById("valPot1");
+        const fillEl = document.getElementById("fillPot1");
+        const labelEl = document.getElementById("labelPot1");
+        if (!valEl || !fillEl) return;
+        const val = Math.min(127, Math.max(0, ccVal));
+        const pct = Math.round((val / 127) * 100);
+        const rawStr = raw >= 0 ? ` (raw: ${raw})` : "";
+        valEl.textContent = `${val} (${pct}%)${rawStr}`;
+        fillEl.style.width = pct + "%";
+        if (labelEl && ccNum !== undefined) {
+          labelEl.textContent = `MIDI Pot 1 (${ccHint(ccNum)})`;
+        }
+      }
+
+      function setDebugPot2(raw, ccNum, ccVal) {
+        const valEl = document.getElementById("valPot2");
+        const fillEl = document.getElementById("fillPot2");
+        const labelEl = document.getElementById("labelPot2");
+        if (!valEl || !fillEl) return;
+        const val = Math.min(127, Math.max(0, ccVal));
+        const pct = Math.round((val / 127) * 100);
+        const rawStr = raw >= 0 ? ` (raw: ${raw})` : "";
+        valEl.textContent = `${val} (${pct}%)${rawStr}`;
+        fillEl.style.width = pct + "%";
+        if (labelEl && ccNum !== undefined) {
+          labelEl.textContent = `MIDI Pot 2 (${ccHint(ccNum)})`;
+        }
+      }
+
+      function matchAndSetStringByNote(note, isDown) {
+        if (!isLiveTracking()) return;
+        if (!window.lastTunings || window.lastActiveTuning === undefined)
+          return;
+        const tuning = window.lastTunings[window.lastActiveTuning];
+        if (!tuning || !tuning.notes) return;
+        const oct = parseInt(
+          document.getElementById("octaveShiftInput")?.value || "0",
+          10,
+        );
+        for (let s = 0; s < tuning.notes.length && s < 8; s++) {
+          if (tuning.notes[s] + oct * 12 === note) {
+            setDebugString(s, isDown);
+          }
+        }
+      }
+
+      function parseDebugInputLine(line) {
+        // bassPot raw=1300 frac=-1.000 st=-1.00
+        const mBass = line.match(
+          /bassPot raw=(-?\d+)(?:\s+frac=([-\d\.]+))?(?:\s+st=([-\d\.]+))?/,
+        );
+        if (mBass) {
+          const raw = parseInt(mBass[1], 10);
+          const frac = mBass[2] !== undefined ? parseFloat(mBass[2]) : -1;
+          const st = mBass[3] !== undefined ? parseFloat(mBass[3]) : -1;
+          setDebugSoftpot1(raw, frac, st);
+        }
+
+        // treblePot raw=1300 frac=-1.000 st=-1.00
+        const mTreble = line.match(
+          /treblePot raw=(-?\d+)(?:\s+frac=([-\d\.]+))?(?:\s+st=([-\d\.]+))?/,
+        );
+        if (mTreble) {
+          const raw = parseInt(mTreble[1], 10);
+          const frac = mTreble[2] !== undefined ? parseFloat(mTreble[2]) : -1;
+          const st = mTreble[3] !== undefined ? parseFloat(mTreble[3]) : -1;
+          setDebugSoftpot2(raw, frac, st);
+        }
+
+        // Expr raw=2048 CC11=64
+        const mExpr = line.match(/Expr raw=(-?\d+)\s+CC\d+=(-?\d+)/);
+        if (mExpr) {
+          const raw = parseInt(mExpr[1], 10);
+          const cc = parseInt(mExpr[2], 10);
+          setDebugExpr(raw, cc);
+        }
+
+        // Pot1 raw=1024 CC1=32
+        const mPot1 = line.match(/Pot1 raw=(-?\d+)\s+CC(\d+)=(-?\d+)/);
+        if (mPot1) {
+          const raw = parseInt(mPot1[1], 10);
+          const ccNum = parseInt(mPot1[2], 10);
+          const ccVal = parseInt(mPot1[3], 10);
+          setDebugPot1(raw, ccNum, ccVal);
+        }
+
+        // Pot2 raw=3000 CC73=93
+        const mPot2 = line.match(/Pot2 raw=(-?\d+)\s+CC(\d+)=(-?\d+)/);
+        if (mPot2) {
+          const raw = parseInt(mPot2[1], 10);
+          const ccNum = parseInt(mPot2[2], 10);
+          const ccVal = parseInt(mPot2[3], 10);
+          setDebugPot2(raw, ccNum, ccVal);
+        }
+
+        // Pedals P1..P8
+        const pedalMatches = line.matchAll(/P([1-8])=(ON|OFF)/g);
+        for (const pm of pedalMatches) {
+          const pNum = parseInt(pm[1], 10);
+          setDebugPedal(pNum, pm[2] === "ON");
+        }
+
+        // Mode Button (supports Mode=ON, Mode=OFF, Mode=ON(raw=0), etc.)
+        const mMode = line.match(/Mode=(ON|OFF)(?:\(raw=(\d)\))?/i);
+        if (mMode) {
+          const isDown = mMode[1].toUpperCase() === "ON";
+          const rawVal = mMode[2] !== undefined ? parseInt(mMode[2], 10) : null;
+          setDebugModeBtn(isDown, rawVal);
+        }
+
+        // Palm Mute (supports Palm=ON, Palm=OFF, Palm=ON(raw=1), etc.)
+        const mPalm = line.match(/Palm(?:Mute)?=(ON|OFF)(?:\(raw=(\d)\))?/i);
+        if (mPalm) {
+          const isMuted = mPalm[1].toUpperCase() === "ON";
+          const rawVal = mPalm[2] !== undefined ? parseInt(mPalm[2], 10) : null;
+          setDebugPalmMute(isMuted, rawVal);
+        }
+
+        // Strings
+        const mStrings = line.match(/Strings?=([01]{6,8})/i);
+        if (mStrings) {
+          const bits = mStrings[1];
+          for (let s = 0; s < bits.length && s < 8; s++) {
+            setDebugString(s, bits[s] === "1");
+          }
+        } else {
+          const strMatches = line.matchAll(/S([1-8])=(ON|OFF)/g);
+          for (const sm of strMatches) {
+            const sIdx = parseInt(sm[1], 10) - 1;
+            setDebugString(sIdx, sm[2] === "ON");
+          }
+        }
+      }
+
+      // ── Log ─────────────────────────────────────────────────────────────────
+      const logEl = document.getElementById("log");
+      const btnClearLog = document.getElementById("btnClearLog");
+      if (btnClearLog) {
+        btnClearLog.addEventListener("click", () => {
+          if (logEl) logEl.innerHTML = "";
+        });
+      }
+
+      function appendLog(text, cls) {
+        const span = document.createElement("span");
+        if (cls) span.className = cls;
+        span.textContent = text + "\n";
+        logEl.appendChild(span);
+        if (logEl.children.length > 600) {
+          logEl.removeChild(logEl.firstChild);
+        }
+        logEl.scrollTop = logEl.scrollHeight;
+
+        // Show an alert for frontend-generated errors (but not for raw serial input)
+        if (cls === "log-err" && !text.startsWith("\u2190")) {
+          // Delay very slightly so the UI can paint the log text before blocking
+          setTimeout(() => alert(text), 10);
+        }
+      }
+
+      // ── Serial connect / disconnect ──────────────────────────────────────────
+      const btnConnect = document.getElementById("btnConnect");
+      const btnLoad = document.getElementById("btnLoad");
+      const btnReset = document.getElementById("btnReset");
+      const statusDot = document.getElementById("statusDot");
+      const ctrlPanel = document.getElementById("ctrlPanel");
+
+      // ── Controller Settings helpers ──────────────────────────────────────────
 
       // Flash border on an input: 'ok' or 'err'
       function flashInput(el, cls) {
@@ -3399,7 +4742,10 @@
       const susModeStandard = document.getElementById("susModeStandard");
       const susModePalm = document.getElementById("susModePalm");
       function updateAllHotkeyHints(numStrings) {
-        const is8 = (numStrings === undefined ? (window.activeStrings || 8) : numStrings) === 8;
+        const is8 =
+          (numStrings === undefined
+            ? window.activeStrings || 8
+            : numStrings) === 8;
         const susStr = is8 ? "2 & 7" : "2 & 5";
         const midiStr = is8 ? "1 & 8" : "1 & 6";
         const octStr = is8 ? "1&2 / 7&8" : "1&2 / 5&6";
@@ -3430,14 +4776,12 @@
 
         const progEl = document.getElementById("numProgramsHint");
         if (progEl) {
-          progEl.textContent =
-            `Preset bank limit (1–128). Set this if you want hotkey patch navigation to wrap when they reach the end of the limit. Otherwise leave at 128. Hotkey: ${progStr}.`;
+          progEl.textContent = `Preset bank limit (1–128). Set this if you want hotkey patch navigation to wrap when they reach the end of the limit. Otherwise leave at 128. Hotkey: ${progStr}.`;
         }
 
         const tunEl = document.getElementById("tuningHint");
         if (tunEl) {
-          tunEl.innerHTML =
-            `Hotkey to switch active tuning: <strong>Mode + Strings 1 to ${is8 ? 8 : 6}</strong>. Pedal bends are specified by semitones.`;
+          tunEl.innerHTML = `Hotkey to switch active tuning: <strong>Mode + Strings 1 to ${is8 ? 8 : 6}</strong>. Pedal bends are specified by semitones.`;
         }
       }
 
@@ -3496,16 +4840,32 @@
       const strMode6 = document.getElementById("strMode6");
       const strMode8 = document.getElementById("strMode8");
 
+      function updateDigitalInputsCount() {
+        const countEl = document.getElementById("digitalInputsCount");
+        if (countEl) {
+          const numStr = window.activeStrings || 8;
+          const numPed = window.activeBenders || 8;
+          countEl.textContent = `${numStr} Strings • ${numPed} Pedals • Palm Mute`;
+        }
+      }
+
       function setStrModeUI(v) {
         window.activeStrings = v;
         strMode6.classList.toggle("active", v === 6);
         strMode8.classList.toggle("active", v === 8);
         const gridWrapper = document.getElementById("gridWrapper");
-        if (v === 6) {
-          gridWrapper.classList.add("six-string-mode");
-        } else {
-          gridWrapper.classList.remove("six-string-mode");
+        if (gridWrapper) {
+          if (v === 6) {
+            gridWrapper.classList.add("six-string-mode");
+          } else {
+            gridWrapper.classList.remove("six-string-mode");
+          }
         }
+        const debugMonitorPanel = document.getElementById("debugMonitorPanel");
+        if (debugMonitorPanel) {
+          debugMonitorPanel.classList.toggle("six-string-mode", v === 6);
+        }
+        updateDigitalInputsCount();
         updateAllHotkeyHints(v);
         // Force a re-render of the grid since the number of inputs changes
         if (window.lastTunings) {
@@ -3547,6 +4907,11 @@
             gridWrapper.classList.remove("hide-knees");
           }
         }
+        const debugMonitorPanel = document.getElementById("debugMonitorPanel");
+        if (debugMonitorPanel) {
+          debugMonitorPanel.classList.toggle("four-bender-mode", v === 4);
+        }
+        updateDigitalInputsCount();
       }
 
       async function applyBenderMode(v) {
@@ -3577,6 +4942,17 @@
         window.activeSoftpots = v;
         if (softpotMode1) softpotMode1.classList.toggle("active", v === 1);
         if (softpotMode2) softpotMode2.classList.toggle("active", v === 2);
+        const sliderWrapBass = document.getElementById("sliderWrapBass");
+        const sliderWrapTreble = document.getElementById("sliderWrapTreble");
+        if (sliderWrapBass && sliderWrapTreble) {
+          if (v === 1) {
+            sliderWrapBass.style.display = "";
+            sliderWrapTreble.style.display = "none";
+          } else {
+            sliderWrapBass.style.display = "";
+            sliderWrapTreble.style.display = "";
+          }
+        }
 
         const calTargetBoth = document.getElementById("calTargetBoth");
         const calTargetP1 = document.getElementById("calTargetP1");
@@ -3671,6 +5047,17 @@
         min: 0,
         max: 10000,
         cmdPrefix: "bendtime",
+      });
+
+      // String Button Debounce
+      const stringDebounceInput = document.getElementById(
+        "stringDebounceInput",
+      );
+      bindAutoSaveInput({
+        input: stringDebounceInput,
+        min: 1,
+        max: 100,
+        cmdPrefix: "stringdebounce",
       });
 
       // Preset Bank Size
@@ -3925,20 +5312,52 @@
         btnCalibrateScale.disabled = false;
       });
 
+      function isLiveTracking() {
+        const chk = document.getElementById("chkDebug");
+        return !!(chk && chk.checked && isConnected());
+      }
+
+      function updateLiveTrackingUI(active) {
+        const panel = document.getElementById("debugMonitorPanel");
+        if (panel) {
+          panel.classList.toggle("live-active", !!active);
+          panel.classList.toggle("live-paused", !active);
+        }
+        const badge = document.getElementById("liveTrackingBadge");
+        const subtitle = document.getElementById("liveTrackingSubtitle");
+        if (badge) {
+          badge.classList.toggle("active", !!active);
+          badge.textContent = active
+            ? "● Live Tracking Active"
+            : "○ Live Tracking Paused";
+        }
+        if (subtitle) {
+          subtitle.innerHTML = active
+            ? "Real-time tracking active across all inputs."
+            : "Enable <b>Stream Debug Data</b> to monitor all inputs in real time.";
+        }
+      }
+
       const chkDebug = document.getElementById("chkDebug");
       chkDebug.addEventListener("change", async () => {
-        try {
-          const cmd = chkDebug.checked ? "debug on" : "debug off";
-          await sendLine(cmd);
-          await waitForResponse(cmd);
-        } catch (e) {
-          appendLog(
-            "Debug toggle failed, please try again: " + e.message,
-            "log-err",
-          );
-          chkDebug.checked = !chkDebug.checked;
+        if (!isConnected()) return;
+        const active = chkDebug.checked;
+        const cmd = active ? "debug on" : "debug off";
+        await sendLine(cmd);
+        updateLiveTrackingUI(active);
+        if (!active) {
+          await sendLine("poll");
         }
       });
+
+      const btnPollInputs = document.getElementById("btnPollInputs");
+      if (btnPollInputs) {
+        btnPollInputs.addEventListener("click", async () => {
+          if (isConnected()) {
+            await sendLine("poll");
+          }
+        });
+      }
 
       function applyCtrlFromJson(data) {
         if (data.pot1cc !== undefined) {
@@ -3948,6 +5367,26 @@
         if (data.pot2cc !== undefined) {
           pot2ccInput.value = data.pot2cc;
           pot2ccHint.textContent = ccHint(data.pot2cc);
+        }
+        if (data.pot1val !== undefined) {
+          setDebugPot1(
+            data.pot1raw !== undefined ? data.pot1raw : -1,
+            data.pot1cc !== undefined ? data.pot1cc : 1,
+            data.pot1val,
+          );
+        }
+        if (data.pot2val !== undefined) {
+          setDebugPot2(
+            data.pot2raw !== undefined ? data.pot2raw : -1,
+            data.pot2cc !== undefined ? data.pot2cc : 73,
+            data.pot2val,
+          );
+        }
+        if (data.exprval !== undefined) {
+          setDebugExpr(
+            data.exprraw !== undefined ? data.exprraw : -1,
+            data.exprval,
+          );
         }
         if (data.exprcurve || data.volcurve)
           setCurveUI(data.exprcurve || data.volcurve);
@@ -3978,6 +5417,9 @@
         }
         if (data.bendtime !== undefined) {
           bendTimeInput.value = data.bendtime;
+        }
+        if (data.stringdebounce !== undefined) {
+          stringDebounceInput.value = data.stringdebounce;
         }
         if (data.numprograms !== undefined) {
           numProgramsInput.value = data.numprograms;
@@ -4011,7 +5453,9 @@
           }
         }
         if (data.debug !== undefined) {
-          chkDebug.checked = data.debug === true || data.debug === "true";
+          const isDbg = data.debug === true || data.debug === "true";
+          chkDebug.checked = isDbg;
+          updateLiveTrackingUI(isDbg);
         }
       }
 
@@ -4116,27 +5560,48 @@
         const tabAdvanced =
           document.getElementById("tabAdvanced") ||
           document.getElementById("tabCalibration");
-        const tabLog = document.getElementById("tabLog");
+        const tabDebug =
+          document.getElementById("tabDebug") ||
+          document.getElementById("tabLog");
         const notConnectedNotice =
           document.getElementById("notConnectedNotice");
         const settingsBlocks = document.getElementById("settingsBlocks");
         const connected = isConnected();
 
-        if (tabId === "tabLog") {
+        const isDebugTab = tabId === "tabDebug" || tabId === "tabLog";
+        if (isDebugTab) {
+          document.body.classList.add("tab-debug-active");
           document.body.classList.add("tab-log-active");
           if (tabSettings) tabSettings.style.display = "none";
           if (tabTunings) tabTunings.style.display = "none";
           if (tabAdvanced) tabAdvanced.style.display = "none";
-          if (tabLog) {
-            tabLog.style.display = "flex";
+          if (tabDebug) {
+            tabDebug.style.display = "flex";
             const logEl = document.getElementById("log");
             if (logEl) logEl.scrollTop = logEl.scrollHeight;
           }
           if (notConnectedNotice) notConnectedNotice.style.display = "none";
-          if (settingsBlocks) settingsBlocks.style.display = "none";
+          const debugMonitorPanel =
+            document.getElementById("debugMonitorPanel");
+          if (debugMonitorPanel) {
+            debugMonitorPanel.style.display = connected ? "" : "none";
+          }
+          updateLiveTrackingUI(
+            connected ? chkDebug && chkDebug.checked : false,
+          );
+          updateDebugStringNotes();
+          if (connected) {
+            sendLine("poll");
+          }
         } else {
+          document.body.classList.remove("tab-debug-active");
           document.body.classList.remove("tab-log-active");
-          if (tabLog) tabLog.style.display = "none";
+          if (tabDebug) tabDebug.style.display = "none";
+          if (chkDebug && chkDebug.checked) {
+            chkDebug.checked = false;
+            sendLine("debug off");
+            updateLiveTrackingUI(false);
+          }
           if (tabSettings)
             tabSettings.style.display =
               tabId === "tabSettings" ? "block" : "none";
@@ -4173,6 +5638,11 @@
       });
 
       function updateConnectionUI(connected) {
+        const debugMonitorPanel = document.getElementById("debugMonitorPanel");
+        if (debugMonitorPanel) {
+          debugMonitorPanel.style.display = connected ? "" : "none";
+        }
+        updateLiveTrackingUI(connected ? chkDebug && chkDebug.checked : false);
         if (connected) {
           btnConnect.textContent = "⏏ Disconnect";
           btnConnect.classList.add("connected");
@@ -4181,6 +5651,8 @@
           btnReset.disabled = false;
           btnReset.style.display = "";
           chkDebug.disabled = false;
+          const btnPoll = document.getElementById("btnPollInputs");
+          if (btnPoll) btnPoll.disabled = false;
           document
             .querySelectorAll(".ctrl-panel")
             .forEach((p) => p.classList.add("enabled"));
@@ -4192,7 +5664,10 @@
           btnLoad.style.display = "none";
           btnReset.disabled = true;
           btnReset.style.display = "none";
+          chkDebug.checked = false;
           chkDebug.disabled = true;
+          const btnPoll = document.getElementById("btnPollInputs");
+          if (btnPoll) btnPoll.disabled = true;
           document
             .querySelectorAll(".ctrl-panel")
             .forEach((p) => p.classList.remove("enabled"));
@@ -4316,10 +5791,58 @@
         const data = event.data;
         if (!data || data.length === 0) return;
 
-        // Check for MIDI Note On (status 0x90-0x9F with velocity > 0) to advance modal
         const status = data[0] & 0xf0;
+        const channel = data[0] & 0x0f;
+
+        // Check for MIDI Note On (status 0x90-0x9F with velocity > 0)
         if (status === 0x90 && data.length >= 3 && data[2] > 0) {
           triggerAlertAdvance();
+          if (isLiveTracking()) {
+            const strIdx = channel - 1;
+            if (strIdx >= 0 && strIdx < 8) {
+              setDebugString(strIdx, true);
+            } else {
+              matchAndSetStringByNote(data[1], true);
+            }
+          }
+        } else if (
+          (status === 0x80 || (status === 0x90 && data[2] === 0)) &&
+          data.length >= 2
+        ) {
+          if (isLiveTracking()) {
+            const strIdx = channel - 1;
+            if (strIdx >= 0 && strIdx < 8) {
+              setDebugString(strIdx, false);
+            } else {
+              matchAndSetStringByNote(data[1], false);
+            }
+          }
+        } else if (status === 0xb0 && data.length >= 3) {
+          if (isLiveTracking()) {
+            const ccNum = data[1];
+            const ccVal = data[2];
+            const epCC = parseInt(
+              document.getElementById("exprPedalCCInput")?.value || "11",
+              10,
+            );
+            const p1CC = parseInt(
+              document.getElementById("pot1ccInput")?.value || "1",
+              10,
+            );
+            const p2CC = parseInt(
+              document.getElementById("pot2ccInput")?.value || "73",
+              10,
+            );
+            if (ccNum === epCC) {
+              setDebugExpr(-1, ccVal);
+            } else if (ccNum === p1CC) {
+              setDebugPot1(-1, ccNum, ccVal);
+            } else if (ccNum === p2CC) {
+              setDebugPot2(-1, ccNum, ccVal);
+            } else if (ccNum === 64) {
+              setDebugPalmMute(ccVal >= 64);
+            }
+          }
         }
 
         if (data.length < 5) return;
@@ -4488,18 +6011,53 @@
       function onLine(line) {
         if (line.trim() === "") return;
 
-        // Check if string button pressed in Serial mode to advance modal
-        if (/^String \d+ ON/.test(line.trim())) {
+        // Check if string button pressed in Serial mode
+        const mStrOn = line.match(/^String (\d+) ON/i);
+        if (mStrOn) {
           triggerAlertAdvance();
+          if (isLiveTracking()) {
+            const sIdx = parseInt(mStrOn[1], 10) - 1;
+            if (sIdx >= 0 && sIdx < 8) setDebugString(sIdx, true);
+          }
+        }
+        const mStrOff = line.match(/^String (\d+) OFF/i);
+        if (mStrOff) {
+          if (isLiveTracking()) {
+            const sIdx = parseInt(mStrOff[1], 10) - 1;
+            if (sIdx >= 0 && sIdx < 8) setDebugString(sIdx, false);
+          }
         }
 
-        // Sensor debug lines: show in dim grey so we can see what the Teensy is sending
+        // Discrete real-time button and sensor events
+        const mModeEvt = line.match(/^Mode (ON|OFF)/i);
+        if (mModeEvt) {
+          if (isLiveTracking())
+            setDebugModeBtn(mModeEvt[1].toUpperCase() === "ON");
+          return;
+        }
+        const mPalmEvt = line.match(/^Palm(?:Mute)? (ON|OFF)/i);
+        if (mPalmEvt) {
+          if (isLiveTracking())
+            setDebugPalmMute(mPalmEvt[1].toUpperCase() === "ON");
+          return;
+        }
+        const mPedalEvt = line.match(/^Pedal ([1-8]) (ON|OFF)/i);
+        if (mPedalEvt) {
+          if (isLiveTracking())
+            setDebugPedal(
+              parseInt(mPedalEvt[1], 10),
+              mPedalEvt[2].toUpperCase() === "ON",
+            );
+          return;
+        }
+
+        // Sensor debug lines: parse to update live hardware monitors
         if (
           /^(bassPot raw=|treblePot raw=|Pot[12]? raw=|raw=|mm=|st=|CC\d|Mod |String |Expr )/.test(
             line,
           )
         ) {
-          appendLog("\u2026 " + line, "log-dim");
+          parseDebugInputLine(line);
           return;
         }
 
@@ -4548,7 +6106,8 @@
 
         if (line.startsWith("CURRENT_MIDIMODE ")) {
           const v = parseInt(line.substring(17).trim(), 10);
-          if (!isNaN(v) && typeof setMidiModeUI === "function") setMidiModeUI(v);
+          if (!isNaN(v) && typeof setMidiModeUI === "function")
+            setMidiModeUI(v);
         } else if (line.startsWith("Mode switched to: ")) {
           const isMpe = line.includes("MPE");
           if (typeof setMidiModeUI === "function") setMidiModeUI(isMpe ? 1 : 0);
@@ -4672,6 +6231,16 @@
           window.lastActiveTuning = data.current;
           renderGrid(data.tunings, data.current);
           applyCtrlFromJson(data);
+          updateDebugStringNotes();
+          const epCC = data.exprCC || data.exprPedalCC || 11;
+          const p1CC = data.pot1cc !== undefined ? data.pot1cc : 1;
+          const p2CC = data.pot2cc !== undefined ? data.pot2cc : 73;
+          const lExpr = document.getElementById("labelExprPedal");
+          if (lExpr) lExpr.textContent = `Expression Pedal (${ccHint(epCC)})`;
+          const lPot1 = document.getElementById("labelPot1");
+          if (lPot1) lPot1.textContent = `MIDI Pot 1 (${ccHint(p1CC)})`;
+          const lPot2 = document.getElementById("labelPot2");
+          if (lPot2) lPot2.textContent = `MIDI Pot 2 (${ccHint(p2CC)})`;
           switchTab(currentTab);
         } catch (e) {
           if (retries > 0) {
@@ -4864,6 +6433,7 @@
             }
           }
         });
+        updateDebugStringNotes();
       }
 
       async function selectTuning(idx) {
@@ -4935,11 +6505,18 @@
               .join("");
           nameWrap.appendChild(presetSelect);
 
-          // Save button directly under Presets dropdown
-          const saveBtn = document.createElement("button");
-          saveBtn.className = "save-btn";
-          saveBtn.textContent = "Save";
-          saveBtn.addEventListener("click", () =>
+          // Note inputs
+          const noteInputs = [];
+          const p1Inputs = [];
+          const p2Inputs = [];
+          const p3Inputs = [];
+          const p4Inputs = [];
+          const p5Inputs = [];
+          const p6Inputs = [];
+          const p7Inputs = [];
+          const p8Inputs = [];
+
+          const triggerSave = () =>
             saveRow(
               idx,
               nameInput,
@@ -4952,22 +6529,14 @@
               p6Inputs,
               p7Inputs,
               p8Inputs,
-              saveBtn,
-            ),
-          );
-          nameWrap.appendChild(saveBtn);
-          row.appendChild(nameWrap);
+              saveStatus,
+            );
 
-          // Note inputs
-          const noteInputs = [];
-          const p1Inputs = [];
-          const p2Inputs = [];
-          const p3Inputs = [];
-          const p4Inputs = [];
-          const p5Inputs = [];
-          const p6Inputs = [];
-          const p7Inputs = [];
-          const p8Inputs = [];
+          // Status indicator under Presets dropdown
+          const saveStatus = document.createElement("div");
+          saveStatus.className = "row-save-status";
+          nameWrap.appendChild(saveStatus);
+          row.appendChild(nameWrap);
           for (let s = 0; s < 8; s++) {
             const cell = document.createElement("div");
             cell.className = "note-cell" + (s >= 6 ? " string-7-8" : "");
@@ -4995,6 +6564,7 @@
                   lbl.textContent = newMidi;
                   inp.classList.remove("error");
                   markFieldDirty(row, inp);
+                  triggerSave();
                 }
               });
             };
@@ -5054,6 +6624,7 @@
                       updateBendClass(inp, newVal);
                       inp.title = `Pedal ${pedalNum}, String ${s + 1} (${inp.value} st) — Click to edit`;
                       markFieldDirty(row, inp);
+                      triggerSave();
                     }
                   },
                 });
@@ -5175,6 +6746,7 @@
                 ...p8Inputs,
               ];
               markFieldsDirty(row, allRowInputs);
+              triggerSave();
             }
             e.target.value = ""; // Reset dropdown
           });
@@ -5182,6 +6754,18 @@
           nameInput.addEventListener("input", () =>
             markFieldDirty(row, nameInput),
           );
+          nameInput.addEventListener("change", () => {
+            if (nameInput.value !== nameInput.dataset.default) {
+              markFieldDirty(row, nameInput);
+              triggerSave();
+            }
+          });
+          nameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              nameInput.blur();
+            }
+          });
 
           if (window.activeStrings === 6 && idx >= 6) {
             row.style.display = "none";
@@ -5286,6 +6870,25 @@
         updateRowDirtyState(row);
       }
 
+      let savedToastTimeout = null;
+      function showSavedToast(msg, isErr = false) {
+        let toast = document.getElementById("savedToast");
+        if (!toast) {
+          toast = document.createElement("div");
+          toast.id = "savedToast";
+          toast.className = "saved-toast";
+          document.body.appendChild(toast);
+        }
+        toast.className = "saved-toast" + (isErr ? " err" : "");
+        toast.innerHTML = `<span class="toast-icon">${isErr ? "✕" : "✓"}</span> <span>${msg}</span>`;
+        toast.classList.add("visible");
+        if (savedToastTimeout) clearTimeout(savedToastTimeout);
+        savedToastTimeout = setTimeout(() => {
+          toast.classList.remove("visible");
+        }, 3200);
+      }
+
+      const rowSavePromises = {};
       async function saveRow(
         idx,
         nameInput,
@@ -5298,7 +6901,45 @@
         p6Inputs,
         p7Inputs,
         p8Inputs,
-        btn,
+        statusEl,
+      ) {
+        const prev = rowSavePromises[idx] || Promise.resolve();
+        const cur = (async () => {
+          try {
+            await prev;
+          } catch (_) {}
+          return doSaveRow(
+            idx,
+            nameInput,
+            noteInputs,
+            p1Inputs,
+            p2Inputs,
+            p3Inputs,
+            p4Inputs,
+            p5Inputs,
+            p6Inputs,
+            p7Inputs,
+            p8Inputs,
+            statusEl,
+          );
+        })();
+        rowSavePromises[idx] = cur;
+        return cur;
+      }
+
+      async function doSaveRow(
+        idx,
+        nameInput,
+        noteInputs,
+        p1Inputs,
+        p2Inputs,
+        p3Inputs,
+        p4Inputs,
+        p5Inputs,
+        p6Inputs,
+        p7Inputs,
+        p8Inputs,
+        statusEl,
       ) {
         const T = idx + 1;
 
@@ -5306,6 +6947,15 @@
         const midiNotes = noteInputs.map((inp) => nameToMidi(inp.value));
         if (midiNotes.some((n) => n === null)) {
           appendLog(`ERR: invalid note name in tuning ${T}`, "log-err");
+          if (statusEl) {
+            statusEl.textContent = "Invalid note";
+            statusEl.className = "row-save-status err";
+            setTimeout(() => {
+              statusEl.className = "row-save-status";
+              statusEl.textContent = "";
+            }, 3200);
+          }
+          showSavedToast(`Tuning #${T}: Invalid note`, true);
           return;
         }
 
@@ -5322,8 +6972,10 @@
           ? p8Inputs.map((inp) => parseInt(inp.value, 10) || 0)
           : [0, 0, 0, 0, 0, 0, 0, 0];
 
-        btn.disabled = true;
-        btn.textContent = "…";
+        if (statusEl) {
+          statusEl.textContent = "Saving…";
+          statusEl.className = "row-save-status saving";
+        }
 
         const allInputs = [
           nameInput,
@@ -5338,11 +6990,52 @@
           ...(p8Inputs || []),
         ];
 
+        const newName =
+          nameInput.value.trim().replace(/\s+/g, "_").slice(0, 8) ||
+          "Untitled";
+
+        if (!isConnected()) {
+          // In offline mode (no active connection), update UI defaults immediately
+          const dirtyInputs = allInputs.filter((n) =>
+            n.classList.contains("dirty"),
+          );
+          dirtyInputs.forEach((n) => {
+            n.classList.remove("dirty");
+            n.classList.add("saved");
+          });
+          allInputs.forEach((n) => {
+            n.dataset.default = n.value;
+          });
+          if (window.lastTunings && window.lastTunings[idx]) {
+            window.lastTunings[idx].name = newName;
+            window.lastTunings[idx].notes = [...midiNotes];
+            window.lastTunings[idx].p1 = [...p1Vals];
+            window.lastTunings[idx].p2 = [...p2Vals];
+            window.lastTunings[idx].p3 = [...p3Vals];
+            window.lastTunings[idx].p4 = [...p4Vals];
+            window.lastTunings[idx].p5 = [...p5Vals];
+            window.lastTunings[idx].p6 = [...p6Vals];
+            window.lastTunings[idx].p7 = [...p7Vals];
+            window.lastTunings[idx].p8 = [...p8Vals];
+          }
+          if (statusEl) {
+            statusEl.textContent = "✓ Saved";
+            statusEl.className = "row-save-status saved";
+          }
+          showSavedToast(`Tuning #${T} (${newName}) saved`);
+          setTimeout(() => {
+            dirtyInputs.forEach((n) => n.classList.remove("saved"));
+            if (statusEl && statusEl.className.includes("saved")) {
+              statusEl.className = "row-save-status";
+              statusEl.textContent = "";
+            }
+          }, 3200);
+          updateUnsavedChangesOverlay();
+          return;
+        }
+
         try {
           // Send single batch update command
-          const newName =
-            nameInput.value.trim().replace(/\s+/g, "_").slice(0, 8) ||
-            "Untitled";
           const cmd = `uptuning ${T} ${newName} ${midiNotes.join(" ")} ${p1Vals.join(" ")} ${p2Vals.join(" ")} ${p3Vals.join(" ")} ${p4Vals.join(" ")} ${p5Vals.join(" ")} ${p6Vals.join(" ")} ${p7Vals.join(" ")} ${p8Vals.join(" ")}`;
           await sendLine(cmd);
           await waitForResponse(`uptuning ${T}`);
@@ -5358,23 +7051,43 @@
           allInputs.forEach((n) => {
             n.dataset.default = n.value;
           });
-          btn.classList.remove("dirty");
-          btn.textContent = "Save";
+          if (window.lastTunings && window.lastTunings[idx]) {
+            window.lastTunings[idx].name = newName;
+            window.lastTunings[idx].notes = [...midiNotes];
+            window.lastTunings[idx].p1 = [...p1Vals];
+            window.lastTunings[idx].p2 = [...p2Vals];
+            window.lastTunings[idx].p3 = [...p3Vals];
+            window.lastTunings[idx].p4 = [...p4Vals];
+            window.lastTunings[idx].p5 = [...p5Vals];
+            window.lastTunings[idx].p6 = [...p6Vals];
+            window.lastTunings[idx].p7 = [...p7Vals];
+            window.lastTunings[idx].p8 = [...p8Vals];
+          }
+          if (statusEl) {
+            statusEl.textContent = "✓ Saved";
+            statusEl.className = "row-save-status saved";
+          }
+          showSavedToast(`Tuning #${T} (${newName}) saved`);
           setTimeout(() => {
             dirtyInputs.forEach((n) => n.classList.remove("saved"));
-          }, 1500);
+            if (statusEl && statusEl.className.includes("saved")) {
+              statusEl.className = "row-save-status";
+              statusEl.textContent = "";
+            }
+          }, 3200);
         } catch (e) {
           appendLog("Save failed, please try again: " + e.message, "log-err");
+          if (statusEl) {
+            statusEl.textContent = "Save failed";
+            statusEl.className = "row-save-status err";
+            setTimeout(() => {
+              statusEl.className = "row-save-status";
+              statusEl.textContent = "";
+            }, 3200);
+          }
+          showSavedToast(`Tuning #${T}: Save failed`, true);
         }
 
-        btn.disabled = false;
-        if (!allInputs.some((n) => n.classList.contains("dirty"))) {
-          btn.classList.remove("dirty");
-          btn.textContent = "Save";
-        } else {
-          btn.classList.add("dirty");
-          btn.textContent = "Save *";
-        }
         updateUnsavedChangesOverlay();
       }
 

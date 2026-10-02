@@ -9,7 +9,7 @@
     <title>PM-8</title>
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="assets/icon-pm8.png" />
-    <link rel="stylesheet" href="css/style.css?v=1.0.2" />
+    <link rel="stylesheet" href="css/style.css?v=1.0.3" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -776,144 +776,252 @@
         <!-- 1. OSCILLATORS CONTAINER (Directly under Oscilloscope, Both Stacked) -->
         <div class="synth-card" id="oscillators-card">
           <div class="card-title">
-            <span>OSCILLATORS</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="osc-card-title-text">SYNTHESIS</span>
+              <div class="btn-group engine-mode-select" data-param="voiceMode">
+                <button class="btn btn-tab active" data-value="analog" title="Subtractive Analog Dual Oscillators">ANALOG</button>
+                <button class="btn btn-tab" data-value="guitar" title="Extended Karplus-Strong Physical Modeling Electric Guitar">E-GUITAR</button>
+              </div>
+            </div>
             <div
-              class="card-header-toggle"
-              title="Toggle Acoustic Pick Attack Transient & String Tension Detune"
+              class="pick-pluck-inline"
+              id="analog-pluck-wrap"
+              style="display: flex; align-items: center; gap: 6px; line-height: 1;"
+              title="Acoustic Pick Attack Transient & String Tension Detune Level (0% = Off, 100% = Full)"
             >
-              <span class="toggle-label">PLUCK</span>
-              <label
-                class="toggle-switch"
-                title="Toggle Acoustic Pick Attack Transient & String Tension Detune"
-              >
-                <input type="checkbox" id="pickTransient" />
-                <span class="toggle-slider"></span>
-              </label>
+              <label for="pickTransient">PLUCK</label>
+              <input
+                type="range"
+                id="pickTransient"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0"
+                title="Acoustic Pick Attack Transient & String Tension Detune (0% = Off, 100% = Full)"
+              />
+              <span class="val-display" id="pickTransient-val">0%</span>
             </div>
           </div>
 
           <div class="card-body osc-stacked-body">
-            <!-- OSCILLATOR 1 -->
-            <div class="osc-sub-block" id="osc1-block">
-              <div class="control-row">
-                <span class="sub-label" id="osc1-label">OSC 1</span>
-                <div class="btn-group wave-select" data-param="osc1Waveform">
-                  <button class="btn btn-tab active" data-value="sawtooth">
-                    SAW
-                  </button>
-                  <button class="btn btn-tab" data-value="square">SQR</button>
-                  <button class="btn btn-tab" data-value="triangle">TRI</button>
-                  <button class="btn btn-tab" data-value="sine">SIN</button>
-                </div>
-              </div>
-
-              <div class="knob-grid">
-                <div class="control-unit">
-                  <label>Octave</label>
-                  <input
-                    type="range"
-                    id="osc1Octave"
-                    min="-2"
-                    max="2"
-                    step="1"
-                    value="0"
-                  />
-                  <span class="val-display" id="osc1Octave-val">0</span>
-                </div>
-                <div class="control-unit">
-                  <label>Semi</label>
-                  <input
-                    type="range"
-                    id="osc1Semi"
-                    min="-12"
-                    max="12"
-                    step="1"
-                    value="0"
-                  />
-                  <span class="val-display" id="osc1Semi-val">0</span>
-                </div>
-                <div class="control-unit">
-                  <label>Fine (cents)</label>
-                  <input
-                    type="range"
-                    id="osc1Fine"
-                    min="-50"
-                    max="50"
-                    step="1"
-                    value="0"
-                  />
-                  <span class="val-display" id="osc1Fine-val">0</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="osc-divider"></div>
-
-            <!-- OSCILLATOR 2 -->
-            <div class="osc-sub-block" id="osc2-block">
-              <div class="control-row">
-                <span class="sub-label" id="osc2-label">OSC 2</span>
-                <div class="osc2-header-right" style="display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0;">
-                  <div class="osc-mix-inline">
-                    <label for="osc2Mix">MIX</label>
-                    <input
-                      type="range"
-                      id="osc2Mix"
-                      min="0"
-                      max="1"
-                      step="0.01"
-                      value="0.5"
-                      title="Oscillator 2 Mix Level (0% = Silent, 100% = Full)"
-                    />
-                    <span class="val-display" id="osc2Mix-val">50%</span>
-                  </div>
-                  <div class="btn-group wave-select" data-param="osc2Waveform">
-                    <button class="btn btn-tab" data-value="sawtooth">SAW</button>
-                    <button class="btn btn-tab active" data-value="square">
-                      SQR
+            <!-- ANALOG DUAL OSCILLATORS VIEW -->
+            <div id="analog-controls-block" style="display: flex; flex-direction: column; width: 100%; height: 100%; justify-content: space-between;">
+              <!-- OSCILLATOR 1 -->
+              <div class="osc-sub-block" id="osc1-block">
+                <div class="control-row">
+                  <span class="sub-label" id="osc1-label">OSC 1</span>
+                  <div class="btn-group wave-select" data-param="osc1Waveform">
+                    <button class="btn btn-tab active" data-value="sawtooth">
+                      SAW
                     </button>
+                    <button class="btn btn-tab" data-value="square">SQR</button>
                     <button class="btn btn-tab" data-value="triangle">TRI</button>
                     <button class="btn btn-tab" data-value="sine">SIN</button>
                   </div>
                 </div>
+
+                <div class="knob-grid">
+                  <div class="control-unit">
+                    <label>Octave</label>
+                    <input
+                      type="range"
+                      id="osc1Octave"
+                      min="-2"
+                      max="2"
+                      step="1"
+                      value="0"
+                    />
+                    <span class="val-display" id="osc1Octave-val">0</span>
+                  </div>
+                  <div class="control-unit">
+                    <label>Semi</label>
+                    <input
+                      type="range"
+                      id="osc1Semi"
+                      min="-12"
+                      max="12"
+                      step="1"
+                      value="0"
+                    />
+                    <span class="val-display" id="osc1Semi-val">0</span>
+                  </div>
+                  <div class="control-unit">
+                    <label>Fine (cents)</label>
+                    <input
+                      type="range"
+                      id="osc1Fine"
+                      min="-50"
+                      max="50"
+                      step="1"
+                      value="0"
+                    />
+                    <span class="val-display" id="osc1Fine-val">0</span>
+                  </div>
+                </div>
               </div>
 
-              <div class="knob-grid">
-                <div class="control-unit">
-                  <label>Octave</label>
-                  <input
-                    type="range"
-                    id="osc2Octave"
-                    min="-2"
-                    max="2"
-                    step="1"
-                    value="0"
-                  />
-                  <span class="val-display" id="osc2Octave-val">0</span>
+              <div class="osc-divider"></div>
+
+              <!-- OSCILLATOR 2 -->
+              <div class="osc-sub-block" id="osc2-block">
+                <div class="control-row">
+                  <span class="sub-label" id="osc2-label">OSC 2</span>
+                  <div class="osc2-header-right" style="display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0;">
+                    <div class="osc-mix-inline">
+                      <label for="osc2Mix">MIX</label>
+                      <input
+                        type="range"
+                        id="osc2Mix"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value="0.5"
+                        title="Oscillator 2 Mix Level (0% = Silent, 100% = Full)"
+                      />
+                      <span class="val-display" id="osc2Mix-val">50%</span>
+                    </div>
+                    <div class="btn-group wave-select" data-param="osc2Waveform">
+                      <button class="btn btn-tab" data-value="sawtooth">SAW</button>
+                      <button class="btn btn-tab active" data-value="square">
+                        SQR
+                      </button>
+                      <button class="btn btn-tab" data-value="triangle">TRI</button>
+                      <button class="btn btn-tab" data-value="sine">SIN</button>
+                    </div>
+                  </div>
                 </div>
-                <div class="control-unit">
-                  <label>Semi</label>
-                  <input
-                    type="range"
-                    id="osc2Semi"
-                    min="-12"
-                    max="12"
-                    step="1"
-                    value="0"
-                  />
-                  <span class="val-display" id="osc2Semi-val">0</span>
+
+                <div class="knob-grid">
+                  <div class="control-unit">
+                    <label>Octave</label>
+                    <input
+                      type="range"
+                      id="osc2Octave"
+                      min="-2"
+                      max="2"
+                      step="1"
+                      value="0"
+                    />
+                    <span class="val-display" id="osc2Octave-val">0</span>
+                  </div>
+                  <div class="control-unit">
+                    <label>Semi</label>
+                    <input
+                      type="range"
+                      id="osc2Semi"
+                      min="-12"
+                      max="12"
+                      step="1"
+                      value="0"
+                    />
+                    <span class="val-display" id="osc2Semi-val">0</span>
+                  </div>
+                  <div class="control-unit">
+                    <label>Fine (cents)</label>
+                    <input
+                      type="range"
+                      id="osc2Fine"
+                      min="-50"
+                      max="50"
+                      step="1"
+                      value="7"
+                    />
+                    <span class="val-display" id="osc2Fine-val">+7</span>
+                  </div>
                 </div>
-                <div class="control-unit">
-                  <label>Fine (cents)</label>
-                  <input
-                    type="range"
-                    id="osc2Fine"
-                    min="-50"
-                    max="50"
-                    step="1"
-                    value="7"
-                  />
-                  <span class="val-display" id="osc2Fine-val">+7</span>
+              </div>
+            </div>
+
+            <!-- EXTENDED KARPLUS-STRONG GUITAR STRING MODEL VIEW -->
+            <div class="guitar-controls-block" id="guitar-controls-block" style="display: none; flex-direction: column; width: 100%; height: 100%; justify-content: space-between;">
+              <div class="osc-sub-block" id="guitar-string-block">
+                <div class="control-row">
+                  <span class="sub-label">STRING MODEL</span>
+                  <span class="badge" style="background: rgba(0, 240, 255, 0.15); color: var(--accent-cyan); font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.5px;">EKS WAVEGUIDE</span>
+                </div>
+                <div class="knob-grid">
+                  <div class="control-unit">
+                    <label title="String Sustain / Loop Decay Multiplier">Decay</label>
+                    <input
+                      type="range"
+                      id="guitarDecay"
+                      min="0.90"
+                      max="0.9998"
+                      step="0.0002"
+                      value="0.9750"
+                    />
+                    <span class="val-display" id="guitarDecay-val">8s</span>
+                  </div>
+                  <div class="control-unit">
+                    <label title="String High-Frequency Damping / Brightness">Tone (Damp)</label>
+                    <input
+                      type="range"
+                      id="guitarDamping"
+                      min="0.08"
+                      max="0.95"
+                      step="0.01"
+                      value="0.70"
+                    />
+                    <span class="val-display" id="guitarDamping-val">70%</span>
+                  </div>
+                  <div class="control-unit">
+                    <label title="String Stiffness / Metal Twang Inharmonicity">Stiffness</label>
+                    <input
+                      type="range"
+                      id="guitarStiffness"
+                      min="0"
+                      max="0.70"
+                      step="0.01"
+                      value="0.08"
+                    />
+                    <span class="val-display" id="guitarStiffness-val">8%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="osc-divider"></div>
+
+              <div class="osc-sub-block" id="guitar-pickup-block">
+                <div class="control-row">
+                  <span class="sub-label">PICK & PICKUP</span>
+                </div>
+                <div class="knob-grid">
+                  <div class="control-unit">
+                    <label title="Pluck Position along string (Bridge vs 12th Fret)">Pluck Pos</label>
+                    <input
+                      type="range"
+                      id="guitarPluckPos"
+                      min="0.05"
+                      max="0.48"
+                      step="0.01"
+                      value="0.18"
+                    />
+                    <span class="val-display" id="guitarPluckPos-val">18%</span>
+                  </div>
+                  <div class="control-unit">
+                    <label title="Magnetic Pickup Position (Bridge vs Neck Pickup)">Pickup Pos</label>
+                    <input
+                      type="range"
+                      id="guitarPickupPos"
+                      min="0.06"
+                      max="0.40"
+                      step="0.01"
+                      value="0.12"
+                    />
+                    <span class="val-display" id="guitarPickupPos-val">Bridge</span>
+                  </div>
+                  <div class="control-unit">
+                    <label title="Pick Transient Bite & Attack Brightness">Pick Bite</label>
+                    <input
+                      type="range"
+                      id="guitarPickBite"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0.70"
+                    />
+                    <span class="val-display" id="guitarPickBite-val">70%</span>
+                  </div>
                 </div>
               </div>
             </div>

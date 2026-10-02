@@ -33,6 +33,11 @@ export class SynthVoice {
     this.osc2 = null;
     this.pickSource = null;
 
+    // Physical modeling guitar string node (EKS AudioWorklet)
+    this.guitarNode = null;
+    this.guitarGain = this.ctx.createGain();
+    this.guitarGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+
     // Pre-allocated static nodes (persists across notes for minimum latency & zero GC)
     this.osc1Gain = this.ctx.createGain();
     this.osc2Gain = this.ctx.createGain();
@@ -45,10 +50,11 @@ export class SynthVoice {
     // Audio Graph:
     // osc1 -> osc1Gain \
     // osc2 -> osc2Gain  -> filter -> vca (ADSR) \
-    //                                             -> expressionGain (CC11 Volume) -> destination
+    // guitarGain --------/                       -> expressionGain (CC11 Volume) -> destination
     // pickGain ---------------------------------/
     this.osc1Gain.connect(this.filter);
     this.osc2Gain.connect(this.filter);
+    this.guitarGain.connect(this.filter);
     this.filter.connect(this.vca);
     this.vca.connect(this.expressionGain);
     this.pickGain.connect(this.expressionGain);
@@ -62,6 +68,20 @@ export class SynthVoice {
 
     this.releaseTimeout = null;
     this.params = null;
+    this.ensureGuitarNode();
+  }
+
+  ensureGuitarNode() {
+    if (this.guitarNode) return this.guitarNode;
+    if (!this.ctx?.audioWorklet || !this.engine?.isWorkletLoaded) return null;
+    try {
+      this.guitarNode = new AudioWorkletNode(this.ctx, 'karplus-strong-processor');
+      this.guitarNode.connect(this.guitarGain);
+      return this.guitarNode;
+    } catch (err) {
+      console.warn(`[Voice ${this.id}] AudioWorkletNode creation error:`, err);
+      return null;
+    }
   }
 
   /**
@@ -88,6 +108,47 @@ export class SynthVoice {
     this.noteOnTime = now;
     this.frequency = 440 * Math.pow(2, (note - 69) / 12);
 
+    const isGuitar = params?.voiceMode === "guitar";
+
+    if (isGuitar) {
+      // 1. Stop any analog oscillators that were running without sending mute to guitarNode
+      this.stopOscillators(false);
+
+      // 2. Keep guitarGain solidly at 1.0 (AudioWorklet handles clean pluck attack)
+      this.guitarGain.gain.cancelScheduledValues(now);
+      this.guitarGain.gain.setValueAtTime(1.0, now);
+
+      // 3. Ensure guitar worklet node is ready & send pluck message
+      const guitar = this.ensureGuitarNode();
+      if (guitar) {
+        const totalSemitones = this.pitchBend;
+        const targetFreq = Math.max(
+          10,
+          Math.min(22050, this.frequency * Math.pow(2, totalSemitones / 12)),
+        );
+        guitar.port.postMessage({
+          type: "pluck",
+          frequency: targetFreq,
+          velocity: this.velocity,
+          decay: params.guitarDecay !== undefined ? params.guitarDecay : 0.994,
+          damping: params.guitarDamping !== undefined ? params.guitarDamping : 0.45,
+          pluckPos: params.guitarPluckPos !== undefined ? params.guitarPluckPos : 0.18,
+          pickupPos: params.guitarPickupPos !== undefined ? params.guitarPickupPos : 0.12,
+          stiffness: params.guitarStiffness !== undefined ? params.guitarStiffness : 0.08,
+          pickBite: params.guitarPickBite !== undefined ? params.guitarPickBite : 0.7,
+        });
+      }
+
+      // 4. Update filter & expression immediately with zero lag
+      this.updateFilter(now, true, wasSounding);
+      this.updateExpression(now, true);
+
+      // 5. Trigger Amp ADSR Envelope
+      this.triggerAmpEnvelope(now, wasSounding);
+
+      return;
+    }
+
     // Capture old oscillators to stop them cleanly
     const oldOsc1 = this.osc1;
     const oldOsc2 = this.osc2;
@@ -112,7 +173,7 @@ export class SynthVoice {
     this.updateFilter(now, true, wasSounding);
 
     // 4. Update Expression Gain (CC11 * velocity)
-    this.updateExpression(now);
+    this.updateExpression(now, true);
 
     // 5. Trigger Amp ADSR Envelope with anti-pop micro-fade
     this.triggerAmpEnvelope(now, wasSounding);
@@ -126,12 +187,10 @@ export class SynthVoice {
     // 7. Trigger Pick Attack Transient & String Tension Pitch Detune
     const rawPick = params?.pickTransient;
     const pickAmt =
-      typeof rawPick === "boolean"
-        ? rawPick
-          ? 0.5
-          : 0
-        : typeof rawPick === "number" && rawPick > 0
-          ? rawPick * 0.75
+      typeof rawPick === "number"
+        ? Math.max(0, Math.min(1, rawPick))
+        : rawPick
+          ? 0.75
           : 0;
     if (pickAmt > 0) {
       // Acoustic plectrum friction burst + string release thump
@@ -212,8 +271,13 @@ export class SynthVoice {
     this.noteOffTime = this.ctx.currentTime;
 
     const now = this.ctx.currentTime;
+    const isGuitar = this.params?.voiceMode === "guitar";
     const ampRelease = Math.max(0.008, this.params?.ampRelease || 0.3);
     const filterRelease = Math.max(0.008, this.params?.filterRelease || 0.3);
+
+    if (isGuitar && this.guitarNode) {
+      this.guitarNode.port.postMessage({ type: "release", releaseTime: ampRelease });
+    }
 
     // Release Amp Envelope safely
     try {
@@ -307,7 +371,12 @@ export class SynthVoice {
     this.kill();
   }
 
-  stopOscillators() {
+  stopOscillators(stopGuitar = true) {
+    if (stopGuitar && this.guitarNode) {
+      try {
+        this.guitarNode.port.postMessage({ type: "mute" });
+      } catch (e) {}
+    }
     if (this.osc1) {
       try {
         this.osc1.stop();
@@ -338,6 +407,22 @@ export class SynthVoice {
   }
 
   updateFrequencies(time = this.ctx.currentTime, lfoPitchSemitones = 0) {
+    if (this.params?.voiceMode === "guitar") {
+      if (this.guitarNode && this.note !== null) {
+        const baseFreq = 440 * Math.pow(2, (this.note - 69) / 12);
+        const totalSemitones = this.pitchBend + lfoPitchSemitones;
+        const targetFreq = Math.max(
+          10,
+          Math.min(22050, baseFreq * Math.pow(2, totalSemitones / 12)),
+        );
+        this.guitarNode.port.postMessage({
+          type: "setFrequency",
+          frequency: targetFreq,
+        });
+      }
+      return;
+    }
+
     if (!this.osc1 || !this.osc2 || !this.params) return;
 
     const baseFreq = 440 * Math.pow(2, (this.note - 69) / 12);
@@ -405,13 +490,11 @@ export class SynthVoice {
   ) {
     if (!this.filter || !this.params) return;
 
-    // Resonance Q: base Q + CC1 (when cc1Target is resonance) + MPE Y (when mpeTimbreTarget is resonance)
+    // Resonance Q: base Q (controlled via CC1 or UI slider) + MPE Y (when mpeTimbreTarget is resonance on member channels)
     const baseQ =
       this.params.filterResonance !== undefined
         ? this.params.filterResonance
         : 1.0;
-    const isResoTarget = this.params.cc1Target !== "lforate";
-    const modWheelQ = isResoTarget ? (this.cc1Resonance / 127) * 18 : 0;
 
     const targetMode = this.params.mpeTimbreTarget || "cutoff";
     const mpeTimbreVal =
@@ -421,7 +504,7 @@ export class SynthVoice {
         ? (mpeTimbreVal / 127) * 18
         : 0;
 
-    const totalQ = Math.max(0.1, Math.min(25, baseQ + modWheelQ + mpeResoQ));
+    const totalQ = Math.max(0.1, Math.min(25, baseQ + mpeResoQ));
     const qTimeConstant = isContinuousCC ? 0.04 : 0.003;
     this.filter.Q.setTargetAtTime(totalQ, time, qTimeConstant);
 
@@ -502,8 +585,8 @@ export class SynthVoice {
   triggerAmpEnvelope(time, wasSounding = false) {
     if (!this.vca || !this.params) return;
 
-    const attack = Math.max(0.005, this.params.ampAttack || 0.02);
-    const decay = Math.max(0.005, this.params.ampDecay || 0.25);
+    const attack = Math.max(0.001, this.params.ampAttack !== undefined ? this.params.ampAttack : 0.008);
+    const decay = Math.max(0.005, this.params.ampDecay !== undefined ? this.params.ampDecay : 0.25);
     const sustain = Math.max(
       0.0001,
       Math.min(
@@ -514,7 +597,15 @@ export class SynthVoice {
 
     this.vca.gain.cancelScheduledValues(time);
 
-    if (wasSounding) {
+    // If attack is virtually instantaneous (<= 8ms), hit full volume immediately
+    // so guitar pluck transients are never muffled or delayed
+    if (attack <= 0.008) {
+      this.vca.gain.setValueAtTime(1.0, time);
+      this.vca.gain.exponentialRampToValueAtTime(
+        sustain,
+        time + attack + decay,
+      );
+    } else if (wasSounding) {
       const currentGain = Math.max(0.0001, this.vca.gain.value);
       this.vca.gain.setValueAtTime(currentGain, time);
       // Smooth micro-fade to zero (2.5ms)
@@ -539,12 +630,14 @@ export class SynthVoice {
    * Controls Volume via CC11/CC7, Note Velocity, and MPE Channel/Poly Pressure.
    * Completely decoupled from the filter and ADSR envelope.
    */
-  updateExpression(time = this.ctx.currentTime) {
+  updateExpression(time = this.ctx.currentTime, isNoteOn = false) {
     if (!this.expressionGain) return;
+    const isGuitar = this.params?.voiceMode === "guitar";
     const exprNorm = Math.max(0, Math.min(127, this.cc11Expression)) / 127;
     // CC11 = 0 is completely silent, CC11 = 127 is full volume
     const exprGain = Math.pow(exprNorm, 1.4);
-    const velGain = Math.pow(this.velocity, 1.1);
+    // In guitar mode, normalize velocity so repeated string presses produce rock-solid consistent volume
+    const velGain = isGuitar ? (0.90 + 0.10 * this.velocity) : Math.pow(this.velocity, 1.1);
 
     // MPE Pressure modulation of dynamics
     const targetMode = this.params?.mpePressureTarget || "both";
@@ -558,7 +651,11 @@ export class SynthVoice {
     const targetGain = exprGain * velGain * 0.75 * pressureFactor;
 
     this.expressionGain.gain.cancelScheduledValues(time);
-    this.expressionGain.gain.setTargetAtTime(targetGain, time, 0.015);
+    if (isNoteOn) {
+      this.expressionGain.gain.setValueAtTime(targetGain, time);
+    } else {
+      this.expressionGain.gain.setTargetAtTime(targetGain, time, 0.015);
+    }
   }
 
   setPitchBend(semitones) {
@@ -628,6 +725,29 @@ export class SynthVoice {
 
   updateParams(params) {
     this.params = params;
+
+    if (params.voiceMode === "guitar" && this.guitarNode) {
+      this.guitarNode.port.postMessage({
+        type: "setParams",
+        decay: params.guitarDecay,
+        damping: params.guitarDamping,
+        pluckPos: params.guitarPluckPos,
+        pickupPos: params.guitarPickupPos,
+        stiffness: params.guitarStiffness,
+        pickBite: params.guitarPickBite,
+      });
+      this.updateFrequencies();
+      this.updateFilter();
+      if (this.vca && !this.isReleasing && params.ampSustain !== undefined) {
+        this.vca.gain.setTargetAtTime(
+          Math.max(0.0001, Math.min(1.0, params.ampSustain)),
+          this.ctx.currentTime,
+          0.02,
+        );
+      }
+      return;
+    }
+
     if (this.osc1 && params.osc1Waveform) this.osc1.type = params.osc1Waveform;
     if (this.osc2 && params.osc2Waveform) this.osc2.type = params.osc2Waveform;
 
