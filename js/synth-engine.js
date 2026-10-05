@@ -133,6 +133,9 @@ export class SynthEngine {
     this.globalCC11 = 127;
     this.globalCC7 = 127;
     this.silentAudioElement = null;
+    this._recoveryPromise = null;
+    this._lastNotePerf = 0;
+    this._lastNoteAudioTime = 0;
   }
 
   /**
@@ -262,9 +265,16 @@ export class SynthEngine {
     // voicesBus -> distortion -> cabSim -> stereo delay -> reverb -> limiter -> masterGain -> masterClipper -> destination
     this.connectAudioGraph();
 
-    // 7. Pre-allocate Polyphonic Voices (4 or 8)
+    // 7. Pre-allocate Polyphonic Voice Pool (16 voices for click-free voice stealing)
+    const poolSize = Math.max(16, this.voiceCount * 2);
+    if (this.voices && this.voices.length > 0) {
+      for (const v of this.voices) {
+        if (typeof v.dispose === "function") v.dispose();
+      }
+      this.voices = [];
+    }
     this.voices = [];
-    for (let i = 0; i < this.voiceCount; i++) {
+    for (let i = 0; i < poolSize; i++) {
       this.voices.push(new SynthVoice(this.ctx, this.voicesBus, i, this));
     }
 
@@ -296,13 +306,102 @@ export class SynthEngine {
     }
 
     if (this.isAudioStarted && this.ctx) {
-      this.panic();
+      await this.recoverAudioEngine(true);
+    }
+  }
+
+  /**
+   * Recovers audio engine after device sleep, lock, interruption, or stream death.
+   * Tests context health (state, clock advancement, latency) and cleanly recreates
+   * the AudioContext if frozen or degraded to maintain pristine low-latency AAudio.
+   */
+  async recoverAudioEngine(forceReinit = false) {
+    if (!this.isAudioStarted && !forceReinit) return;
+
+    if (this._recoveryPromise) {
+      return this._recoveryPromise;
+    }
+
+    this._recoveryPromise = (async () => {
       try {
-        await this.ctx.close();
-      } catch (_) {}
+        await this._doRecoverAudioEngine(forceReinit);
+      } finally {
+        this._recoveryPromise = null;
+      }
+    })();
+
+    return this._recoveryPromise;
+  }
+
+  async _doRecoverAudioEngine(forceReinit = false) {
+    // 1. Panic stop any hanging notes or ringing delay/reverb
+    this.panic();
+
+    let needsReinit = forceReinit;
+
+    if (!this.ctx) {
+      needsReinit = true;
+    } else if (!needsReinit) {
+      // Try simple resume if suspended or interrupted
+      if (this.ctx.state === "suspended" || this.ctx.state === "interrupted") {
+        try {
+          await this.ctx.resume();
+        } catch (e) {
+          console.warn("[SynthEngine] ctx.resume() rejected:", e);
+          needsReinit = true;
+        }
+      }
+
+      // Health check: test if currentTime actually advances
+      if (!needsReinit) {
+        const t0 = this.ctx.currentTime;
+        await new Promise((r) => setTimeout(r, 60));
+        const t1 = this.ctx.currentTime;
+        const isFrozen = (t1 <= t0);
+
+        // Latency degradation check: if AAudio degraded into legacy AudioTrack fallback (>40ms baseLatency)
+        // and user is not in 'safe' buffer mode, force a clean reinit to restore ultra-low latency.
+        const isDegradedLatency = (
+          this.ctx.baseLatency &&
+          this.ctx.baseLatency > 0.040 &&
+          this.bufferMode !== "safe"
+        );
+
+        if (isFrozen || isDegradedLatency || this.ctx.state !== "running") {
+          console.warn(
+            `[SynthEngine] Audio health check failed (frozen: ${isFrozen}, degraded: ${isDegradedLatency}, state: ${this.ctx.state}, latency: ${this.ctx.baseLatency}s). Reinitializing...`
+          );
+          needsReinit = true;
+        }
+      }
+    }
+
+    if (needsReinit) {
+      console.warn("[SynthEngine] Rebuilding fresh low-latency AudioContext after sleep/wake...");
+      const oldCtx = this.ctx;
       this.ctx = null;
       this.isAudioStarted = false;
+
+      if (this.voices && this.voices.length > 0) {
+        for (const v of this.voices) {
+          if (typeof v.dispose === "function") v.dispose();
+        }
+        this.voices = [];
+      }
+
+      try {
+        if (oldCtx && oldCtx.state !== "closed") {
+          await oldCtx.close();
+        }
+      } catch (_) {}
+
       await this.initAudio();
+
+      // Update visualizer references if attached
+      if (this.ui && this.ui.visualizer) {
+        this.ui.visualizer.synth = this;
+        this.ui.visualizer.mockFilter = null;
+      }
     }
   }
 
@@ -742,6 +841,8 @@ export class SynthEngine {
   }
 
   setupReverbEffect() {
+    this.reverbConvolver = null;
+    this._currentReverbDuration = null;
     this.reverbIn = this.ctx.createGain();
     this.reverbDry = this.ctx.createGain();
     this.reverbWet = this.ctx.createGain();
@@ -788,8 +889,12 @@ export class SynthEngine {
   }
 
   buildImpulseResponse(duration = 2.0) {
+    if (this._impulseCache && this._impulseCacheSampleRate !== this.ctx.sampleRate) {
+      this._impulseCache = null;
+    }
     if (!this._impulseCache) {
       this._impulseCache = new Map();
+      this._impulseCacheSampleRate = this.ctx.sampleRate;
     }
     const key = Math.round(Math.min(Math.max(0.2, duration), 6.0) * 10) / 10;
     if (this._impulseCache.has(key)) {
@@ -938,94 +1043,114 @@ export class SynthEngine {
 
   /**
    * Finds the best voice to allocate for a new note:
-   * 1. Idle voice
-   * 2. Oldest releasing voice
-   * 3. Oldest active voice (Voice Stealing / LRU)
+   * 1. If in guitar mode, gracefully chokes any existing voice sounding this exact pitch over 12ms.
+   * 2. If active held voices >= max polyphony (4 or 8), chokes the oldest active voice over 12ms.
+   * 3. Allocates a completely fresh, idle voice from the pool for 100% pop-free note onset.
    */
   allocateVoice(note, channel) {
     const isGuitar = this.params?.voiceMode === "guitar";
+    const maxVoices = this.voiceCount || 8;
 
-    // 1. In guitar mode, a string is physically unique per pitch.
-    // If a voice is already actively sounding or releasing this note (on this channel or any channel),
-    // re-trigger the same voice. This prevents overlapping out-of-phase copies of the same pitch
-    // from causing phase cancellations and volume fluctuations!
+    // 1. In guitar mode, if another voice is actively sounding this exact pitch,
+    // gracefully choke it over 12ms so the new pluck replaces it without out-of-phase comb filtering
     if (isGuitar) {
-      for (const voice of this.voices) {
-        if (
-          voice.isActive &&
-          voice.note === note &&
-          voice.channel === channel
-        ) {
-          return voice;
-        }
-      }
-      for (const voice of this.voices) {
-        if (voice.isActive && voice.note === note) {
-          return voice;
-        }
-      }
-    } else {
-      // Analog mode: re-use voice only if actively held (not in release)
-      for (const voice of this.voices) {
-        if (
-          voice.isActive &&
-          !voice.isReleasing &&
-          voice.note === note &&
-          voice.channel === channel
-        ) {
-          return voice;
+      for (const v of this.voices) {
+        if (v.isActive && v.note === note && !v.isChoking) {
+          v.choke(0.012);
         }
       }
     }
 
-    // 2. Prioritize completely idle voices so repeated note strikes don't choke previous tails
-    for (const voice of this.voices) {
-      if (!voice.isActive) {
-        return voice;
+    // 2. Count actively sounding/held voices (excluding releasing and choking voices)
+    const activeHeldVoices = this.voices.filter(
+      (v) => v.isActive && !v.isReleasing && !v.isChoking,
+    );
+
+    // 3. If we have reached the max polyphony limit (e.g. 4 or 8),
+    // gracefully steal (choke) the oldest active held voice over 12ms!
+    if (activeHeldVoices.length >= maxVoices) {
+      let oldestTime = Infinity;
+      let oldestVoice = null;
+      for (const v of activeHeldVoices) {
+        if (v.noteOnTime < oldestTime) {
+          oldestTime = v.noteOnTime;
+          oldestVoice = v;
+        }
+      }
+      if (oldestVoice) {
+        oldestVoice.choke(0.012);
       }
     }
 
-    // 3. Prioritize oldest voice in release phase
+    // 4. Find the best available voice in the pool:
+    // A. Prioritize completely idle voices
+    for (const v of this.voices) {
+      if (!v.isActive) {
+        return v;
+      }
+    }
+
+    // B. Prioritize oldest voice in release phase that is not choking
     let oldestReleaseTime = Infinity;
     let oldestReleaseVoice = null;
-    for (const voice of this.voices) {
-      if (voice.isReleasing && voice.noteOffTime < oldestReleaseTime) {
-        oldestReleaseTime = voice.noteOffTime;
-        oldestReleaseVoice = voice;
+    for (const v of this.voices) {
+      if (v.isReleasing && !v.isChoking && v.noteOffTime < oldestReleaseTime) {
+        oldestReleaseTime = v.noteOffTime;
+        oldestReleaseVoice = v;
       }
     }
     if (oldestReleaseVoice) return oldestReleaseVoice;
 
-    // 4. Steal oldest active voice (LRU)
-    let oldestNoteTime = Infinity;
-    let oldestVoice = this.voices[0];
-    for (const voice of this.voices) {
-      if (voice.noteOnTime < oldestNoteTime) {
-        oldestNoteTime = voice.noteOnTime;
-        oldestVoice = voice;
+    // C. Fallback: Oldest voice in the pool
+    let oldestPoolTime = Infinity;
+    let fallbackVoice = this.voices[0];
+    for (const v of this.voices) {
+      if (v.noteOnTime < oldestPoolTime) {
+        oldestPoolTime = v.noteOnTime;
+        fallbackVoice = v;
       }
     }
-    return oldestVoice;
+    return fallbackVoice;
   }
 
   // --- MIDI & MPE Message Handlers ---
 
   noteOn(note, velocity = 0.8, channel = 1) {
-    if (!this.ctx) return;
-    if (this.ctx.state === "suspended") this.ctx.resume();
+    if (!this.ctx) {
+      if (this.isAudioStarted) {
+        this.recoverAudioEngine(true).then(() => {
+          this.noteOn(note, velocity, channel);
+        });
+      }
+      return;
+    }
 
-    const isGuitar = this.params?.voiceMode === "guitar";
-    const voice = this.allocateVoice(note, channel);
+    if (this.ctx.state === "suspended" || this.ctx.state === "interrupted") {
+      this.ctx.resume().catch(() => {});
+    }
 
-    // In guitar mode, guarantee that no other voice is simultaneously sounding this exact note pitch.
-    // Overlapping copies of the same note with phase offsets cause destructive comb filtering (thin, muted plucks).
-    if (isGuitar) {
-      for (const v of this.voices) {
-        if (v !== voice && v.isActive && v.note === note) {
-          v.stopImmediate();
-        }
+    // Check for frozen hardware clock when receiving notes after device sleep
+    const nowPerf = performance.now();
+    if (this._lastNotePerf && nowPerf - this._lastNotePerf > 1200) {
+      if (
+        this._lastNoteAudioTime !== undefined &&
+        this.ctx.currentTime === this._lastNoteAudioTime
+      ) {
+        console.warn(
+          "[SynthEngine] Frozen audio clock detected in noteOn! Triggering audio recovery...",
+        );
+        this._lastNotePerf = nowPerf;
+        this.recoverAudioEngine(true).then(() => {
+          this.noteOn(note, velocity, channel);
+        });
+        return;
       }
     }
+    this._lastNotePerf = nowPerf;
+    this._lastNoteAudioTime = this.ctx.currentTime;
+
+    const voice = this.allocateVoice(note, channel);
+
     // Inherit current CC state for this voice
     const activeVolumeCC = Number(this.params.volumeCC) || 11;
     const initialVolume =
@@ -1045,8 +1170,8 @@ export class SynthEngine {
 
     let released = false;
     for (const voice of this.voices) {
-      // In MPE, matching by channel is paramount; also match note
-      if (voice.isActive && voice.note === note) {
+      // In MPE, matching by channel is paramount; also match note (skip voices that are already choking)
+      if (voice.isActive && voice.note === note && !voice.isChoking) {
         if (voice.channel === channel || channel === 1 || voice.channel === 1) {
           voice.noteOff();
           released = true;
@@ -1057,7 +1182,7 @@ export class SynthEngine {
     // Fallback: if exact channel match didn't find it, match any voice with this note
     if (!released) {
       for (const voice of this.voices) {
-        if (voice.isActive && voice.note === note) {
+        if (voice.isActive && voice.note === note && !voice.isChoking) {
           voice.noteOff();
         }
       }
@@ -1072,7 +1197,7 @@ export class SynthEngine {
   panic() {
     for (const voice of this.voices) {
       if (voice.isActive) {
-        voice.stopImmediate();
+        voice.choke(0.008);
       }
     }
 

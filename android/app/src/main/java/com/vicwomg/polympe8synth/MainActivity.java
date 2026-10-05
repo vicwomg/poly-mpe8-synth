@@ -1,5 +1,7 @@
 package com.vicwomg.polympe8synth;
 
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -7,6 +9,9 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.splashscreen.SplashScreen;
+import androidx.core.view.WindowCompat;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -32,11 +37,29 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Enforce dark mode application-wide so dialogs & pickers never fall back to light theme
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+
+        // Transition from system splash screen to dark post-splash theme
+        SplashScreen.installSplashScreen(this);
+
         registerPlugin(ScreenPlugin.class);
         super.onCreate(savedInstanceState);
         
         // Keep screen awake while synthesizer is active
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Ensure black backgrounds across window, system bars, and camera cutouts
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
+        getWindow().setStatusBarColor(Color.BLACK);
+        getWindow().setNavigationBarColor(Color.BLACK);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+
+        // Enable true edge-to-edge layout across the entire physical display
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
         // Allow app to render edge-to-edge through display cutouts / notches
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -51,12 +74,30 @@ public class MainActivity extends BridgeActivity {
         // Configure WebView performance flags for real-time audio synthesis
         if (this.bridge != null && this.bridge.getWebView() != null) {
             android.webkit.WebView webView = this.bridge.getWebView();
+            webView.setBackgroundColor(Color.BLACK);
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
             WebSettings settings = webView.getSettings();
             settings.setMediaPlaybackRequiresUserGesture(false);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        enableImmersiveMode();
+        if (this.bridge != null && this.bridge.getWebView() != null) {
+            this.bridge.getWebView().onResume();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (this.bridge != null && this.bridge.getWebView() != null) {
+            this.bridge.getWebView().onPause();
         }
     }
 
@@ -69,6 +110,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void enableImmersiveMode() {
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             WindowInsetsController controller = getWindow().getInsetsController();
             if (controller != null) {
@@ -77,16 +119,15 @@ public class MainActivity extends BridgeActivity {
                     WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 );
             }
-        } else {
-            View decorView = getWindow().getDecorView();
-            decorView.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
         }
+        View decorView = getWindow().getDecorView();
+        decorView.setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            | View.SYSTEM_UI_FLAG_FULLSCREEN
+            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        );
     }
 }

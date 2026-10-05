@@ -13,6 +13,7 @@ export class SynthVoice {
     // State
     this.isActive = false;
     this.isReleasing = false;
+    this.isChoking = false;
     this.note = null;
     this.frequency = 440;
     this.velocity = 0;
@@ -105,6 +106,7 @@ export class SynthVoice {
     this.params = params;
     this.isActive = true;
     this.isReleasing = false;
+    this.isChoking = false;
     this.noteOnTime = now;
     this.frequency = 440 * Math.pow(2, (note - 69) / 12);
 
@@ -149,9 +151,43 @@ export class SynthVoice {
       return;
     }
 
-    // Capture old oscillators to stop them cleanly
+    // Capture old oscillators to stop them cleanly without clicks
     const oldOsc1 = this.osc1;
     const oldOsc2 = this.osc2;
+
+    const microFadeTime = wasSounding ? 0.0035 : 0;
+    const startTime = now + microFadeTime;
+
+    if (wasSounding) {
+      // Fade out old sounding oscillators cleanly to silence over 3.5ms
+      try {
+        if (typeof this.vca.gain.cancelAndHoldAtTime === "function") {
+          this.vca.gain.cancelAndHoldAtTime(now);
+        } else {
+          this.vca.gain.cancelScheduledValues(now);
+          this.vca.gain.setValueAtTime(Math.max(0.0001, this.vca.gain.value), now);
+        }
+        this.vca.gain.linearRampToValueAtTime(0.0001, startTime);
+      } catch (_) {}
+
+      if (oldOsc1) {
+        try { oldOsc1.stop(startTime); } catch (_) {}
+        setTimeout(() => { try { oldOsc1.disconnect(); } catch (_) {} }, (microFadeTime + 0.05) * 1000);
+      }
+      if (oldOsc2) {
+        try { oldOsc2.stop(startTime); } catch (_) {}
+        setTimeout(() => { try { oldOsc2.disconnect(); } catch (_) {} }, (microFadeTime + 0.05) * 1000);
+      }
+    } else {
+      if (oldOsc1) {
+        try { oldOsc1.stop(); } catch (_) {}
+        try { oldOsc1.disconnect(); } catch (_) {}
+      }
+      if (oldOsc2) {
+        try { oldOsc2.stop(); } catch (_) {}
+        try { oldOsc2.disconnect(); } catch (_) {}
+      }
+    }
 
     // 1. Instantiate new oscillators
     this.osc1 = this.ctx.createOscillator();
@@ -160,27 +196,25 @@ export class SynthVoice {
     this.osc2.type = params.osc2Waveform || "square";
 
     // Mix balance
-    this.updateOscMix(now);
+    this.updateOscMix(startTime);
 
     // Connect to pre-allocated mixer gains
     this.osc1.connect(this.osc1Gain);
     this.osc2.connect(this.osc2Gain);
 
     // 2. Set frequencies (including pitch bend)
-    this.updateFrequencies(now);
+    this.updateFrequencies(startTime);
 
     // 3. Set filter cutoff & resonance (with de-click interpolation if was sounding)
-    this.updateFilter(now, true, wasSounding);
+    this.updateFilter(startTime, true, wasSounding);
 
     // 4. Update Expression Gain (CC11 * velocity)
-    this.updateExpression(now, true);
+    this.updateExpression(startTime, true);
 
-    // 5. Trigger Amp ADSR Envelope with anti-pop micro-fade
-    this.triggerAmpEnvelope(now, wasSounding);
+    // 5. Trigger Amp ADSR Envelope with anti-pop ramp
+    this.triggerAmpEnvelope(startTime, wasSounding);
 
-    // 6. Start new oscillators
-    // If was sounding, offset start by 2.5ms to crossfade cleanly from zero
-    const startTime = wasSounding ? now + 0.0025 : now;
+    // 6. Start new oscillators at startTime
     this.osc1.start(startTime);
     this.osc2.start(startTime);
 
@@ -198,11 +232,12 @@ export class SynthVoice {
         try {
           if (this.pickSource) {
             try {
-              this.pickSource.stop();
+              this.pickSource.stop(startTime);
             } catch (_) {}
-            try {
-              this.pickSource.disconnect();
-            } catch (_) {}
+            const oldPick = this.pickSource;
+            setTimeout(() => {
+              try { oldPick.disconnect(); } catch (_) {}
+            }, (microFadeTime + 0.05) * 1000);
           }
           const pickNode = this.ctx.createBufferSource();
           pickNode.buffer = this.engine.pickImpulseBuffer;
@@ -241,24 +276,6 @@ export class SynthVoice {
           this.osc2.detune.linearRampToValueAtTime(0, startTime + 0.03);
         } catch (_) {}
       }
-    }
-
-    // Cleanly stop and disconnect old oscillators
-    if (oldOsc1) {
-      try {
-        oldOsc1.stop();
-      } catch (_) {}
-      try {
-        oldOsc1.disconnect();
-      } catch (_) {}
-    }
-    if (oldOsc2) {
-      try {
-        oldOsc2.stop();
-      } catch (_) {}
-      try {
-        oldOsc2.disconnect();
-      } catch (_) {}
     }
   }
 
@@ -349,60 +366,116 @@ export class SynthVoice {
   }
 
   /**
-   * Immediately silence this voice.
+   * Gracefully chokes/fades this voice to silence when stolen by polyphony limits or same-string plucking.
+   * Completely eliminates DC transients and clicks by fading down over fadeTime (12ms) before releasing the voice.
    */
-  kill() {
+  choke(fadeTime = 0.012) {
+    if (this.releaseTimeout) {
+      clearTimeout(this.releaseTimeout);
+      this.releaseTimeout = null;
+    }
+    this.isReleasing = true;
+    this.isChoking = true;
+    const now = this.ctx.currentTime;
+    const stopTime = now + fadeTime;
+
+    if (this.vca) {
+      try {
+        if (typeof this.vca.gain.cancelAndHoldAtTime === "function") {
+          this.vca.gain.cancelAndHoldAtTime(now);
+        } else {
+          this.vca.gain.cancelScheduledValues(now);
+          this.vca.gain.setValueAtTime(Math.max(0.0001, this.vca.gain.value), now);
+        }
+        this.vca.gain.linearRampToValueAtTime(0.0001, stopTime);
+      } catch (_) {}
+    }
+
+    this.stopOscillators(true, stopTime);
+
+    this.releaseTimeout = setTimeout(() => {
+      this.releaseTimeout = null;
+      this.isActive = false;
+      this.isReleasing = false;
+      this.isChoking = false;
+      this.note = null;
+      if (this.vca) {
+        try {
+          this.vca.gain.cancelScheduledValues(this.ctx.currentTime);
+          this.vca.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        } catch (_) {}
+      }
+    }, (fadeTime + 0.03) * 1000);
+  }
+
+  /**
+   * Immediately silence this voice smoothly without clicks/pops.
+   */
+  kill(fadeTime = 0.0035) {
     if (this.releaseTimeout) {
       clearTimeout(this.releaseTimeout);
       this.releaseTimeout = null;
     }
     this.isActive = false;
     this.isReleasing = false;
-    this.stopOscillators();
+    const now = this.ctx.currentTime;
     if (this.vca) {
       try {
-        this.vca.gain.cancelScheduledValues(this.ctx.currentTime);
-        this.vca.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        if (typeof this.vca.gain.cancelAndHoldAtTime === "function") {
+          this.vca.gain.cancelAndHoldAtTime(now);
+        } else {
+          this.vca.gain.cancelScheduledValues(now);
+          this.vca.gain.setValueAtTime(Math.max(0.0001, this.vca.gain.value), now);
+        }
+        this.vca.gain.linearRampToValueAtTime(0.0001, now + fadeTime);
       } catch (_) {}
     }
+    this.stopOscillators(true, now + fadeTime);
   }
 
-  stopImmediate() {
-    this.kill();
+  stopImmediate(fadeTime = 0.0035) {
+    this.kill(fadeTime);
   }
 
-  stopOscillators(stopGuitar = true) {
+  stopOscillators(stopGuitar = true, stopTime = 0) {
+    const now = this.ctx.currentTime;
+    const sTime = stopTime > 0 ? stopTime : now;
+    const isAsync = sTime > now;
+
     if (stopGuitar && this.guitarNode) {
       try {
         this.guitarNode.port.postMessage({ type: "mute" });
       } catch (e) {}
     }
-    if (this.osc1) {
-      try {
-        this.osc1.stop();
-      } catch (e) {}
-      try {
-        this.osc1.disconnect();
-      } catch (e) {}
-      this.osc1 = null;
+    const o1 = this.osc1;
+    const o2 = this.osc2;
+    this.osc1 = null;
+    this.osc2 = null;
+    if (o1) {
+      try { o1.stop(sTime); } catch (e) {}
+      if (isAsync) {
+        setTimeout(() => { try { o1.disconnect(); } catch (_) {} }, (sTime - now + 0.05) * 1000);
+      } else {
+        try { o1.disconnect(); } catch (e) {}
+      }
     }
-    if (this.osc2) {
-      try {
-        this.osc2.stop();
-      } catch (e) {}
-      try {
-        this.osc2.disconnect();
-      } catch (e) {}
-      this.osc2 = null;
+    if (o2) {
+      try { o2.stop(sTime); } catch (e) {}
+      if (isAsync) {
+        setTimeout(() => { try { o2.disconnect(); } catch (_) {} }, (sTime - now + 0.05) * 1000);
+      } else {
+        try { o2.disconnect(); } catch (e) {}
+      }
     }
-    if (this.pickSource) {
-      try {
-        this.pickSource.stop();
-      } catch (e) {}
-      try {
-        this.pickSource.disconnect();
-      } catch (e) {}
-      this.pickSource = null;
+    const pSource = this.pickSource;
+    this.pickSource = null;
+    if (pSource) {
+      try { pSource.stop(sTime); } catch (e) {}
+      if (isAsync) {
+        setTimeout(() => { try { pSource.disconnect(); } catch (_) {} }, (sTime - now + 0.05) * 1000);
+      } else {
+        try { pSource.disconnect(); } catch (e) {}
+      }
     }
   }
 
@@ -525,25 +598,31 @@ export class SynthVoice {
       const peakFreq = this.calculateTargetCutoff(1.0);
       const sustainFreq = this.calculateTargetCutoff(sustain);
 
-      this.filter.frequency.cancelScheduledValues(time);
-
       if (wasSounding) {
-        // Micro-ramp from current cutoff down to startFreq over 2.5ms to avoid filter register pop
+        // Micro-ramp from current cutoff down to startFreq over 2ms to avoid filter register pop
         const currentCutoff = Math.max(
           20,
           Math.min(20000, this.filter.frequency.value),
         );
-        this.filter.frequency.setValueAtTime(currentCutoff, time);
-        this.filter.frequency.linearRampToValueAtTime(startFreq, time + 0.0025);
-        this.filter.frequency.exponentialRampToValueAtTime(
-          peakFreq,
-          time + 0.0025 + attack,
-        );
-        this.filter.frequency.exponentialRampToValueAtTime(
-          sustainFreq,
-          time + 0.0025 + attack + decay,
-        );
+        try {
+          if (typeof this.filter.frequency.cancelAndHoldAtTime === "function") {
+            this.filter.frequency.cancelAndHoldAtTime(time);
+          } else {
+            this.filter.frequency.cancelScheduledValues(time);
+            this.filter.frequency.setValueAtTime(currentCutoff, time);
+          }
+          this.filter.frequency.linearRampToValueAtTime(startFreq, time + 0.002);
+          this.filter.frequency.exponentialRampToValueAtTime(
+            peakFreq,
+            time + 0.002 + attack,
+          );
+          this.filter.frequency.exponentialRampToValueAtTime(
+            sustainFreq,
+            time + 0.002 + attack + decay,
+          );
+        } catch (_) {}
       } else {
+        this.filter.frequency.cancelScheduledValues(time);
         this.filter.frequency.setValueAtTime(startFreq, time);
         this.filter.frequency.exponentialRampToValueAtTime(
           peakFreq,
@@ -579,8 +658,7 @@ export class SynthVoice {
 
   /**
    * Triggers the amplitude ADSR envelope.
-   * If the voice was already sounding, performs a 2.5ms micro-fade to zero
-   * before starting the attack, eliminating the step discontinuity DC click.
+   * Smoothly ramps from zero or current gain to avoid step discontinuities/pops.
    */
   triggerAmpEnvelope(time, wasSounding = false) {
     if (!this.vca || !this.params) return;
@@ -595,35 +673,39 @@ export class SynthVoice {
       ),
     );
 
-    this.vca.gain.cancelScheduledValues(time);
+    const isGuitar = this.params?.voiceMode === "guitar";
 
-    // If attack is virtually instantaneous (<= 8ms), hit full volume immediately
-    // so guitar pluck transients are never muffled or delayed
-    if (attack <= 0.008) {
-      this.vca.gain.setValueAtTime(1.0, time);
-      this.vca.gain.exponentialRampToValueAtTime(
-        sustain,
-        time + attack + decay,
-      );
-    } else if (wasSounding) {
-      const currentGain = Math.max(0.0001, this.vca.gain.value);
-      this.vca.gain.setValueAtTime(currentGain, time);
-      // Smooth micro-fade to zero (2.5ms)
-      this.vca.gain.linearRampToValueAtTime(0.0001, time + 0.0025);
-      // Clean attack start from zero
-      this.vca.gain.linearRampToValueAtTime(1.0, time + 0.0025 + attack);
-      this.vca.gain.exponentialRampToValueAtTime(
-        sustain,
-        time + 0.0025 + attack + decay,
-      );
-    } else {
-      this.vca.gain.setValueAtTime(0.0001, time);
-      this.vca.gain.linearRampToValueAtTime(1.0, time + attack);
-      this.vca.gain.exponentialRampToValueAtTime(
-        sustain,
-        time + attack + decay,
-      );
-    }
+    try {
+      if (isGuitar && wasSounding) {
+        // In guitar mode with a re-pluck on an active string, smoothly ramp from current gain to 1.0
+        // without any step discontinuity
+        if (typeof this.vca.gain.cancelAndHoldAtTime === "function") {
+          this.vca.gain.cancelAndHoldAtTime(time);
+        } else {
+          this.vca.gain.cancelScheduledValues(time);
+          this.vca.gain.setValueAtTime(Math.max(0.0001, this.vca.gain.value), time);
+        }
+        const attackRamp = Math.max(0.002, attack);
+        this.vca.gain.linearRampToValueAtTime(1.0, time + attackRamp);
+        this.vca.gain.exponentialRampToValueAtTime(
+          sustain,
+          time + attackRamp + decay,
+        );
+      } else {
+        // Clean attack starting from silence:
+        // Always use a smooth linear ramp to 1.0 (never a discontinuous setValueAtTime)
+        if (!wasSounding) {
+          this.vca.gain.cancelScheduledValues(time);
+          this.vca.gain.setValueAtTime(0.0001, time);
+        }
+        const attackRamp = Math.max(0.002, attack);
+        this.vca.gain.linearRampToValueAtTime(1.0, time + attackRamp);
+        this.vca.gain.exponentialRampToValueAtTime(
+          sustain,
+          time + attackRamp + decay,
+        );
+      }
+    } catch (_) {}
   }
 
   /**
@@ -650,12 +732,10 @@ export class SynthVoice {
 
     const targetGain = exprGain * velGain * 0.75 * pressureFactor;
 
-    this.expressionGain.gain.cancelScheduledValues(time);
-    if (isNoteOn) {
-      this.expressionGain.gain.setValueAtTime(targetGain, time);
-    } else {
-      this.expressionGain.gain.setTargetAtTime(targetGain, time, 0.015);
-    }
+    try {
+      this.expressionGain.gain.cancelScheduledValues(time);
+      this.expressionGain.gain.setTargetAtTime(targetGain, time, isNoteOn ? 0.005 : 0.015);
+    } catch (_) {}
   }
 
   setPitchBend(semitones) {
@@ -767,4 +847,31 @@ export class SynthVoice {
     this.updateFrequencies();
     this.updateFilter();
   }
+
+  /**
+   * Cleans up all node connections and pending timeouts when tearing down or recreating voice pool.
+   */
+  dispose() {
+    if (this.releaseTimeout) {
+      clearTimeout(this.releaseTimeout);
+      this.releaseTimeout = null;
+    }
+    this.isActive = false;
+    this.isReleasing = false;
+    this.isChoking = false;
+    this.note = null;
+    try {
+      this.stopOscillators(true, 0);
+    } catch (_) {}
+    try {
+      if (this.vca) this.vca.disconnect();
+      if (this.expressionGain) this.expressionGain.disconnect();
+      if (this.pickGain) this.pickGain.disconnect();
+      if (this.filter) this.filter.disconnect();
+      if (this.osc1Gain) this.osc1Gain.disconnect();
+      if (this.osc2Gain) this.osc2Gain.disconnect();
+      if (this.guitarGain) this.guitarGain.disconnect();
+    } catch (_) {}
+  }
 }
+

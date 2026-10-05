@@ -500,6 +500,7 @@ class SynthUI {
     // 6. Bind Synth Controls & Oscillator Tabs
     this.bindControls();
     this.initOscillatorTabs();
+    this.setupSliderHoverBubbles();
 
     // 7. Setup Presets
     await this.initPresets();
@@ -688,13 +689,67 @@ class SynthUI {
       window.addEventListener(evt, () => this.recordActivity(), { passive: true });
     });
 
-    // Re-acquire wake lock when returning to the tab/app
-    document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState === 'visible' && this.keepScreenAwake && this.synth.isAudioStarted) {
-        this.recordActivity();
+    // Sleep / Wake Lifecycle & Low-Latency Audio Recovery across Android, iOS, and Web
+    let lastHiddenTime = 0;
+
+    const handleAppSleep = () => {
+      lastHiddenTime = Date.now();
+      if (this.synth?.isAudioStarted) {
+        this.synth.panic();
+      }
+    };
+
+    const handleAppWake = async (reason = 'wake') => {
+      if (!this.synth?.isAudioStarted) return;
+      this.recordActivity();
+      if (this.keepScreenAwake) {
         await this.requestWakeLock();
       }
+
+      const elapsedHiddenMs = lastHiddenTime > 0 ? (Date.now() - lastHiddenTime) : 0;
+      // If the app was sleeping/hidden for > 1000ms or triggered by native resume,
+      // force clean re-initialization of AudioContext to guarantee native AAudio low-latency
+      const forceReinit = elapsedHiddenMs > 1000 || reason === 'resume';
+
+      await this.synth.recoverAudioEngine(forceReinit);
+      if (this.visualizer) {
+        this.visualizer.synth = this.synth;
+        this.visualizer.mockFilter = null;
+      }
+      updateStatusUI();
+    };
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        handleAppSleep();
+      } else if (document.visibilityState === 'visible') {
+        handleAppWake('visibility');
+      }
     });
+
+    // Native Cordova/Capacitor bridge resume/pause events
+    document.addEventListener('pause', handleAppSleep);
+    document.addEventListener('resume', () => handleAppWake('resume'));
+
+    // Window focus / blur events
+    window.addEventListener('blur', () => {
+      if (!lastHiddenTime) lastHiddenTime = Date.now();
+    });
+    window.addEventListener('focus', () => handleAppWake('focus'));
+    window.addEventListener('pageshow', () => handleAppWake('pageshow'));
+
+    // Capacitor App plugin listener if available
+    if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.App) {
+      try {
+        window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+          if (state && state.isActive) {
+            handleAppWake('capacitor_appStateChange');
+          } else {
+            handleAppSleep();
+          }
+        });
+      } catch (_) {}
+    }
 
     this.updateWakeLockUI = updateStatusUI;
     this.scheduleInactivityTimer();
@@ -2304,6 +2359,201 @@ class SynthUI {
 
     // Initialize Oscillator Mix visuals with current param
     this.updateOscMixVisuals(this.synth.params.osc2Mix ?? 0.5);
+  }
+
+  // --- Floating Slider Value Hover Indicator (Touch & Mouse) ---
+
+  setupSliderHoverBubbles() {
+    let bubble = document.getElementById('slider-val-bubble');
+    if (!bubble) {
+      bubble = document.createElement('div');
+      bubble.id = 'slider-val-bubble';
+      bubble.className = 'slider-val-bubble';
+      bubble.setAttribute('aria-hidden', 'true');
+      bubble.innerHTML = '<span class="slider-bubble-label"></span><span class="slider-bubble-val"></span>';
+      document.body.appendChild(bubble);
+    }
+
+    const labelEl = bubble.querySelector('.slider-bubble-label');
+    const valEl = bubble.querySelector('.slider-bubble-val');
+
+    let activeSlider = null;
+    let isTouch = false;
+    let currentPointerX = null;
+    let currentPointerY = null;
+
+    const getSliderLabel = (slider) => {
+      const parent = slider.parentElement;
+      if (!parent) return '';
+      const labelNode = parent.querySelector('label') ||
+                        parent.closest('.control-unit, .fader-col, .osc-mix-inline, .pick-pluck-inline, .slider-row, .volume-container, .adsr-section')?.querySelector('label, .slider-label');
+      if (labelNode) {
+        let text = labelNode.textContent.trim();
+        return text.replace(/\s*\(.*?\)\s*/g, '').trim() || text;
+      }
+      return slider.getAttribute('aria-label') || slider.getAttribute('title') || '';
+    };
+
+    const getSliderValueText = (slider) => {
+      const disp = document.getElementById(`${slider.id}-val`);
+      if (disp && disp.textContent.trim()) {
+        return disp.textContent.trim();
+      }
+      if (slider.id === 'filterCutoff') {
+        const readout = document.getElementById('filter-cutoff-readout');
+        if (readout && readout.textContent.trim()) return readout.textContent.trim();
+      }
+      return slider.value;
+    };
+
+    const updateBubbleContent = (slider) => {
+      if (!slider) return;
+      const labelText = getSliderLabel(slider);
+      const valText = getSliderValueText(slider);
+
+      if (labelEl) {
+        labelEl.textContent = labelText;
+        labelEl.style.display = labelText ? '' : 'none';
+      }
+      if (valEl) {
+        valEl.textContent = valText;
+      }
+
+      const isGuitar = slider.id.startsWith('guitar') ||
+                       Boolean(slider.closest('#guitar-controls-block'));
+      bubble.classList.toggle('guitar-bubble', isGuitar);
+    };
+
+    const computeThumbPosition = (slider) => {
+      const rect = slider.getBoundingClientRect();
+      const min = parseFloat(slider.min) || 0;
+      const max = parseFloat(slider.max) || 100;
+      const val = parseFloat(slider.value) || 0;
+      const ratio = max > min ? Math.max(0, Math.min(1, (val - min) / (max - min))) : 0.5;
+
+      const isVertical = slider.getAttribute('orient') === 'vertical' ||
+                         slider.offsetHeight > slider.offsetWidth;
+
+      if (isVertical) {
+        const thumbY = rect.bottom - 7 - ratio * Math.max(0, rect.height - 14);
+        const thumbX = rect.left + rect.width / 2;
+        return { x: thumbX, y: thumbY, isVertical: true };
+      } else {
+        const thumbX = rect.left + 7 + ratio * Math.max(0, rect.width - 14);
+        const thumbY = rect.top + rect.height / 2;
+        return { x: thumbX, y: thumbY, isVertical: false };
+      }
+    };
+
+    const updatePosition = () => {
+      if (!activeSlider) return;
+      const thumbPos = computeThumbPosition(activeSlider);
+      const bubbleRect = bubble.getBoundingClientRect();
+      const bubbleW = bubbleRect.width || 72;
+      const bubbleH = bubbleRect.height || 36;
+
+      const anchorX = thumbPos.x;
+      const baseAnchorY = currentPointerY != null ? Math.min(thumbPos.y, currentPointerY) : thumbPos.y;
+
+      const offsetY = isTouch ? 50 : 36;
+      let top = baseAnchorY - offsetY - bubbleH;
+      let isBelow = false;
+
+      if (top < 8) {
+        top = (currentPointerY != null ? currentPointerY : thumbPos.y) + (isTouch ? 36 : 24);
+        isBelow = true;
+      }
+
+      let left = anchorX - (bubbleW / 2);
+      const margin = 8;
+      const maxLeft = window.innerWidth - bubbleW - margin;
+      left = Math.max(margin, Math.min(maxLeft, left));
+
+      const caretX = Math.max(10, Math.min(bubbleW - 10, anchorX - left));
+      bubble.style.setProperty('--caret-left', `${caretX}px`);
+
+      bubble.style.top = `${top}px`;
+      bubble.style.left = `${left}px`;
+      bubble.classList.toggle('bubble-below', isBelow);
+    };
+
+    const showBubble = (slider, clientX, clientY, pointerType) => {
+      activeSlider = slider;
+      isTouch = pointerType === 'touch' || ('ontouchstart' in window && !clientX);
+      currentPointerX = clientX;
+      currentPointerY = clientY;
+
+      updateBubbleContent(slider);
+      bubble.classList.add('visible');
+      updatePosition();
+    };
+
+    const hideBubble = () => {
+      activeSlider = null;
+      currentPointerX = null;
+      currentPointerY = null;
+      bubble.classList.remove('visible');
+    };
+
+    const sliders = document.querySelectorAll('input[type="range"]');
+    sliders.forEach(slider => {
+      slider.addEventListener('pointerdown', (e) => {
+        showBubble(slider, e.clientX, e.clientY, e.pointerType);
+      }, { passive: true });
+
+      slider.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+          const t = e.touches[0];
+          showBubble(slider, t.clientX, t.clientY, 'touch');
+        }
+      }, { passive: true });
+
+      slider.addEventListener('input', () => {
+        if (activeSlider === slider) {
+          updateBubbleContent(slider);
+          updatePosition();
+        }
+      }, { passive: true });
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (activeSlider) {
+        currentPointerX = e.clientX;
+        currentPointerY = e.clientY;
+        updateBubbleContent(activeSlider);
+        updatePosition();
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (activeSlider && e.touches.length > 0) {
+        const t = e.touches[0];
+        currentPointerX = t.clientX;
+        currentPointerY = t.clientY;
+        updateBubbleContent(activeSlider);
+        updatePosition();
+      }
+    }, { passive: true });
+
+    window.addEventListener('pointerup', () => {
+      if (activeSlider) hideBubble();
+    }, { passive: true });
+
+    window.addEventListener('pointercancel', () => {
+      if (activeSlider) hideBubble();
+    }, { passive: true });
+
+    window.addEventListener('touchend', () => {
+      if (activeSlider) hideBubble();
+    }, { passive: true });
+
+    window.addEventListener('touchcancel', () => {
+      if (activeSlider) hideBubble();
+    }, { passive: true });
+
+    window.addEventListener('blur', () => {
+      if (activeSlider) hideBubble();
+    });
   }
 
   // --- MPE Performance Controls & 2D Touchpad ---

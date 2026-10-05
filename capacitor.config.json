@@ -3,6 +3,7 @@
   "appName": "PM-8",
   "webDir": "www",
   "bundledWebRuntime": false,
+  "backgroundColor": "#000000",
   "server": {
     "androidScheme": "https",
     "iosScheme": "pm-8",

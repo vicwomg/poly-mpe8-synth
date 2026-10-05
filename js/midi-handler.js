@@ -54,7 +54,7 @@ export class MidiHandler {
     const sourceName = detail.sourceName || 'CoreMIDI';
 
     // Auto resume Web Audio on incoming MIDI if suspended
-    if (this.synth.ctx && this.synth.ctx.state === 'suspended') {
+    if (this.synth.ctx && (this.synth.ctx.state === 'suspended' || this.synth.ctx.state === 'interrupted')) {
       this.synth.ctx.resume().catch(() => {});
     }
 
@@ -420,6 +420,9 @@ export class MidiHandler {
           );
           if (port.state === 'connected') {
             setTimeout(() => this.probeMidiIdentity(), 150);
+            if (this.synth && this.synth.isAudioStarted) {
+              this.synth.recoverAudioEngine(false);
+            }
           }
         }
       };

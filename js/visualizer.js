@@ -179,7 +179,7 @@ export class Visualizer {
     ctx.fillText('1kHz', (Math.log10(1000 / 20) / Math.log10(1000)) * width - 12, height - 6);
     ctx.fillText('10kHz', (Math.log10(10000 / 20) / Math.log10(1000)) * width - 15, height - 6);
 
-    if (!this.mockFilter) {
+    if (!this.mockFilter || this.mockFilter.context !== this.synth.ctx) {
       this.mockFilter = this.synth.ctx.createBiquadFilter();
       this.mockFilter.type = 'lowpass';
     }

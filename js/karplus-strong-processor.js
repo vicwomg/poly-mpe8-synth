@@ -53,6 +53,19 @@ class KarplusStrongProcessor extends AudioWorkletProcessor {
     this.dcX = 0;
     this.dcY = 0;
 
+    // De-click state for pop-free voice stealing and re-plucking
+    this.lastOutSample = 0;
+    this.declickOffset = 0;
+    this.declickSamples = 0;
+    this.declickStep = 0;
+    this.needsDeclick = false;
+
+    // Smooth muting state
+    this.isMuting = false;
+    this.muteSamplesLeft = 0;
+    this.muteStep = 0;
+    this.muteGain = 1.0;
+
     // Excitation transient state
     this.exciteBuffer = null;
     this.exciteIndex = 0;
@@ -136,25 +149,39 @@ class KarplusStrongProcessor extends AudioWorkletProcessor {
         break;
 
       case 'mute':
-        this.isActive = false;
-        this.isReleasing = false;
-        this.exciteBuffer = null;
-        this.exciteIndex = 0;
-        this.buffer.fill(0);
-        this.loopFiltY = 0;
-        this.apX.fill(0);
-        this.apY.fill(0);
-        this.tfX1 = 0;
-        this.tfX2 = 0;
-        this.tfY1 = 0;
-        this.tfY2 = 0;
-        this.dcX = 0;
-        this.dcY = 0;
+        if (this.isActive) {
+          this.isMuting = true;
+          this.muteSamplesLeft = 128; // ~2.67ms micro-fade
+          this.muteStep = 1.0 / 128;
+          this.muteGain = 1.0;
+        } else {
+          this.isActive = false;
+          this.isReleasing = false;
+          this.isMuting = false;
+          this.exciteBuffer = null;
+          this.exciteIndex = 0;
+          this.buffer.fill(0);
+          this.loopFiltY = 0;
+          this.apX.fill(0);
+          this.apY.fill(0);
+          this.tfX1 = 0;
+          this.tfX2 = 0;
+          this.tfY1 = 0;
+          this.tfY2 = 0;
+          this.dcX = 0;
+          this.dcY = 0;
+          this.lastOutSample = 0;
+        }
         break;
     }
   }
 
   triggerPluck(data) {
+    const wasActive = this.isActive;
+    this.isMuting = false;
+    if (wasActive) {
+      this.needsDeclick = true;
+    }
     const freq = data.frequency || 220;
     this.targetFrequency = Math.max(10, Math.min(22000, freq));
     this.currentFrequency = this.targetFrequency;
@@ -252,8 +279,9 @@ class KarplusStrongProcessor extends AudioWorkletProcessor {
     const outChannel = output[0];
     const numSamples = outChannel.length;
 
-    if (!this.isActive) {
+    if (!this.isActive && !this.isMuting) {
       outChannel.fill(0);
+      this.lastOutSample = 0;
       return true;
     }
 
@@ -392,7 +420,50 @@ class KarplusStrongProcessor extends AudioWorkletProcessor {
       dcX = toneSig;
       dcY = outSample;
 
-      outChannel[n] = outSample;
+      let finalOut = outSample;
+
+      // Anti-pop de-clicking on voice stealing/re-plucking:
+      // Bridges any step discontinuity between the old vibrating string and the new pluck excitation over 64 samples
+      if (this.needsDeclick) {
+        this.needsDeclick = false;
+        const diff = this.lastOutSample - finalOut;
+        if (Math.abs(diff) > 0.0001) {
+          this.declickOffset = diff;
+          this.declickSamples = 64; // ~1.33ms at 48kHz
+          this.declickStep = diff / 64;
+        }
+      }
+
+      if (this.declickSamples > 0) {
+        finalOut += this.declickOffset;
+        this.declickOffset -= this.declickStep;
+        this.declickSamples--;
+      }
+
+      // Smooth muting ramp
+      if (this.isMuting) {
+        finalOut *= this.muteGain;
+        this.muteGain -= this.muteStep;
+        this.muteSamplesLeft--;
+        if (this.muteSamplesLeft <= 0) {
+          this.isMuting = false;
+          this.isActive = false;
+          this.buffer.fill(0);
+          this.loopFiltY = 0;
+          this.apX.fill(0);
+          this.apY.fill(0);
+          this.tfX1 = 0;
+          this.tfX2 = 0;
+          this.tfY1 = 0;
+          this.tfY2 = 0;
+          this.dcX = 0;
+          this.dcY = 0;
+          finalOut = 0;
+        }
+      }
+
+      outChannel[n] = finalOut;
+      this.lastOutSample = finalOut;
 
       wIdx = (wIdx + 1) & mask;
     }
