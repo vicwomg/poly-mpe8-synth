@@ -19,6 +19,10 @@ class SynthUI {
 
     this.synth.ui = this;
     this.synth.hasSmoothCutoff = true;
+    this.keepPresetBrowserOpen =
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem('synth_preset_keep_open') === 'true'
+        : false;
   }
 
   async init() {
@@ -32,8 +36,10 @@ class SynthUI {
       }
       document.documentElement.dataset.notchSide = isSecondary ? 'right' : 'left';
     };
+    this.updateNotchOrientation = updateNotchOrientation;
     updateNotchOrientation();
     window.addEventListener('orientationchange', updateNotchOrientation);
+    window.addEventListener('resize', updateNotchOrientation);
     window.screen?.orientation?.addEventListener?.('change', updateNotchOrientation);
 
     // 1. Audio Start / Resume
@@ -82,6 +88,12 @@ class SynthUI {
     const polySelect = document.getElementById('poly-select');
     const maxVoiceEl = document.getElementById('voice-count-max');
 
+    if (bufferStat) {
+      this.synth.onBufferStatChange = (ms) => {
+        bufferStat.textContent = `${ms} ms`;
+      };
+    }
+
     if (bufferSelect) {
       bufferSelect.value = this.synth.bufferMode;
       bufferSelect.addEventListener('change', async (e) => {
@@ -90,6 +102,18 @@ class SynthUI {
           this.visualizer.synth = this.synth;
         }
       });
+    }
+
+    if (typeof window !== 'undefined' && window.Capacitor?.Plugins?.Preferences) {
+      window.Capacitor.Plugins.Preferences.get({ key: 'synth_buffer_mode' }).then(res => {
+        if (res?.value && ['ultralow', 'interactive', 'balanced', 'safe'].includes(res.value) && res.value !== this.synth.bufferMode) {
+          this.synth.bufferMode = res.value;
+          if (bufferSelect) bufferSelect.value = res.value;
+          if (this.synth.isAudioStarted) {
+            this.synth.reconfigureAudio(res.value, null);
+          }
+        }
+      }).catch(() => {});
     }
 
     if (polySelect) {
@@ -163,9 +187,6 @@ class SynthUI {
       });
     }
 
-    this.synth.onBufferStatChange = (ms) => {
-      if (bufferStat) bufferStat.textContent = `${ms} ms`;
-    };
 
     // 2. Settings Modal & Info Modal UI
     const midiSelect = document.getElementById('midi-input-select');
@@ -520,7 +541,20 @@ class SynthUI {
 
   // --- Screen Wake Lock & Auto Screen Sleep Management ---
 
-  // --- Screen Wake Lock & Auto Screen Sleep Management ---
+  getScreenPlugin() {
+    if (typeof window === 'undefined' || !window.Capacitor) return null;
+    if (window.Capacitor.Plugins?.ScreenPlugin) {
+      return window.Capacitor.Plugins.ScreenPlugin;
+    }
+    if (typeof window.Capacitor.registerPlugin === 'function') {
+      try {
+        return window.Capacitor.registerPlugin('ScreenPlugin');
+      } catch (err) {
+        console.warn('Failed to register ScreenPlugin via registerPlugin:', err);
+      }
+    }
+    return null;
+  }
 
   async setNativeKeepAwake(enabled) {
     if (typeof window === 'undefined' || !window.Capacitor?.isNativePlatform?.()) return;
@@ -531,19 +565,15 @@ class SynthUI {
         const plugin = this.midi?.getCoreMidiPlugin?.() || window.Capacitor?.Plugins?.CoreMidiPlugin;
         if (plugin?.setIdleTimerDisabled) {
           await plugin.setIdleTimerDisabled({ disabled: enabled });
-        } else if (window.Capacitor?.nativePromise) {
-          await window.Capacitor.nativePromise('CoreMidiPlugin', 'setIdleTimerDisabled', { disabled: enabled });
         }
       } catch (e) {
         console.warn('Failed to set native iOS idle timer:', e);
       }
     } else if (platform === 'android') {
       try {
-        const plugin = window.Capacitor?.Plugins?.ScreenPlugin;
+        const plugin = this.getScreenPlugin();
         if (plugin?.setKeepScreenOn) {
           await plugin.setKeepScreenOn({ enabled });
-        } else if (window.Capacitor?.nativePromise) {
-          await window.Capacitor.nativePromise('ScreenPlugin', 'setKeepScreenOn', { enabled });
         }
       } catch (e) {
         console.warn('Failed to set native Android screen flag:', e);
@@ -700,6 +730,8 @@ class SynthUI {
     };
 
     const handleAppWake = async (reason = 'wake') => {
+      this.updateNotchOrientation?.();
+      this.updateMobilePresetSelect?.();
       if (!this.synth?.isAudioStarted) return;
       this.recordActivity();
       if (this.keepScreenAwake) {
@@ -1603,6 +1635,19 @@ class SynthUI {
       if (searchClear) searchClear.style.display = 'none';
       this.renderPresetGrid();
     });
+
+    const keepOpenCheckbox = document.getElementById('preset-browser-keep-open');
+    if (keepOpenCheckbox) {
+      keepOpenCheckbox.checked = this.keepPresetBrowserOpen;
+      keepOpenCheckbox.parentElement?.classList.toggle('is-checked', this.keepPresetBrowserOpen);
+      keepOpenCheckbox.addEventListener('change', (e) => {
+        this.keepPresetBrowserOpen = e.target.checked;
+        keepOpenCheckbox.parentElement?.classList.toggle('is-checked', this.keepPresetBrowserOpen);
+        try {
+          localStorage.setItem('synth_preset_keep_open', this.keepPresetBrowserOpen ? 'true' : 'false');
+        } catch (_) {}
+      });
+    }
   }
 
   openPresetGridModal() {
@@ -1615,6 +1660,12 @@ class SynthUI {
     const searchClear = document.getElementById('preset-browser-search-clear');
     if (searchInput) searchInput.value = '';
     if (searchClear) searchClear.style.display = 'none';
+
+    const keepOpenCheckbox = document.getElementById('preset-browser-keep-open');
+    if (keepOpenCheckbox) {
+      keepOpenCheckbox.checked = this.keepPresetBrowserOpen;
+      keepOpenCheckbox.parentElement?.classList.toggle('is-checked', this.keepPresetBrowserOpen);
+    }
 
     this.renderPresetGrid();
     modal.style.display = 'flex';
@@ -1737,7 +1788,9 @@ class SynthUI {
 
       btn.addEventListener('click', () => {
         this.loadPreset(p.id);
-        this.closePresetGridModal();
+        if (!this.keepPresetBrowserOpen) {
+          this.closePresetGridModal();
+        }
       });
 
       grid.appendChild(btn);
@@ -1873,20 +1926,28 @@ class SynthUI {
     }
 
     this.currentDisplayCutoff = params.filterCutoff;
+    this.targetCutoffHz = params.filterCutoff;
     if (this.cutoffAnimFrame) {
       cancelAnimationFrame(this.cutoffAnimFrame);
       this.cutoffAnimFrame = null;
     }
+    this.lastCutoffFrameTime = null;
+
     this.currentDisplayResonance = params.filterResonance;
+    this.targetResonanceQ = params.filterResonance;
     if (this.resoAnimFrame) {
       cancelAnimationFrame(this.resoAnimFrame);
       this.resoAnimFrame = null;
     }
+    this.lastResoFrameTime = null;
+
     this.currentDisplayLfoRate = params.lfoRate;
+    this.targetLfoRateVal = params.lfoRate;
     if (this.lfoRateAnimFrame) {
       cancelAnimationFrame(this.lfoRateAnimFrame);
       this.lfoRateAnimFrame = null;
     }
+    this.lastLfoRateFrameTime = null;
 
     this.updateSharedModulationBadges();
   }
@@ -1969,20 +2030,27 @@ class SynthUI {
 
   /**
    * Smooth continuous analog slew interpolation for incoming MIDI CC73/CC74.
-   * Glides the UI slider, readout, and engine cutoff smoothly at 60fps
-   * eliminating 60Hz discrete stepping and providing an authentic analog dial feel.
+   * Glides the UI slider, readout, and Web Audio engine cutoff smoothly across frames,
+   * eliminating 7-bit discrete pot stepping and providing an authentic analog dial feel.
    */
   animateCutoffTo(targetHz) {
     this.targetCutoffHz = targetHz;
     if (this.cutoffAnimFrame) return;
 
+    this.lastCutoffFrameTime = performance.now();
     const step = () => {
+      const now = performance.now();
+      const dt = Math.min(0.064, (now - (this.lastCutoffFrameTime || now)) / 1000) || 0.016;
+      this.lastCutoffFrameTime = now;
+
       const current = this.currentDisplayCutoff !== undefined
         ? this.currentDisplayCutoff
         : (this.synth.params.filterCutoff || 2500);
 
       const diff = this.targetCutoffHz - current;
-      if (Math.abs(diff) < 1.0) {
+      const settleThreshold = Math.max(1.5, this.targetCutoffHz * 0.003);
+
+      if (Math.abs(diff) <= settleThreshold) {
         this.currentDisplayCutoff = this.targetCutoffHz;
         this.synth.params.filterCutoff = this.targetCutoffHz;
         const displayHz = Math.round(this.targetCutoffHz);
@@ -1990,12 +2058,29 @@ class SynthUI {
         const readout = document.getElementById('filter-cutoff-readout');
         if (readout) readout.textContent = `${displayHz} Hz`;
         this.visualizer?.markFilterDirty();
+
+        if (this.synth.voices && this.synth.ctx) {
+          const audioTime = this.synth.ctx.currentTime;
+          for (let i = 0; i < this.synth.voices.length; i++) {
+            const v = this.synth.voices[i];
+            if (v && v.isActive && !v.isReleasing) {
+              v.updateFilter(audioTime, false, false, true);
+            }
+          }
+        }
+
         this.cutoffAnimFrame = null;
+        this.lastCutoffFrameTime = null;
         return;
       }
 
-      // Analog ballistic exponential tracking towards incoming MIDI CC frequency (0.55 fast response)
-      const next = current + diff * 0.55;
+      // Adaptive delta-time exponential moving average:
+      // ~48ms for fine movements/slow turns, accelerating to ~32ms for wide sweeps
+      const ratio = Math.max(this.targetCutoffHz / Math.max(1, current), current / Math.max(1, this.targetCutoffHz));
+      const tau = ratio > 1.8 ? 0.032 : (0.048 - Math.min(1, (ratio - 1) / 0.8) * 0.016);
+      const alpha = Math.min(0.85, 1 - Math.exp(-dt / tau));
+      const next = current + diff * alpha;
+
       this.currentDisplayCutoff = next;
       this.synth.params.filterCutoff = next;
       const displayHz = Math.round(next);
@@ -2003,6 +2088,16 @@ class SynthUI {
       const readout = document.getElementById('filter-cutoff-readout');
       if (readout) readout.textContent = `${displayHz} Hz`;
       this.visualizer?.markFilterDirty();
+
+      if (this.synth.voices && this.synth.ctx) {
+        const audioTime = this.synth.ctx.currentTime;
+        for (let i = 0; i < this.synth.voices.length; i++) {
+          const v = this.synth.voices[i];
+          if (v && v.isActive && !v.isReleasing) {
+            v.updateFilter(audioTime, false, false, true);
+          }
+        }
+      }
 
       this.cutoffAnimFrame = requestAnimationFrame(step);
     };
@@ -2012,33 +2107,61 @@ class SynthUI {
 
   /**
    * Smooth continuous analog slew interpolation for incoming MIDI CC1 (Filter Resonance).
-   * Glides the resonance slider and numeric readout at 60fps for a tactile analog dial feel.
+   * Glides the resonance slider, numeric readout, and audio voice filters smoothly.
    */
   animateResonanceTo(targetQ) {
     this.targetResonanceQ = targetQ;
     if (this.resoAnimFrame) return;
 
+    this.lastResoFrameTime = performance.now();
     const step = () => {
+      const now = performance.now();
+      const dt = Math.min(0.064, (now - (this.lastResoFrameTime || now)) / 1000) || 0.016;
+      this.lastResoFrameTime = now;
+
       const current = this.currentDisplayResonance !== undefined
         ? this.currentDisplayResonance
         : (this.synth.params.filterResonance ?? 1.0);
 
       const diff = this.targetResonanceQ - current;
-      if (Math.abs(diff) < 0.04) {
+      if (Math.abs(diff) <= 0.02) {
         this.currentDisplayResonance = this.targetResonanceQ;
         this.synth.params.filterResonance = this.targetResonanceQ;
         this.updateSliderUI('filterResonance', this.targetResonanceQ, this.targetResonanceQ.toFixed(1));
         this.visualizer?.markFilterDirty();
+
+        if (this.synth.voices && this.synth.ctx) {
+          const audioTime = this.synth.ctx.currentTime;
+          for (let i = 0; i < this.synth.voices.length; i++) {
+            const v = this.synth.voices[i];
+            if (v && v.isActive && !v.isReleasing) {
+              v.updateFilter(audioTime, false, false, true);
+            }
+          }
+        }
+
         this.resoAnimFrame = null;
+        this.lastResoFrameTime = null;
         return;
       }
 
-      // Smooth ballistic tracking (0.55 fast response)
-      const next = current + diff * 0.55;
+      // Delta-time EMA slew (tau ~45ms)
+      const alpha = Math.min(0.85, 1 - Math.exp(-dt / 0.045));
+      const next = current + diff * alpha;
       this.currentDisplayResonance = next;
       this.synth.params.filterResonance = next;
       this.updateSliderUI('filterResonance', next, next.toFixed(1));
       this.visualizer?.markFilterDirty();
+
+      if (this.synth.voices && this.synth.ctx) {
+        const audioTime = this.synth.ctx.currentTime;
+        for (let i = 0; i < this.synth.voices.length; i++) {
+          const v = this.synth.voices[i];
+          if (v && v.isActive && !v.isReleasing) {
+            v.updateFilter(audioTime, false, false, true);
+          }
+        }
+      }
 
       this.resoAnimFrame = requestAnimationFrame(step);
     };
@@ -2048,31 +2171,55 @@ class SynthUI {
 
   /**
    * Smooth continuous analog slew interpolation for incoming MIDI CC1 (LFO Rate).
-   * Glides the LFO rate slider and numeric readout smoothly across all frequencies.
+   * Glides the LFO rate slider, numeric readout, and audio LFO oscillator frequency smoothly.
    */
   animateLfoRateTo(targetRate) {
     this.targetLfoRateVal = targetRate;
     if (this.lfoRateAnimFrame) return;
 
+    this.lastLfoRateFrameTime = performance.now();
     const step = () => {
+      const now = performance.now();
+      const dt = Math.min(0.064, (now - (this.lastLfoRateFrameTime || now)) / 1000) || 0.016;
+      this.lastLfoRateFrameTime = now;
+
       const current = this.currentDisplayLfoRate !== undefined
         ? this.currentDisplayLfoRate
         : (this.synth.params.lfoRate ?? 3.5);
 
       const diff = this.targetLfoRateVal - current;
-      if (Math.abs(diff) < 0.04) {
+      if (Math.abs(diff) <= 0.02) {
         this.currentDisplayLfoRate = this.targetLfoRateVal;
         this.synth.params.lfoRate = this.targetLfoRateVal;
         this.updateSliderUI('lfoRate', this.targetLfoRateVal, `${this.targetLfoRateVal.toFixed(1)} Hz`);
+
+        if (this.synth.lfoOsc && this.synth.ctx) {
+          this.synth.lfoOsc.frequency.setTargetAtTime(
+            this.targetLfoRateVal,
+            this.synth.ctx.currentTime,
+            0.02,
+          );
+        }
+
         this.lfoRateAnimFrame = null;
+        this.lastLfoRateFrameTime = null;
         return;
       }
 
-      // Smooth ballistic tracking (0.55 fast response)
-      const next = current + diff * 0.55;
+      // Delta-time EMA slew (tau ~45ms)
+      const alpha = Math.min(0.85, 1 - Math.exp(-dt / 0.045));
+      const next = current + diff * alpha;
       this.currentDisplayLfoRate = next;
       this.synth.params.lfoRate = next;
       this.updateSliderUI('lfoRate', next, `${next.toFixed(1)} Hz`);
+
+      if (this.synth.lfoOsc && this.synth.ctx) {
+        this.synth.lfoOsc.frequency.setTargetAtTime(
+          next,
+          this.synth.ctx.currentTime,
+          0.02,
+        );
+      }
 
       this.lfoRateAnimFrame = requestAnimationFrame(step);
     };
@@ -2199,11 +2346,13 @@ class SynthUI {
         if (paramKey === 'filterResonance' && this.resoAnimFrame) {
           cancelAnimationFrame(this.resoAnimFrame);
           this.resoAnimFrame = null;
+          this.lastResoFrameTime = null;
           this.currentDisplayResonance = undefined;
         }
         if (paramKey === 'lfoRate' && this.lfoRateAnimFrame) {
           cancelAnimationFrame(this.lfoRateAnimFrame);
           this.lfoRateAnimFrame = null;
+          this.lastLfoRateFrameTime = null;
           this.currentDisplayLfoRate = undefined;
         }
         const val = parseFloat(e.target.value);
@@ -2269,6 +2418,7 @@ class SynthUI {
           cancelAnimationFrame(this.cutoffAnimFrame);
           this.cutoffAnimFrame = null;
         }
+        this.lastCutoffFrameTime = null;
         const sliderVal = parseFloat(e.target.value);
         const hz = this.sliderToCutoff(sliderVal);
         this.currentDisplayCutoff = hz;

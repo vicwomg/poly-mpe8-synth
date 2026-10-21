@@ -2526,6 +2526,79 @@ input:checked + .toggle-slider:before {
   color: #fff;
 }
 
+.preset-browser-keep-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+  box-sizing: border-box;
+}
+
+.preset-browser-keep-open:hover {
+  color: var(--text-main);
+  border-color: rgba(6, 182, 212, 0.4);
+}
+
+.preset-browser-keep-open input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 3px;
+  background-color: var(--bg-card-inner, #161f2e);
+  cursor: pointer;
+  outline: none;
+  display: inline-grid;
+  place-content: center;
+  margin: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.preset-browser-keep-open input[type="checkbox"]:hover {
+  border-color: var(--accent-cyan);
+}
+
+.preset-browser-keep-open input[type="checkbox"]:checked {
+  background-color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
+.preset-browser-keep-open input[type="checkbox"]:checked::before {
+  content: "";
+  width: 8px;
+  height: 4.5px;
+  border-left: 2px solid #0b0f17;
+  border-bottom: 2px solid #0b0f17;
+  transform: rotate(-45deg) translate(0.5px, -0.5px);
+}
+
+.preset-browser-keep-open input[type="checkbox"]:checked + .preset-browser-keep-open-label {
+  color: #fff;
+}
+
+.preset-browser-keep-open.is-checked {
+  border-color: rgba(6, 182, 212, 0.5);
+  background-color: rgba(6, 182, 212, 0.08);
+  color: #fff;
+}
+
 .btn-preset-browser-close {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -2758,6 +2831,11 @@ input:checked + .toggle-slider:before {
   }
   .preset-card-meta {
     font-size: 7.5px;
+  }
+  .preset-browser-keep-open {
+    padding: 0 5px;
+    gap: 4px;
+    font-size: 9px;
   }
 }
 

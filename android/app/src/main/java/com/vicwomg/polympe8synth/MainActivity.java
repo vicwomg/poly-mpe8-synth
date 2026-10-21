@@ -1,9 +1,20 @@
 package com.vicwomg.polympe8synth;
 
+import android.app.KeyguardManager;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.os.SystemClock;
+import android.provider.Settings;
+import android.view.Display;
+import android.view.OrientationEventListener;
+import android.view.Surface;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -19,19 +30,40 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 public class MainActivity extends BridgeActivity {
+    private static final String PREFS_NAME = "synth_orientation_prefs";
+    private static final String KEY_LAST_ORIENTATION = "last_screen_orientation";
+    private static final long WAKE_SETTLE_DELAY_MS = 800L;
+    private static final long ROTATION_DEBOUNCE_MS = 250L;
+
+    private int lastKnownOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    private int pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    private long pendingOrientationStartMs = 0L;
+    private int wakeSuppressedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    private boolean needsWakeBaselineCapture = false;
+    private boolean isActivityResumed = false;
+    private long lastWakeOrResumeTimeMs = 0L;
+    private OrientationEventListener orientationEventListener;
+
     @CapacitorPlugin(name = "ScreenPlugin")
     public static class ScreenPlugin extends Plugin {
         @PluginMethod
         public void setKeepScreenOn(PluginCall call) {
             boolean enabled = call.getBoolean("enabled", true);
-            getActivity().runOnUiThread(() -> {
-                if (enabled) {
-                    getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                } else {
-                    getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                }
+            androidx.appcompat.app.AppCompatActivity activity = getActivity();
+            if (activity != null) {
+                activity.runOnUiThread(() -> {
+                    if (activity.getWindow() != null) {
+                        if (enabled) {
+                            activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        } else {
+                            activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        }
+                    }
+                    call.resolve();
+                });
+            } else {
                 call.resolve();
-            });
+            }
         }
     }
 
@@ -45,9 +77,9 @@ public class MainActivity extends BridgeActivity {
 
         registerPlugin(ScreenPlugin.class);
         super.onCreate(savedInstanceState);
-        
-        // Keep screen awake while synthesizer is active
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Restore and lock the last active orientation so screen sleep/wake never resets to portrait
+        initOrientationPreservation(savedInstanceState);
 
         // Ensure black backgrounds across window, system bars, and camera cutouts
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
@@ -85,8 +117,30 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (isValidExplicitOrientation(lastKnownOrientation)) {
+            outState.putInt(KEY_LAST_ORIENTATION, lastKnownOrientation);
+        }
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
+        isActivityResumed = true;
+        lastWakeOrResumeTimeMs = SystemClock.elapsedRealtime();
+        pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        needsWakeBaselineCapture = true;
+
+        // Enforce pre-sleep orientation immediately upon wake/resume
+        if (isValidExplicitOrientation(lastKnownOrientation)) {
+            setRequestedOrientation(lastKnownOrientation);
+        }
+
+        if (orientationEventListener != null && orientationEventListener.canDetectOrientation()) {
+            orientationEventListener.enable();
+        }
+
         enableImmersiveMode();
         if (this.bridge != null && this.bridge.getWebView() != null) {
             this.bridge.getWebView().onResume();
@@ -95,6 +149,19 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onPause() {
+        isActivityResumed = false;
+        pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+
+        // Lock current orientation before the OS lock screen (portrait) takes over
+        if (isValidExplicitOrientation(lastKnownOrientation)) {
+            persistOrientation(lastKnownOrientation);
+            setRequestedOrientation(lastKnownOrientation);
+        }
+
+        if (orientationEventListener != null) {
+            orientationEventListener.disable();
+        }
+
         super.onPause();
         if (this.bridge != null && this.bridge.getWebView() != null) {
             this.bridge.getWebView().onPause();
@@ -102,10 +169,198 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onDestroy() {
+        if (orientationEventListener != null) {
+            orientationEventListener.disable();
+        }
+        super.onDestroy();
+    }
+
+    @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
+            lastWakeOrResumeTimeMs = SystemClock.elapsedRealtime();
+            needsWakeBaselineCapture = true;
+            if (isValidExplicitOrientation(lastKnownOrientation)) {
+                setRequestedOrientation(lastKnownOrientation);
+            }
             enableImmersiveMode();
+        } else {
+            pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            if (isValidExplicitOrientation(lastKnownOrientation)) {
+                setRequestedOrientation(lastKnownOrientation);
+            }
+        }
+    }
+
+    private void initOrientationPreservation(Bundle savedInstanceState) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        int restored = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        if (savedInstanceState != null && savedInstanceState.containsKey(KEY_LAST_ORIENTATION)) {
+            restored = savedInstanceState.getInt(KEY_LAST_ORIENTATION, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+        if (!isValidExplicitOrientation(restored)) {
+            restored = prefs.getInt(KEY_LAST_ORIENTATION, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+        if (!isValidExplicitOrientation(restored)) {
+            restored = getCurrentDisplayOrientation();
+        }
+
+        lastKnownOrientation = restored;
+        persistOrientation(lastKnownOrientation);
+        setRequestedOrientation(lastKnownOrientation);
+
+        orientationEventListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
+            @Override
+            public void onOrientationChanged(int degrees) {
+                handlePhysicalOrientationChanged(degrees);
+            }
+        };
+        if (orientationEventListener.canDetectOrientation()) {
+            orientationEventListener.enable();
+        }
+    }
+
+    private void handlePhysicalOrientationChanged(int degrees) {
+        if (!isActivityResumed || !hasWindowFocus() || !isDeviceInteractiveAndUnlocked()) {
+            pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            return;
+        }
+
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastWakeOrResumeTimeMs < WAKE_SETTLE_DELAY_MS) {
+            pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            return;
+        }
+
+        if (!isSystemAutoRotateEnabled()) {
+            pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            return;
+        }
+
+        int candidate = mapDegreesToOrientation(degrees);
+
+        if (needsWakeBaselineCapture) {
+            needsWakeBaselineCapture = false;
+            if (candidate != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED && candidate != lastKnownOrientation) {
+                // Device was held in a different orientation (e.g. portrait) while unlocking the lock screen;
+                // suppress switching until the device moves out of that unlock posture
+                wakeSuppressedOrientation = candidate;
+            } else {
+                wakeSuppressedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            }
+        }
+
+        if (wakeSuppressedOrientation != ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+            if (candidate == wakeSuppressedOrientation) {
+                pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+                return;
+            } else {
+                wakeSuppressedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            }
+        }
+
+        if (candidate == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED || candidate == lastKnownOrientation) {
+            pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            return;
+        }
+
+        if (candidate != pendingOrientation) {
+            pendingOrientation = candidate;
+            pendingOrientationStartMs = now;
+            return;
+        }
+
+        if (now - pendingOrientationStartMs >= ROTATION_DEBOUNCE_MS) {
+            lastKnownOrientation = candidate;
+            pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            persistOrientation(lastKnownOrientation);
+            setRequestedOrientation(lastKnownOrientation);
+        }
+    }
+
+    private int mapDegreesToOrientation(int degrees) {
+        if (degrees == OrientationEventListener.ORIENTATION_UNKNOWN) {
+            return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        }
+        // Strict +/- 25 degree zones around cardinal angles so shallow stand tilts never reset rotation
+        if (degrees >= 335 || degrees <= 25) {
+            return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        } else if (degrees >= 65 && degrees <= 115) {
+            return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+        } else if (degrees >= 245 && degrees <= 295) {
+            return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        }
+        return ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+    }
+
+    private int getCurrentDisplayOrientation() {
+        int rotation = Surface.ROTATION_0;
+        try {
+            Display display = null;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display = getDisplay();
+            }
+            if (display == null) {
+                display = getWindowManager().getDefaultDisplay();
+            }
+            if (display != null) {
+                rotation = display.getRotation();
+            }
+        } catch (Exception ignored) {}
+
+        switch (rotation) {
+            case Surface.ROTATION_90:
+                return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            case Surface.ROTATION_270:
+                return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+            case Surface.ROTATION_180:
+                return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            case Surface.ROTATION_0:
+            default:
+                return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        }
+    }
+
+    private boolean isValidExplicitOrientation(int orientation) {
+        return orientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            || orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            || orientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+            || orientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+    }
+
+    private void persistOrientation(int orientation) {
+        if (!isValidExplicitOrientation(orientation)) return;
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(KEY_LAST_ORIENTATION, orientation)
+            .apply();
+    }
+
+    private boolean isDeviceInteractiveAndUnlocked() {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && !pm.isInteractive()) {
+                return false;
+            }
+            KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            if (km != null && km.isKeyguardLocked()) {
+                return false;
+            }
+        } catch (Exception ignored) {}
+        return true;
+    }
+
+    private boolean isSystemAutoRotateEnabled() {
+        try {
+            return Settings.System.getInt(
+                getContentResolver(),
+                Settings.System.ACCELEROMETER_ROTATION,
+                1
+            ) == 1;
+        } catch (Exception e) {
+            return true;
         }
     }
 

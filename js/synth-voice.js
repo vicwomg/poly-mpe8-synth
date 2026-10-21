@@ -578,7 +578,7 @@ export class SynthVoice {
         : 0;
 
     const totalQ = Math.max(0.1, Math.min(25, baseQ + mpeResoQ));
-    const qTimeConstant = isContinuousCC ? 0.04 : 0.003;
+    const qTimeConstant = isContinuousCC ? 0.025 : 0.003;
     this.filter.Q.setTargetAtTime(totalQ, time, qTimeConstant);
 
     if (isNoteOn) {
@@ -650,8 +650,8 @@ export class SynthVoice {
           Math.max(0, Math.min(127, this.pressure || 0)) / 127;
         targetCutoff = Math.min(20000, targetCutoff + pressureNorm * 1800);
       }
-      // Analog RC slew on live CC changes: 40ms eliminates 60Hz stepping zipper noise
-      const timeConstant = isContinuousCC ? 0.04 : 0.005;
+      // Analog RC slew on live CC changes: 25ms eliminates zipper noise seamlessly between animation frames
+      const timeConstant = isContinuousCC ? 0.025 : 0.005;
       this.filter.frequency.setTargetAtTime(targetCutoff, time, timeConstant);
     }
   }

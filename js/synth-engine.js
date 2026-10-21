@@ -14,22 +14,17 @@ export class SynthEngine {
       typeof localStorage !== "undefined"
         ? localStorage.getItem("synth_buffer_mode")
         : null;
-    // On Android, default to 'interactive' (10ms buffer) for crisp response
-    if (isAndroid) {
-      if (
-        !savedBuffer ||
-        savedBuffer === "ultralow" ||
-        savedBuffer === "balanced"
-      ) {
-        this.bufferMode = "interactive";
-        try {
-          localStorage.setItem("synth_buffer_mode", "interactive");
-        } catch (_) {}
-      } else {
-        this.bufferMode = savedBuffer;
-      }
+    const validBufferModes = ["ultralow", "interactive", "balanced", "safe"];
+    if (savedBuffer && validBufferModes.includes(savedBuffer)) {
+      this.bufferMode = savedBuffer;
+    } else if (isAndroid) {
+      // On Android, default to 'interactive' (10ms buffer) for crisp response
+      this.bufferMode = "interactive";
+      try {
+        localStorage.setItem("synth_buffer_mode", "interactive");
+      } catch (_) {}
     } else {
-      this.bufferMode = savedBuffer || "ultralow";
+      this.bufferMode = "ultralow";
     }
 
     this.voiceCount = parseInt(
@@ -298,11 +293,31 @@ export class SynthEngine {
   async reconfigureAudio(bufferMode = null, voiceCount = null) {
     if (bufferMode) {
       this.bufferMode = bufferMode;
-      localStorage.setItem("synth_buffer_mode", bufferMode);
+      try {
+        localStorage.setItem("synth_buffer_mode", bufferMode);
+      } catch (_) {}
+      if (typeof window !== "undefined" && window.Capacitor?.Plugins?.Preferences) {
+        try {
+          window.Capacitor.Plugins.Preferences.set({
+            key: "synth_buffer_mode",
+            value: bufferMode,
+          });
+        } catch (_) {}
+      }
     }
     if (voiceCount) {
       this.voiceCount = parseInt(voiceCount, 10);
-      localStorage.setItem("synth_voice_count", this.voiceCount.toString());
+      try {
+        localStorage.setItem("synth_voice_count", this.voiceCount.toString());
+      } catch (_) {}
+      if (typeof window !== "undefined" && window.Capacitor?.Plugins?.Preferences) {
+        try {
+          window.Capacitor.Plugins.Preferences.set({
+            key: "synth_voice_count",
+            value: this.voiceCount.toString(),
+          });
+        } catch (_) {}
+      }
     }
 
     if (this.isAudioStarted && this.ctx) {
