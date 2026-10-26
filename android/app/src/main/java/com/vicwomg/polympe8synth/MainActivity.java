@@ -9,6 +9,8 @@ import android.graphics.drawable.ColorDrawable;
 import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
@@ -41,8 +43,12 @@ public class MainActivity extends BridgeActivity {
     private int wakeSuppressedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     private boolean needsWakeBaselineCapture = false;
     private boolean isActivityResumed = false;
+    private boolean needsAudioRecoveryOnWake = false;
     private long lastWakeOrResumeTimeMs = 0L;
     private OrientationEventListener orientationEventListener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingAudioWakeRunnable = null;
+    private Runnable settledAudioWakeRunnable = null;
 
     @CapacitorPlugin(name = "ScreenPlugin")
     public static class ScreenPlugin extends Plugin {
@@ -77,6 +83,9 @@ public class MainActivity extends BridgeActivity {
 
         registerPlugin(ScreenPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Keep screen awake while synthesizer is active
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         // Restore and lock the last active orientation so screen sleep/wake never resets to portrait
         initOrientationPreservation(savedInstanceState);
@@ -126,6 +135,13 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onResume() {
+        // Unpause WebView and JS timers BEFORE super.onResume() dispatches Capacitor resume events
+        if (this.bridge != null && this.bridge.getWebView() != null) {
+            android.webkit.WebView webView = this.bridge.getWebView();
+            webView.onResume();
+            webView.resumeTimers();
+        }
+
         super.onResume();
         isActivityResumed = true;
         lastWakeOrResumeTimeMs = SystemClock.elapsedRealtime();
@@ -142,15 +158,18 @@ public class MainActivity extends BridgeActivity {
         }
 
         enableImmersiveMode();
-        if (this.bridge != null && this.bridge.getWebView() != null) {
-            this.bridge.getWebView().onResume();
-        }
+        scheduleAudioWakeRecovery(0);
     }
 
     @Override
     public void onPause() {
         isActivityResumed = false;
+        needsAudioRecoveryOnWake = true;
         pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        cancelScheduledAudioWakeRecovery();
+
+        // Notify JS synth engine to silence voices and mark AudioContext for clean reinit before WebView pauses
+        dispatchJsAudioEvent("native-audio-sleep", "pause");
 
         // Lock current orientation before the OS lock screen (portrait) takes over
         if (isValidExplicitOrientation(lastKnownOrientation)) {
@@ -170,6 +189,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onDestroy() {
+        cancelScheduledAudioWakeRecovery();
         if (orientationEventListener != null) {
             orientationEventListener.disable();
         }
@@ -182,16 +202,82 @@ public class MainActivity extends BridgeActivity {
         if (hasFocus) {
             lastWakeOrResumeTimeMs = SystemClock.elapsedRealtime();
             needsWakeBaselineCapture = true;
+            if (this.bridge != null && this.bridge.getWebView() != null) {
+                android.webkit.WebView webView = this.bridge.getWebView();
+                webView.onResume();
+                webView.resumeTimers();
+            }
             if (isValidExplicitOrientation(lastKnownOrientation)) {
                 setRequestedOrientation(lastKnownOrientation);
             }
             enableImmersiveMode();
+            scheduleAudioWakeRecovery(0);
         } else {
             pendingOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            if (!isDeviceInteractiveAndUnlocked()) {
+                needsAudioRecoveryOnWake = true;
+            }
             if (isValidExplicitOrientation(lastKnownOrientation)) {
                 setRequestedOrientation(lastKnownOrientation);
             }
         }
+    }
+
+    private void cancelScheduledAudioWakeRecovery() {
+        if (pendingAudioWakeRunnable != null) {
+            mainHandler.removeCallbacks(pendingAudioWakeRunnable);
+            pendingAudioWakeRunnable = null;
+        }
+        if (settledAudioWakeRunnable != null) {
+            mainHandler.removeCallbacks(settledAudioWakeRunnable);
+            settledAudioWakeRunnable = null;
+        }
+    }
+
+    private void scheduleAudioWakeRecovery(int attempt) {
+        if (!needsAudioRecoveryOnWake) return;
+
+        if (pendingAudioWakeRunnable != null) {
+            mainHandler.removeCallbacks(pendingAudioWakeRunnable);
+            pendingAudioWakeRunnable = null;
+        }
+
+        pendingAudioWakeRunnable = () -> {
+            pendingAudioWakeRunnable = null;
+            if (!isActivityResumed) return;
+
+            if (hasWindowFocus() && isDeviceInteractiveAndUnlocked()) {
+                // Wait 160ms after focus + unlock so orientation lock and AudioFlinger fast-track handoff settle
+                if (settledAudioWakeRunnable != null) {
+                    mainHandler.removeCallbacks(settledAudioWakeRunnable);
+                }
+                settledAudioWakeRunnable = () -> {
+                    settledAudioWakeRunnable = null;
+                    if (isActivityResumed && hasWindowFocus() && isDeviceInteractiveAndUnlocked()) {
+                        needsAudioRecoveryOnWake = false;
+                        dispatchJsAudioEvent("native-audio-wake", "native-settled");
+                    } else if (isActivityResumed) {
+                        scheduleAudioWakeRecovery(0);
+                    }
+                };
+                mainHandler.postDelayed(settledAudioWakeRunnable, 160L);
+            } else if (attempt < 40) {
+                scheduleAudioWakeRecovery(attempt + 1);
+            }
+        };
+
+        mainHandler.postDelayed(pendingAudioWakeRunnable, attempt == 0 ? 80L : 120L);
+    }
+
+    private void dispatchJsAudioEvent(String eventName, String phase) {
+        if (this.bridge == null || this.bridge.getWebView() == null) return;
+        android.webkit.WebView webView = this.bridge.getWebView();
+        String js = "window.dispatchEvent(new CustomEvent('" + eventName + "', { detail: { phase: '" + phase + "' } }));";
+        webView.post(() -> {
+            try {
+                webView.evaluateJavascript(js, null);
+            } catch (Exception ignored) {}
+        });
     }
 
     private void initOrientationPreservation(Bundle savedInstanceState) {

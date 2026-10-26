@@ -721,34 +721,87 @@ class SynthUI {
 
     // Sleep / Wake Lifecycle & Low-Latency Audio Recovery across Android, iOS, and Web
     let lastHiddenTime = 0;
+    let wakeSettleTimer = null;
 
     const handleAppSleep = () => {
       lastHiddenTime = Date.now();
-      if (this.synth?.isAudioStarted) {
-        this.synth.panic();
+      if (wakeSettleTimer) {
+        clearTimeout(wakeSettleTimer);
+        wakeSettleTimer = null;
+      }
+      if (this.synth) {
+        if (typeof this.synth.handleSleep === 'function') {
+          this.synth.handleSleep();
+        } else if (this.synth.isAudioStarted) {
+          this.synth.panic();
+        }
       }
     };
 
-    const handleAppWake = async (reason = 'wake') => {
-      this.updateNotchOrientation?.();
-      this.updateMobilePresetSelect?.();
-      if (!this.synth?.isAudioStarted) return;
-      this.recordActivity();
-      if (this.keepScreenAwake) {
-        await this.requestWakeLock();
-      }
-
-      const elapsedHiddenMs = lastHiddenTime > 0 ? (Date.now() - lastHiddenTime) : 0;
-      // If the app was sleeping/hidden for > 1000ms or triggered by native resume,
-      // force clean re-initialization of AudioContext to guarantee native AAudio low-latency
-      const forceReinit = elapsedHiddenMs > 1000 || reason === 'resume';
-
+    const runAudioRecovery = async (forceReinit) => {
+      if (!this.synth) return;
       await this.synth.recoverAudioEngine(forceReinit);
       if (this.visualizer) {
         this.visualizer.synth = this.synth;
         this.visualizer.mockFilter = null;
       }
       updateStatusUI();
+    };
+
+    const handleAppWake = async (reason = 'wake') => {
+      this.updateNotchOrientation?.();
+      this.updateMobilePresetSelect?.();
+      if (
+        !this.synth?.isAudioStarted &&
+        !this.synth?._hasStartedOnce &&
+        !this.synth?._recoveryPromise
+      ) {
+        return;
+      }
+      this.recordActivity();
+      if (this.keepScreenAwake) {
+        await this.requestWakeLock();
+      }
+
+      const elapsedHiddenMs = lastHiddenTime > 0 ? (Date.now() - lastHiddenTime) : 0;
+      const wasSleeping = Boolean(
+        this.synth._needsWakeReinit ||
+        elapsedHiddenMs > 150 ||
+        reason === 'resume' ||
+        reason === 'native-settled' ||
+        reason === 'native-wake'
+      );
+
+      if (reason === 'native-settled') {
+        if (wakeSettleTimer) {
+          clearTimeout(wakeSettleTimer);
+          wakeSettleTimer = null;
+        }
+        lastHiddenTime = 0;
+        await runAudioRecovery(true);
+        return;
+      }
+
+      if (wasSleeping) {
+        // Coalesce rapid wake events (resume, visibilitychange, focus, appStateChange)
+        // and allow OS window focus + orientation lock to settle before rebuilding AAudio
+        if (wakeSettleTimer) {
+          clearTimeout(wakeSettleTimer);
+        }
+        const settleDelayMs =
+          typeof window !== 'undefined' && window.Capacitor?.getPlatform?.() === 'android'
+            ? 280
+            : 160;
+        wakeSettleTimer = setTimeout(() => {
+          wakeSettleTimer = null;
+          if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+            lastHiddenTime = 0;
+            runAudioRecovery(true);
+          }
+        }, settleDelayMs);
+      } else {
+        await runAudioRecovery(false);
+      }
     };
 
     document.addEventListener('visibilitychange', () => {
@@ -759,9 +812,13 @@ class SynthUI {
       }
     });
 
-    // Native Cordova/Capacitor bridge resume/pause events
+    // Native Cordova/Capacitor bridge resume/pause events & Android MainActivity native audio hooks
     document.addEventListener('pause', handleAppSleep);
     document.addEventListener('resume', () => handleAppWake('resume'));
+    window.addEventListener('native-audio-sleep', handleAppSleep);
+    window.addEventListener('native-audio-wake', (e) => {
+      handleAppWake(e?.detail?.phase || 'native-settled');
+    });
 
     // Window focus / blur events
     window.addEventListener('blur', () => {

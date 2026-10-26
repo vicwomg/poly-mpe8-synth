@@ -129,6 +129,11 @@ export class SynthEngine {
     this.globalCC7 = 127;
     this.silentAudioElement = null;
     this._recoveryPromise = null;
+    this._recoveryForceActive = false;
+    this._pendingForceReinit = false;
+    this._needsWakeReinit = false;
+    this._hasStartedOnce = false;
+    this._lastReinitTimeMs = 0;
     this._lastNotePerf = 0;
     this._lastNoteAudioTime = 0;
   }
@@ -277,13 +282,32 @@ export class SynthEngine {
     this.setupLFO();
 
     this.isAudioStarted = true;
+    this._hasStartedOnce = true;
 
     // Report measured hardware buffer latency
     if (this.onBufferStatChange) {
+      const fallbackSec =
+        typeof latencyOption === "number" ? latencyOption : 0.01;
       const ms = this.ctx.baseLatency
         ? (this.ctx.baseLatency * 1000).toFixed(1)
-        : (latencyOption * 1000).toFixed(0);
+        : (fallbackSec * 1000).toFixed(0);
       this.onBufferStatChange(ms);
+    }
+  }
+
+  /**
+   * Prepares audio engine for device sleep/backgrounding.
+   * Silences active voices, suspends the AudioContext so background threads
+   * do not hold or corrupt the hardware stream, and marks for mandatory reinit on wake.
+   */
+  handleSleep() {
+    if (!this.isAudioStarted && !this._hasStartedOnce) return;
+    this._needsWakeReinit = true;
+    this.panic();
+    if (this.ctx && this.ctx.state === "running") {
+      try {
+        this.ctx.suspend().catch(() => {});
+      } catch (_) {}
     }
   }
 
@@ -320,7 +344,7 @@ export class SynthEngine {
       }
     }
 
-    if (this.isAudioStarted && this.ctx) {
+    if ((this.isAudioStarted || this._hasStartedOnce) && (this.ctx || this._recoveryPromise)) {
       await this.recoverAudioEngine(true);
     }
   }
@@ -331,17 +355,39 @@ export class SynthEngine {
    * the AudioContext if frozen or degraded to maintain pristine low-latency AAudio.
    */
   async recoverAudioEngine(forceReinit = false) {
-    if (!this.isAudioStarted && !forceReinit) return;
+    const shouldForce = Boolean(forceReinit || this._needsWakeReinit);
+    if (!this.isAudioStarted && !this._hasStartedOnce && !shouldForce) return;
 
     if (this._recoveryPromise) {
+      if (
+        shouldForce &&
+        (!this._recoveryForceActive ||
+          Date.now() - (this._recoveryStartMs || 0) > 100)
+      ) {
+        this._pendingForceReinit = true;
+      }
       return this._recoveryPromise;
     }
 
+    this._recoveryForceActive = shouldForce;
+    this._recoveryStartMs = Date.now();
     this._recoveryPromise = (async () => {
       try {
-        await this._doRecoverAudioEngine(forceReinit);
+        let nextForce = shouldForce;
+        while (true) {
+          this._pendingForceReinit = false;
+          this._recoveryForceActive = nextForce;
+          this._recoveryStartMs = Date.now();
+          await this._doRecoverAudioEngine(nextForce);
+          if (this._pendingForceReinit) {
+            nextForce = true;
+          } else {
+            break;
+          }
+        }
       } finally {
         this._recoveryPromise = null;
+        this._recoveryForceActive = false;
       }
     })();
 
@@ -352,7 +398,7 @@ export class SynthEngine {
     // 1. Panic stop any hanging notes or ringing delay/reverb
     this.panic();
 
-    let needsReinit = forceReinit;
+    let needsReinit = Boolean(forceReinit || this._needsWakeReinit);
 
     if (!this.ctx) {
       needsReinit = true;
@@ -405,12 +451,30 @@ export class SynthEngine {
       }
 
       try {
+        if (this.masterClipper) this.masterClipper.disconnect();
+        if (this.masterGain) this.masterGain.disconnect();
+        if (this.masterLimiter) this.masterLimiter.disconnect();
+        if (this.voicesBus) this.voicesBus.disconnect();
+      } catch (_) {}
+
+      try {
         if (oldCtx && oldCtx.state !== "closed") {
           await oldCtx.close();
         }
       } catch (_) {}
 
+      // Allow Android AAudioService / AudioFlinger to fully release the hardware fast-track stream
+      // before requesting a new low-latency stream
+      await new Promise((r) => setTimeout(r, 65));
+
       await this.initAudio();
+      this._lastReinitTimeMs = Date.now();
+
+      const isVisible =
+        typeof document === "undefined" || document.visibilityState !== "hidden";
+      if (this.ctx && this.ctx.state === "running" && isVisible) {
+        this._needsWakeReinit = false;
+      }
 
       // Update visualizer references if attached
       if (this.ui && this.ui.visualizer) {
@@ -1131,8 +1195,8 @@ export class SynthEngine {
   // --- MIDI & MPE Message Handlers ---
 
   noteOn(note, velocity = 0.8, channel = 1) {
-    if (!this.ctx) {
-      if (this.isAudioStarted) {
+    if (!this.ctx || this._needsWakeReinit) {
+      if (this.isAudioStarted || this._hasStartedOnce) {
         this.recoverAudioEngine(true).then(() => {
           this.noteOn(note, velocity, channel);
         });
